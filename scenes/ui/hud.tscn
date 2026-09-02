@@ -1,0 +1,97 @@
+[gd_scene format=3 uid="uid://c8su7xrbxq0m"]
+
+[ext_resource type="Script" uid="uid://c0vktpgppa4l6" path="res://scripts/ui/hud.gd" id="1_0mwgc"]
+
+[node name="HUD" type="CanvasLayer" unique_id=595795428]
+script = ExtResource("1_0mwgc")
+
+[node name="TopRight" type="VBoxContainer" parent="." unique_id=1304357740]
+custom_minimum_size = Vector2(200, 0)
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -352.0
+offset_top = 10.0
+offset_right = -352.0
+offset_bottom = 10.0
+grow_horizontal = 0
+
+[node name="LevelLabel" type="Label" parent="TopRight" unique_id=1876480626]
+layout_mode = 2
+text = "Lv. 0"
+
+[node name="HealthBar" type="ProgressBar" parent="TopRight" unique_id=749866745]
+custom_minimum_size = Vector2(180, 16)
+layout_mode = 2
+value = 100.0
+
+[node name="StaminaBar" type="ProgressBar" parent="TopRight" unique_id=440843410]
+custom_minimum_size = Vector2(180, 10)
+layout_mode = 2
+max_value = 30.0
+value = 30.0
+
+[node name="ExpBar" type="ProgressBar" parent="TopRight" unique_id=1136323716]
+custom_minimum_size = Vector2(180, 8)
+layout_mode = 2
+
+[node name="MoneyLabel" type="Label" parent="TopRight" unique_id=1417766061]
+layout_mode = 2
+text = "Gold: 0"
+
+[node name="WeaponLabel" type="Label" parent="TopRight" unique_id=1531272895]
+layout_mode = 2
+text = "Weapon: Fist"
+
+[node name="TopCenter" type="VBoxContainer" parent="." unique_id=1465258919]
+offset_left = 480.0
+offset_top = 10.0
+offset_right = 480.0
+offset_bottom = 10.0
+
+[node name="TimeLabel" type="Label" parent="TopCenter" unique_id=1780697850]
+layout_mode = 2
+text = "08:00"
+horizontal_alignment = 1
+
+[node name="DayLabel" type="Label" parent="TopCenter" unique_id=2017084321]
+layout_mode = 2
+text = "Day 1"
+horizontal_alignment = 1
+
+[node name="TopLeft" type="Control" parent="." unique_id=166260926]
+layout_mode = 3
+anchors_preset = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 10.0
+offset_bottom = 10.0
+
+[node name="MinimapContainer" type="Panel" parent="TopLeft" unique_id=897086134]
+custom_minimum_size = Vector2(150, 150)
+layout_mode = 0
+
+[node name="BigMap" type="Panel" parent="." unique_id=1510010608]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="NotificationLabel" type="Label" parent="." unique_id=346595655]
+visible = false
+offset_left = 350.0
+offset_top = 550.0
+offset_right = 351.0
+offset_bottom = 573.0
+horizontal_alignment = 1
+
+[node name="InteractionHint" type="Label" parent="." unique_id=780830520]
+visible = false
+offset_left = 450.0
+offset_top = 450.0
+offset_right = 451.0
+offset_bottom = 473.0
+text = "[F] Interact"
+horizontal_alignment = 1

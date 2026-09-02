@@ -1,0 +1,341 @@
+extends CharacterBody2D
+
+# Movement
+const WALK_SPEED := 280.0
+const DASH_SPEED := 650.0
+const DASH_DURATION := 0.22
+const SWIM_SPEED := 160.0
+const CHARGE_TIME := 0.9
+const ATTACK_COOLDOWN := 0.35
+const KNOCKBACK_FORCE := 350.0
+
+# State
+enum State { IDLE, RUNNING, DASHING, SWIMMING, ATTACKING, CHARGING, DEAD }
+var current_state: State = State.IDLE
+
+# Stats and inventory
+var stats: PlayerStats = PlayerStats.new()
+var inventory: PlayerInventory = PlayerInventory.new()
+
+# Movement vars
+var direction: Vector2 = Vector2.ZERO
+var look_direction: Vector2 = Vector2.RIGHT
+var is_swimming: bool = false
+
+# Dash vars
+var dash_timer: float = 0.0
+var dash_direction: Vector2 = Vector2.ZERO
+
+# Combat vars
+var attack_timer: float = 0.0
+var charge_timer: float = 0.0
+var is_charging: bool = false
+
+# Stamina regen
+var stamina_regen_cooldown: float = 0.0
+
+# Interaction
+var nearby_interactable: Node = null
+
+@onready var sprite: AnimatedSprite2D = get_node_or_null("Sprite2D")
+@onready var collision_shape: CollisionShape2D = get_node_or_null("CollisionShape")
+@onready var attack_area: Area2D = get_node_or_null("AttackArea")
+@onready var attack_shape: CollisionShape2D = get_node_or_null("AttackArea/AttackShape")
+@onready var interaction_area: Area2D = get_node_or_null("InteractionArea")
+@onready var hurtbox: Area2D = get_node_or_null("Hurtbox")
+
+var visual_renderer: CustomDraw2D = null
+
+func _ready() -> void:
+	GameManager.player = self
+	add_to_group("player")
+	
+	# Add procedural visual renderer if not already present
+	visual_renderer = get_node_or_null("CustomDraw2D") as CustomDraw2D
+	if visual_renderer == null:
+		visual_renderer = CustomDraw2D.new()
+		visual_renderer.name = "CustomDraw2D"
+		visual_renderer.entity_type = CustomDraw2D.EntityType.PLAYER
+		add_child(visual_renderer)
+	
+	stats.current_hp = stats.get_max_hp()
+	stats.current_stamina = stats.get_max_stamina()
+	
+	if attack_area:
+		attack_area.monitoring = false
+	
+	if interaction_area:
+		interaction_area.body_entered.connect(_on_interaction_area_body_entered)
+		interaction_area.body_exited.connect(_on_interaction_area_body_exited)
+		interaction_area.area_entered.connect(_on_interaction_area_area_entered)
+		interaction_area.area_exited.connect(_on_interaction_area_area_exited)
+	
+	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
+	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
+	EventBus.player_money_changed.emit(stats.money)
+
+func _physics_process(delta: float) -> void:
+	if current_state == State.DEAD:
+		return
+	
+	_handle_input()
+	_update_timers(delta)
+	_update_state(delta)
+	_update_animation()
+	move_and_slide()
+
+func _handle_input() -> void:
+	# Movement direction
+	direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	
+	# Aiming logic (mouse cursor direction, fallback to movement direction)
+	var mouse_pos := get_global_mouse_position()
+	var aim_dir := (mouse_pos - global_position).normalized()
+	if aim_dir.length() > 0.1:
+		look_direction = aim_dir
+	elif direction != Vector2.ZERO:
+		look_direction = direction.normalized()
+	
+	# Dash
+	if Input.is_action_just_pressed("dash") and current_state != State.DASHING:
+		_try_dash()
+	
+	# Attack / Charge attack
+	if Input.is_action_just_pressed("attack") and current_state not in [State.DASHING, State.DEAD]:
+		is_charging = true
+		charge_timer = 0.0
+	
+	if Input.is_action_just_released("attack") and is_charging:
+		if charge_timer >= CHARGE_TIME:
+			_charge_attack()
+		else:
+			_normal_attack()
+		is_charging = false
+		charge_timer = 0.0
+	
+	# Interact
+	if Input.is_action_just_pressed("interact") and nearby_interactable:
+		if nearby_interactable.has_method("interact"):
+			nearby_interactable.interact(self)
+	
+	# Inventory
+	if Input.is_action_just_pressed("inventory"):
+		EventBus.inventory_toggled.emit()
+	
+	# Pause
+	if Input.is_action_just_pressed("pause"):
+		EventBus.pause_toggled.emit()
+
+func _update_timers(delta: float) -> void:
+	if attack_timer > 0:
+		attack_timer -= delta
+	if dash_timer > 0:
+		dash_timer -= delta
+		if dash_timer <= 0:
+			current_state = State.IDLE if not is_swimming else State.SWIMMING
+	if is_charging:
+		charge_timer += delta
+	
+	# Stamina regen
+	if stamina_regen_cooldown > 0:
+		stamina_regen_cooldown -= delta
+	else:
+		stats.regen_stamina(delta)
+	
+	# Swimming stamina drain (3 stamina per sec)
+	if is_swimming and current_state != State.DEAD:
+		if not stats.use_stamina(stats.SWIM_STAMINA_PER_SEC * delta):
+			# Out of stamina while swimming - take drowning damage
+			stats.take_damage(6.0 * delta)
+		stamina_regen_cooldown = stats.STAMINA_REGEN_DELAY
+
+func _update_state(delta: float) -> void:
+	match current_state:
+		State.DASHING:
+			velocity = dash_direction * DASH_SPEED
+		State.ATTACKING:
+			velocity = velocity.move_toward(Vector2.ZERO, 600 * delta)
+			if attack_timer <= 0:
+				current_state = State.IDLE if not is_swimming else State.SWIMMING
+				if attack_area:
+					attack_area.monitoring = false
+		_:
+			if direction != Vector2.ZERO:
+				var speed: float = SWIM_SPEED if is_swimming else WALK_SPEED
+				velocity = direction.normalized() * speed
+				current_state = State.SWIMMING if is_swimming else State.RUNNING
+			else:
+				velocity = velocity.move_toward(Vector2.ZERO, 800 * delta)
+				if velocity.length() < 10:
+					current_state = State.SWIMMING if is_swimming else State.IDLE
+
+func _update_animation() -> void:
+	if attack_area:
+		attack_area.position = look_direction.normalized() * 30
+		attack_area.rotation = look_direction.angle()
+	
+	if sprite and sprite.sprite_frames:
+		if look_direction.x < 0:
+			sprite.flip_h = true
+		elif look_direction.x > 0:
+			sprite.flip_h = false
+
+var nearby_interactables: Array[Node] = []
+
+func get_effective_attack() -> float:
+	var base_atk := stats.get_attack()
+	var bonus: float = inventory.equipped_weapon.get("attack_bonus", 0.0)
+	return base_atk + bonus
+
+func _try_dash() -> void:
+	if stats.use_stamina(stats.DASH_STAMINA_COST):
+		current_state = State.DASHING
+		dash_timer = DASH_DURATION
+		dash_direction = direction.normalized() if direction != Vector2.ZERO else look_direction
+		stamina_regen_cooldown = stats.STAMINA_REGEN_DELAY
+
+func _normal_attack() -> void:
+	if attack_timer > 0:
+		return
+	current_state = State.ATTACKING
+	attack_timer = ATTACK_COOLDOWN
+	if attack_area:
+		attack_area.monitoring = true
+	_deal_damage_to_area(get_effective_attack())
+	await get_tree().create_timer(0.15).timeout
+	if attack_area:
+		attack_area.monitoring = false
+
+func _charge_attack() -> void:
+	if attack_timer > 0:
+		return
+	current_state = State.ATTACKING
+	attack_timer = ATTACK_COOLDOWN * 1.5
+	if attack_area:
+		attack_area.monitoring = true
+	var charge_damage: float = get_effective_attack() * 2.0
+	_deal_damage_to_area(charge_damage)
+	await get_tree().create_timer(0.25).timeout
+	if attack_area:
+		attack_area.monitoring = false
+
+func _deal_damage_to_area(damage: float) -> void:
+	if attack_area == null:
+		return
+	var hit_targets: Array[Node] = []
+	
+	# Check overlapping bodies (monsters, mining rocks)
+	for body in attack_area.get_overlapping_bodies():
+		if body != self and body not in hit_targets and body.has_method("take_damage"):
+			hit_targets.append(body)
+			var knockback_dir: Vector2 = (body.global_position - global_position).normalized()
+			body.take_damage(damage, knockback_dir * KNOCKBACK_FORCE)
+			EventBus.damage_dealt.emit(body, damage)
+	
+	# Check overlapping areas (hurtboxes, destructibles)
+	for area in attack_area.get_overlapping_areas():
+		var parent: Node = area.get_parent()
+		if parent and parent != self and parent not in hit_targets and parent.has_method("take_damage"):
+			hit_targets.append(parent)
+			var knockback_dir: Vector2 = (parent.global_position - global_position).normalized() if parent is Node2D else Vector2.ZERO
+			parent.take_damage(damage, knockback_dir * KNOCKBACK_FORCE)
+			EventBus.damage_dealt.emit(parent, damage)
+		elif area != self and area not in hit_targets and area.has_method("take_damage"):
+			hit_targets.append(area)
+			var knockback_dir: Vector2 = (area.global_position - global_position).normalized()
+			area.take_damage(damage, knockback_dir * KNOCKBACK_FORCE)
+			EventBus.damage_dealt.emit(area, damage)
+
+func take_damage(amount: float, knockback: Vector2 = Vector2.ZERO) -> void:
+	if current_state == State.DASHING or current_state == State.DEAD:
+		return # Invincible while dashing
+	var defense: float = inventory.equipped_armor.get("defense", 0.0)
+	var final_dmg := maxf(1.0, amount - defense)
+	stats.take_damage(final_dmg)
+	velocity += knockback
+	if stats.current_hp <= 0:
+		die()
+
+func die() -> void:
+	current_state = State.DEAD
+	velocity = Vector2.ZERO
+	await get_tree().create_timer(1.2).timeout
+	GameManager.game_over()
+
+func respawn() -> void:
+	stats.current_hp = stats.get_max_hp()
+	stats.current_stamina = stats.get_max_stamina()
+	current_state = State.IDLE
+	is_swimming = false
+	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
+	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
+
+func set_swimming(swimming: bool) -> void:
+	is_swimming = swimming
+	if swimming and current_state != State.DEAD and current_state != State.DASHING:
+		current_state = State.SWIMMING
+	elif not swimming and current_state == State.SWIMMING:
+		current_state = State.IDLE
+
+func _update_active_interactable() -> void:
+	nearby_interactables = nearby_interactables.filter(func(n): return is_instance_valid(n))
+	if nearby_interactables.is_empty():
+		nearby_interactable = null
+		EventBus.interaction_unavailable.emit()
+		return
+	
+	# Pick the closest one
+	var closest: Node = null
+	var min_d_sq: float = INF
+	for item in nearby_interactables:
+		if item is Node2D:
+			var d_sq: float = global_position.distance_squared_to((item as Node2D).global_position)
+			if d_sq < min_d_sq:
+				min_d_sq = d_sq
+				closest = item
+		else:
+			closest = item
+	nearby_interactable = closest
+	EventBus.interaction_available.emit(nearby_interactable)
+
+func _on_interaction_area_body_entered(body: Node2D) -> void:
+	if body != self and body.has_method("interact"):
+		if body not in nearby_interactables:
+			nearby_interactables.append(body)
+		_update_active_interactable()
+
+func _on_interaction_area_body_exited(body: Node2D) -> void:
+	nearby_interactables.erase(body)
+	_update_active_interactable()
+
+func _on_interaction_area_area_entered(area: Area2D) -> void:
+	var target: Node = area
+	if not area.has_method("interact") and area.get_parent() and area.get_parent().has_method("interact"):
+		target = area.get_parent()
+	if target != self and target.has_method("interact"):
+		if target not in nearby_interactables:
+			nearby_interactables.append(target)
+		_update_active_interactable()
+
+func _on_interaction_area_area_exited(area: Area2D) -> void:
+	var target: Node = area
+	if not area.has_method("interact") and area.get_parent() and area.get_parent().has_method("interact"):
+		target = area.get_parent()
+	nearby_interactables.erase(target)
+	_update_active_interactable()
+
+func get_save_data() -> Dictionary:
+	var data: Dictionary = stats.get_save_data()
+	data["inventory"] = inventory.get_save_data()
+	data["position"] = {"x": global_position.x, "y": global_position.y}
+	return data
+
+func load_save_data(data: Dictionary) -> void:
+	stats.load_save_data(data)
+	if data.has("inventory"):
+		inventory.load_save_data(data["inventory"])
+	if data.has("position"):
+		global_position = Vector2(data["position"]["x"], data["position"]["y"])
+	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
+	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
+	EventBus.player_money_changed.emit(stats.money)

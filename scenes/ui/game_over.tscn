@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://48af1ilgmx1b"]
+
+[ext_resource type="Script" uid="uid://bncq7dt3s6iyq" path="res://scripts/ui/game_over.gd" id="1_60xr3"]
+
+[node name="GameOver" type="Control" unique_id=1277130296]
+process_mode = 3
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_60xr3")
+
+[node name="Panel" type="Panel" parent="." unique_id=1002506387]
+custom_minimum_size = Vector2(350, 250)
+layout_mode = 0
+offset_left = 350.0
+offset_top = 200.0
+offset_right = 350.0
+offset_bottom = 200.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel" unique_id=1346656261]
+custom_minimum_size = Vector2(250, 0)
+layout_mode = 0
+offset_left = 50.0
+offset_top = 30.0
+offset_right = 50.0
+offset_bottom = 30.0
+
+[node name="TitleLabel" type="Label" parent="Panel/VBoxContainer" unique_id=982332625]
+layout_mode = 2
+text = "Game Over"
+horizontal_alignment = 1
+
+[node name="MessageLabel" type="Label" parent="Panel/VBoxContainer" unique_id=1402998442]
+layout_mode = 2
+text = "You have fallen...
+All items have been kept."
+horizontal_alignment = 1
+
+[node name="RespawnButton" type="Button" parent="Panel/VBoxContainer" unique_id=1171018434]
+custom_minimum_size = Vector2(0, 45)
+layout_mode = 2
+text = "Respawn at Village"
+
+[node name="MainMenuButton" type="Button" parent="Panel/VBoxContainer" unique_id=2090410746]
+custom_minimum_size = Vector2(0, 45)
+layout_mode = 2
+text = "Main Menu"

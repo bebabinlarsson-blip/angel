@@ -1,0 +1,88 @@
+[gd_scene format=3 uid="uid://f4plvadsq1vd"]
+
+[ext_resource type="Script" uid="uid://jbyoa1864v6r" path="res://scripts/game.gd" id="1_ssvqc"]
+[ext_resource type="Script" uid="uid://bvm56v5ikush" path="res://scripts/world/ocean_tide.gd" id="2_264po"]
+[ext_resource type="Script" uid="uid://cungptn5dwedf" path="res://scripts/world/cooking_pot.gd" id="3_1kice"]
+[ext_resource type="Script" uid="uid://ehf2ikkcfbdb" path="res://scripts/npcs/quest_npc.gd" id="4_5newe"]
+[ext_resource type="Script" uid="uid://i1u52h8uquhl" path="res://scripts/world/water_zone.gd" id="5_37s47"]
+[ext_resource type="Script" uid="uid://b4sxk1anmm6sl" path="res://scripts/world/collectable_item.gd" id="6_bt5mj"]
+[ext_resource type="Script" uid="uid://bymshjoelefs" path="res://scripts/world/waystone.gd" id="7_e1j6l"]
+[ext_resource type="Script" uid="uid://chbnmv1d6cw77" path="res://scripts/world/world_spawner.gd" id="8_pl11u"]
+[ext_resource type="PackedScene" uid="uid://cli7g4q70qm60" path="res://scenes/monsters/slime.tscn" id="9_bhx41"]
+[ext_resource type="Script" uid="uid://khrqpexu7qpo" path="res://scripts/world/day_night_cycle.gd" id="10_qnb83"]
+[ext_resource type="PackedScene" uid="uid://d1bkaobw6mnya" path="res://scenes/player/player.tscn" id="11_sww3w"]
+[ext_resource type="Script" uid="uid://m18qielq7pq5" path="res://scripts/systems/quest_system.gd" id="12_suyxu"]
+[ext_resource type="Script" uid="uid://c66mlrp81srro" path="res://scripts/systems/cooking_system.gd" id="13_sgl2t"]
+[ext_resource type="PackedScene" uid="uid://c8su7xrbxq0m" path="res://scenes/ui/hud.tscn" id="14_qouja"]
+[ext_resource type="PackedScene" uid="uid://dixprpf55okpb" path="res://scenes/ui/pause_menu.tscn" id="15_wljb1"]
+[ext_resource type="PackedScene" uid="uid://018uh6654owh" path="res://scenes/ui/inventory.tscn" id="16_v2yb1"]
+[ext_resource type="PackedScene" uid="uid://ggh84q2tbgy" path="res://scenes/ui/quest_menu.tscn" id="17_js0lu"]
+[ext_resource type="PackedScene" uid="uid://48af1ilgmx1b" path="res://scenes/ui/game_over.tscn" id="18_gxtfn"]
+[ext_resource type="PackedScene" uid="uid://cih84q2tbgy8" path="res://scenes/ui/island_customizer.tscn" id="19_cust"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_twgab"]
+radius = 16.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_02fa5"]
+size = Vector2(64, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_nepv3"]
+size = Vector2(64, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_7025r"]
+size = Vector2(64, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_m4url"]
+size = Vector2(64, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8ool0"]
+size = Vector2(16, 24)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pr1ej"]
+radius = 80.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_05nbr"]
+radius = 12.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_0sl42"]
+radius = 12.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_oaba0"]
+radius = 12.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_458eo"]
+size = Vector2(20, 30)
+
+[node name="Game" type="Node2D" unique_id=1658926714]
+y_sort_enabled = true
+script = ExtResource("1_ssvqc")
+
+[node name="World" type="Node2D" parent="." unique_id=1123355614]
+y_sort_enabled = true
+
+[node name="WorldSpawner" type="Node2D" parent="World" unique_id=1601761665]
+script = ExtResource("8_pl11u")
+monster_scene = ExtResource("9_bhx41")
+
+[node name="DayNightCycle" type="CanvasModulate" parent="." unique_id=86205853]
+script = ExtResource("10_qnb83")
+
+[node name="Player" parent="." unique_id=140684760 instance=ExtResource("11_sww3w")]
+
+[node name="QuestSystem" type="Node" parent="." unique_id=776430857]
+script = ExtResource("12_suyxu")
+
+[node name="CookingSystem" type="Node" parent="." unique_id=1775648005]
+script = ExtResource("13_sgl2t")
+
+[node name="HUD" parent="." unique_id=595795428 instance=ExtResource("14_qouja")]
+
+[node name="PauseMenu" parent="." unique_id=223421278 instance=ExtResource("15_wljb1")]
+
+[node name="InventoryUI" parent="." unique_id=694922817 instance=ExtResource("16_v2yb1")]
+
+[node name="QuestMenu" parent="." unique_id=1910018202 instance=ExtResource("17_js0lu")]
+
+[node name="GameOver" parent="." unique_id=1277130296 instance=ExtResource("18_gxtfn")]
+
+[node name="IslandCustomizer" parent="." unique_id=314159265 instance=ExtResource("19_cust")]

@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://d1bkaobw6mnya"]
+
+[ext_resource type="Script" path="res://scripts/player/player.gd" id="1_8afob"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_feet"]
+size = Vector2(12, 8)
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_attack"]
+radius = 16.0
+height = 36.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_lvxji"]
+radius = 48.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_torso"]
+size = Vector2(14, 18)
+
+[node name="Player" type="CharacterBody2D" unique_id=140684760]
+y_sort_enabled = true
+script = ExtResource("1_8afob")
+
+[node name="Sprite2D" type="AnimatedSprite2D" parent="." unique_id=1548245553]
+
+[node name="CollisionShape" type="CollisionShape2D" parent="." unique_id=487284910]
+position = Vector2(0, 8)
+shape = SubResource("RectangleShape2D_feet")
+
+[node name="AttackArea" type="Area2D" parent="." unique_id=826008241]
+monitoring = false
+
+[node name="AttackShape" type="CollisionShape2D" parent="AttackArea" unique_id=1037141811]
+position = Vector2(18, 0)
+rotation = 1.5708
+shape = SubResource("CapsuleShape2D_attack")
+
+[node name="InteractionArea" type="Area2D" parent="." unique_id=566457631]
+
+[node name="InteractionShape" type="CollisionShape2D" parent="InteractionArea" unique_id=901654219]
+position = Vector2(0, 4)
+shape = SubResource("CircleShape2D_lvxji")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=1078726193]
+
+[node name="HurtboxShape" type="CollisionShape2D" parent="Hurtbox" unique_id=362416041]
+shape = SubResource("RectangleShape2D_torso")
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1753511803]

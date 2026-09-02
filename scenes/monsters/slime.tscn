@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://cli7g4q70qm60"]
+
+[ext_resource type="Script" path="res://scripts/monsters/slime.gd" id="1_0kd0r"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_3autf"]
+radius = 9.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_w53bb"]
+radius = 280.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_3yr13"]
+radius = 24.0
+
+[node name="Slime" type="CharacterBody2D" unique_id=978384052]
+y_sort_enabled = true
+script = ExtResource("1_0kd0r")
+
+[node name="Sprite2D" type="AnimatedSprite2D" parent="." unique_id=1903141078]
+
+[node name="CollisionShape" type="CollisionShape2D" parent="." unique_id=907323180]
+position = Vector2(0, 3)
+shape = SubResource("CircleShape2D_3autf")
+
+[node name="DetectionArea" type="Area2D" parent="." unique_id=1605233970]
+
+[node name="DetectionShape" type="CollisionShape2D" parent="DetectionArea" unique_id=82037135]
+shape = SubResource("CircleShape2D_w53bb")
+
+[node name="AttackArea" type="Area2D" parent="." unique_id=2003670272]
+
+[node name="AttackShape" type="CollisionShape2D" parent="AttackArea" unique_id=1875917592]
+shape = SubResource("CircleShape2D_3yr13")
+
+[node name="HealthBar" type="ProgressBar" parent="." unique_id=463357220]
+custom_minimum_size = Vector2(32, 4)
+offset_left = -16.0
+offset_top = -24.0
+offset_right = 16.0
+offset_bottom = 3.0

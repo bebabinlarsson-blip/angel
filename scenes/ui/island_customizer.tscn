@@ -1,0 +1,273 @@
+[gd_scene load_steps=3 format=3 uid="uid://cih84q2tbgy8"]
+
+[ext_resource type="Script" path="res://scripts/ui/island_customizer.gd" id="1_custom"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cust_bg"]
+bg_color = Color(0.08, 0.1, 0.16, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.28, 0.45, 0.68, 0.9)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 10
+
+[node name="IslandCustomizer" type="Control"]
+process_mode = 3
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_custom")
+
+[node name="Dimmer" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(760, 560)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_cust_bg")
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/PanelContainer"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 16
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.95, 0.85, 0.45, 1)
+theme_override_font_sizes/font_size = 20
+text = "ISLAND WORLD CUSTOMIZER"
+
+[node name="CloseButton" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+text = "✕"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(720, 420)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ContentVBox" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="Sec1" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.8, 1, 1)
+text = "── World Scale & Boundaries ──"
+
+[node name="ScaleGrid" type="GridContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="LblRadius" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/ScaleGrid"]
+layout_mode = 2
+text = "Island Radius (px):"
+
+[node name="SliderRadius" type="HSlider" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/ScaleGrid"]
+custom_minimum_size = Vector2(350, 24)
+layout_mode = 2
+min_value = 5000.0
+max_value = 30000.0
+step = 500.0
+value = 16800.0
+
+[node name="ValRadius" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/ScaleGrid"]
+layout_mode = 2
+text = "16800"
+
+[node name="Sec2" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.8, 1, 1)
+text = "── Vegetation & Nature Density ──"
+
+[node name="NatureGrid" type="GridContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="LblTrees" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/NatureGrid"]
+layout_mode = 2
+text = "Forest Trees:"
+
+[node name="SliderTrees" type="HSlider" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/NatureGrid"]
+custom_minimum_size = Vector2(350, 24)
+layout_mode = 2
+min_value = 50.0
+max_value = 800.0
+step = 10.0
+value = 350.0
+
+[node name="ValTrees" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/NatureGrid"]
+layout_mode = 2
+text = "350"
+
+[node name="LblFlowers" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/NatureGrid"]
+layout_mode = 2
+text = "Meadow Flowers:"
+
+[node name="SliderFlowers" type="HSlider" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/NatureGrid"]
+custom_minimum_size = Vector2(350, 24)
+layout_mode = 2
+min_value = 50.0
+max_value = 500.0
+step = 10.0
+value = 220.0
+
+[node name="ValFlowers" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/NatureGrid"]
+layout_mode = 2
+text = "220"
+
+[node name="LblRocks" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/NatureGrid"]
+layout_mode = 2
+text = "Boulder Clusters:"
+
+[node name="SliderRocks" type="HSlider" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/NatureGrid"]
+custom_minimum_size = Vector2(350, 24)
+layout_mode = 2
+min_value = 5.0
+max_value = 60.0
+step = 1.0
+value = 24.0
+
+[node name="ValRocks" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/NatureGrid"]
+layout_mode = 2
+text = "24"
+
+[node name="Sec3" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.8, 1, 1)
+text = "── Wildlife Population ──"
+
+[node name="WildGrid" type="GridContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="LblRabbits" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/WildGrid"]
+layout_mode = 2
+text = "Wild Rabbits:"
+
+[node name="SliderRabbits" type="HSlider" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/WildGrid"]
+custom_minimum_size = Vector2(350, 24)
+layout_mode = 2
+min_value = 5.0
+max_value = 80.0
+step = 1.0
+value = 28.0
+
+[node name="ValRabbits" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/WildGrid"]
+layout_mode = 2
+text = "28"
+
+[node name="LblDeer" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/WildGrid"]
+layout_mode = 2
+text = "Forest Deer:"
+
+[node name="SliderDeer" type="HSlider" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/WildGrid"]
+custom_minimum_size = Vector2(350, 24)
+layout_mode = 2
+min_value = 5.0
+max_value = 60.0
+step = 1.0
+value = 20.0
+
+[node name="ValDeer" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/WildGrid"]
+layout_mode = 2
+text = "20"
+
+[node name="LblBirds" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/WildGrid"]
+layout_mode = 2
+text = "Island Birds:"
+
+[node name="SliderBirds" type="HSlider" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/WildGrid"]
+custom_minimum_size = Vector2(350, 24)
+layout_mode = 2
+min_value = 5.0
+max_value = 80.0
+step = 1.0
+value = 30.0
+
+[node name="ValBirds" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/WildGrid"]
+layout_mode = 2
+text = "30"
+
+[node name="Sec4" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.8, 1, 1)
+text = "── Resources & Ores ──"
+
+[node name="ResGrid" type="GridContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="LblMining" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/ResGrid"]
+layout_mode = 2
+text = "Mining Ore Nodes:"
+
+[node name="SliderMining" type="HSlider" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/ResGrid"]
+custom_minimum_size = Vector2(350, 24)
+layout_mode = 2
+min_value = 5.0
+max_value = 100.0
+step = 1.0
+value = 32.0
+
+[node name="ValMining" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer/ContentVBox/ResGrid"]
+layout_mode = 2
+text = "32"
+
+[node name="ButtonBar" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="ApplyButton" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ButtonBar"]
+custom_minimum_size = Vector2(180, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Apply & Regenerate"
+
+[node name="ResetButton" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ButtonBar"]
+custom_minimum_size = Vector2(140, 40)
+layout_mode = 2
+text = "Reset Defaults"
