@@ -31,6 +31,18 @@ extends Control
 @onready var dimmer: ColorRect = get_node_or_null("Dimmer")
 
 const CONFIG_PATH: String = "res://data/island_layout.json"
+const USER_CONFIG_PATH: String = "user://island_layout.json"
+
+static func load_layout() -> Dictionary:
+	# user:// override wins (exported builds can't write res://).
+	for path in [USER_CONFIG_PATH, CONFIG_PATH]:
+		if FileAccess.file_exists(path):
+			var file := FileAccess.open(path, FileAccess.READ)
+			if file:
+				var json = JSON.parse_string(file.get_as_text())
+				if json and typeof(json) == TYPE_DICTIONARY:
+					return json
+	return {}
 
 func _ready() -> void:
 	visible = false
@@ -57,6 +69,7 @@ func _ready() -> void:
 	_connect_slider(slider_deer, val_deer)
 	_connect_slider(slider_birds, val_birds)
 	_connect_slider(slider_mining, val_mining)
+	UITheme.style_recursive(self)
 	
 	_load_current_values()
 
@@ -77,6 +90,13 @@ func close() -> void:
 		get_tree().paused = false
 
 func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("customizer"):
+		if visible:
+			close()
+		else:
+			open()
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_B:
 			if visible:
@@ -89,14 +109,10 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _load_current_values() -> void:
-	if not FileAccess.file_exists(CONFIG_PATH):
+	var json: Variant = IslandCustomizer.load_layout()
+	if json.is_empty():
 		return
-	var file := FileAccess.open(CONFIG_PATH, FileAccess.READ)
-	if not file:
-		return
-	var json_str := file.get_as_text()
-	var json = JSON.parse_string(json_str)
-	if json and typeof(json) == TYPE_DICTIONARY:
+	if typeof(json) == TYPE_DICTIONARY:
 		var island_s: Dictionary = json.get("island_settings", {})
 		if slider_radius:
 			slider_radius.value = island_s.get("base_radius", 16800.0)
@@ -166,10 +182,16 @@ func _on_apply() -> void:
 		}
 	}
 	
-	var file := FileAccess.open(CONFIG_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(USER_CONFIG_PATH, FileAccess.WRITE)
+	if file == null:
+		file = FileAccess.open(CONFIG_PATH, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(config, "\t"))
 		file.close()
+	else:
+		# Exported/web builds: res:// is read-only. Keep the in-memory
+		# regenerate so the session still updates, and tell the player.
+		EventBus.show_notification.emit("Island updated for this session (could not save file).")
 	
 	var world_gen := get_tree().root.find_child("WorldGenerator", true, false) as WorldGenerator
 	if world_gen:

@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://d1bkaobw6mnya"]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_8afob"]
+[ext_resource type="SpriteFrames" path="res://assets/sprites/player_frames.tres" id="2_frames"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_feet"]
 size = Vector2(12, 8)
@@ -20,6 +21,11 @@ y_sort_enabled = true
 script = ExtResource("1_8afob")
 
 [node name="Sprite2D" type="AnimatedSprite2D" parent="." unique_id=1548245553]
+texture_filter = 1
+position = Vector2(0, -16)
+sprite_frames = ExtResource("2_frames")
+animation = &"idle"
+autoplay = "idle"
 
 [node name="CollisionShape" type="CollisionShape2D" parent="." unique_id=487284910]
 position = Vector2(0, 8)

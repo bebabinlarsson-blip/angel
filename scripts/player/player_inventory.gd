@@ -16,15 +16,18 @@ func add_item(item_data: Dictionary) -> bool:
 			if items[i].get("id", "") == item_data.get("id", ""):
 				items[i]["quantity"] = items[i].get("quantity", 1) + item_data.get("quantity", 1)
 				EventBus.item_collected.emit(item_data)
+				EventBus.inventory_changed.emit()
 				return true
 	
 	if items.size() >= max_slots:
+		EventBus.show_notification.emit("Inventory full!")
 		return false  # inventory full
 	
 	if not item_data.has("quantity"):
 		item_data["quantity"] = 1
 	items.append(item_data)
 	EventBus.item_collected.emit(item_data)
+	EventBus.inventory_changed.emit()
 	return true
 
 func remove_item(item_id: String, quantity: int = 1) -> bool:
@@ -33,9 +36,11 @@ func remove_item(item_id: String, quantity: int = 1) -> bool:
 			var current_qty: int = items[i].get("quantity", 1)
 			if current_qty > quantity:
 				items[i]["quantity"] = current_qty - quantity
+				EventBus.inventory_changed.emit()
 				return true
 			elif current_qty == quantity:
 				items.remove_at(i)
+				EventBus.inventory_changed.emit()
 				return true
 			else:
 				return false  # not enough
@@ -62,9 +67,11 @@ func get_items_by_type(type: ItemType) -> Array[Dictionary]:
 
 func equip_weapon(item_data: Dictionary) -> void:
 	equipped_weapon = item_data
+	EventBus.inventory_changed.emit()
 
 func equip_armor(item_data: Dictionary) -> void:
 	equipped_armor = item_data
+	EventBus.inventory_changed.emit()
 
 func get_save_data() -> Dictionary:
 	return {

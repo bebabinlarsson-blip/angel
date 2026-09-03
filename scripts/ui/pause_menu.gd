@@ -34,6 +34,10 @@ func _ready() -> void:
 		)
 	
 	_create_settings_panel()
+	for b in [resume_btn, save_btn, quest_btn, customizer_btn, settings_btn, main_menu_btn]:
+		if b is Button:
+			UIAnim.hook_button_sounds(b)
+	UITheme.style_recursive(self)
 
 func _create_settings_panel() -> void:
 	if settings_panel == null:
@@ -111,7 +115,17 @@ func _toggle() -> void:
 		return
 	visible = !visible
 	if visible:
+		var inv := get_tree().root.find_child("InventoryUI", true, false)
+		if inv and inv.visible:
+			inv.visible = false
+		var q_menu := get_tree().root.find_child("QuestMenu", true, false)
+		if q_menu and q_menu.visible:
+			q_menu.visible = false
+		
 		GameManager.set_state(GameManager.GameState.PAUSED)
+		var card := get_node_or_null("CenterContainer/PanelContainer")
+		if card is Control:
+			UIAnim.pop_in(card as Control, 0.2)
 	else:
 		GameManager.set_state(GameManager.GameState.PLAYING)
 		if settings_panel:

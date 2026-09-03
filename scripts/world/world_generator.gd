@@ -3,11 +3,12 @@ extends Node2D
 
 const CookingPotScript = preload("res://scripts/world/cooking_pot.gd")
 const WaterZoneScript = preload("res://scripts/world/water_zone.gd")
+const TileMapTerrainScript = preload("res://scripts/world/tilemap_terrain.gd")
 
 ## Populates 15x starting island with customizable environmental features, NPCs, wildlife, and structures
 
 var layout_config: Dictionary = {}
-var terrain_node: IslandTerrain = null
+var tilemap_terrain: Node2D = null
 
 func _ready() -> void:
 	y_sort_enabled = true
@@ -15,14 +16,15 @@ func _ready() -> void:
 	generate_world()
 
 func _load_config() -> void:
-	if FileAccess.file_exists("res://data/island_layout.json"):
-		var file := FileAccess.open("res://data/island_layout.json", FileAccess.READ)
-		if file:
-			var json_str := file.get_as_text()
-			var json = JSON.parse_string(json_str)
-			if json and typeof(json) == TYPE_DICTIONARY:
-				layout_config = json
-				return
+	for path in ["user://island_layout.json", "res://data/island_layout.json"]:
+		if FileAccess.file_exists(path):
+			var file := FileAccess.open(path, FileAccess.READ)
+			if file:
+				var json_str := file.get_as_text()
+				var json = JSON.parse_string(json_str)
+				if json and typeof(json) == TYPE_DICTIONARY:
+					layout_config = json
+					return
 	
 	# Default fallback config
 	layout_config = {
@@ -36,16 +38,24 @@ func _load_config() -> void:
 	}
 
 func generate_world() -> void:
-	# Clear previous children except terrain if already present
+	# Clear previous children safely (deferred free, then build fresh).
+	# NOTE: terrain is rebuilt too so stale polygons can't linger.
 	for child in get_children():
+		remove_child(child)
 		child.queue_free()
 	
-	# Add terrain visual
-	terrain_node = IslandTerrain.new()
-	terrain_node.name = "IslandTerrain"
-	terrain_node.z_index = -100
-	terrain_node.z_as_relative = false
-	add_child(terrain_node)
+	# Respect handcrafted placed TileMapLayers if present in the scene
+	var existing_ground: Node = get_parent().get_node_or_null("GroundLayer") if get_parent() else null
+	if existing_ground == null:
+		tilemap_terrain = TileMapTerrainScript.new()
+		tilemap_terrain.name = "TileMapTerrain"
+		tilemap_terrain.z_index = -100
+		tilemap_terrain.z_as_relative = false
+		add_child(tilemap_terrain)
+		if tilemap_terrain.has_method("set_layout"):
+			tilemap_terrain.set_layout(layout_config)
+	
+	var base_r: float = layout_config.get("island_settings", {}).get("base_radius", 16800.0)
 	
 	_spawn_village()
 	_spawn_tree_ring()
@@ -62,7 +72,61 @@ func generate_world() -> void:
 func regenerate_world(new_config: Dictionary = {}) -> void:
 	if not new_config.is_empty():
 		layout_config = new_config
+	# Despawn old monsters so Apply doesn't stack two populations.
+	var spawner := get_parent().get_node_or_null("WorldSpawner") as WorldSpawner
+	if spawner == null:
+		spawner = get_tree().root.find_child("WorldSpawner", true, false) as WorldSpawner
+	if spawner:
+		spawner.clear_all_monsters()
 	generate_world()
+	if tilemap_terrain:
+		tilemap_terrain.reload_terrain()
+
+# --- Map-aware placement helpers (mirrors island_layout.json) ---
+func _is_water_point(pos: Vector2) -> bool:
+	if pos.distance_to(Vector2(5500, 2500)) < 1350.0:
+		return true
+	if pos.distance_to(Vector2(-5000, 3500)) < 1050.0:
+		return true
+	if pos.distance_to(Vector2(3000, 9000)) < 1250.0:
+		return true
+	if pos.distance_to(Vector2(550, 320)) < 170.0:
+		return true
+	if pos.distance_to(Vector2(-600, 480)) < 150.0:
+		return true
+	var base_r: float = layout_config.get("island_settings", {}).get("base_radius", 16800.0)
+	if pos.length() > base_r - 300.0:
+		return true
+	return false
+
+func _is_on_highway(pos: Vector2) -> bool:
+	# Rough distance to the 4 highways so trees/rocks don't block roads.
+	if absf(pos.x) < 120.0 and pos.y < 600.0 and pos.y > -7600.0:
+		return true
+	var south_dir := Vector2(-1900, 7800).normalized()
+	var rel: Vector2 = pos
+	if absf(rel.x * -south_dir.y + rel.y * south_dir.x) < 120.0 and rel.dot(south_dir) > 0.0 and rel.dot(south_dir) < 8100.0:
+		return true
+	var east_dir := Vector2(9200, 4800).normalized()
+	if absf(rel.x * -east_dir.y + rel.y * east_dir.x) < 120.0 and rel.dot(east_dir) > 0.0 and rel.dot(east_dir) < 10400.0:
+		return true
+	var west_dir := Vector2(-7400, -950).normalized()
+	if absf(rel.x * -west_dir.y + rel.y * west_dir.x) < 120.0 and rel.dot(west_dir) > 0.0 and rel.dot(west_dir) < 7500.0:
+		return true
+	return false
+
+func _scatter_land_position(min_r: float, max_r: float) -> Vector2:
+	for attempt in range(12):
+		var angle := randf() * TAU
+		var dist := randf_range(min_r, max_r)
+		var pos := Vector2(cos(angle) * dist, sin(angle) * dist)
+		if _is_water_point(pos):
+			continue
+		if _is_on_highway(pos):
+			continue
+		return pos
+	var angle := randf() * TAU
+	return Vector2(cos(angle), sin(angle)) * ((min_r + max_r) * 0.5)
 
 func _spawn_village() -> void:
 	var village_node := Node2D.new()
@@ -198,16 +262,26 @@ func _create_configured_npc(parent: Node2D, npc_name: String, npc_id: String, qu
 	col.position = Vector2(0, 6)
 	npc.add_child(col)
 	
-	var visual := CustomDraw2D.new()
-	visual.entity_type = draw_type as CustomDraw2D.EntityType
+	var visual := AnimatedSprite2D.new()
+	visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	visual.position = Vector2(0, -12)
+	visual.sprite_frames = load("res://assets/sprites/npc_frames.tres")
+	visual.animation = "idle"
+	visual.play("idle")
 	npc.add_child(visual)
 	
 	var label := Label.new()
 	label.name = "NameLabel"
 	label.text = npc_name
-	label.position = Vector2(-40, -32)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Explicit rect centered above the head: min size alone leaves size at
+	# zero until layout runs, which offset the name on some frames/zooms.
+	label.position = Vector2(-40, -34)
+	label.size = Vector2(80, 20)
 	label.custom_minimum_size = Vector2(80, 20)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", Color(1, 1, 1))
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	label.add_theme_constant_override("outline_size", 4)
 	npc.add_child(label)
 	
 	parent.add_child(npc)
@@ -244,21 +318,29 @@ func _spawn_forest_trees() -> void:
 	# 1. Northwest Ancient Redwood Grove
 	for i in range(per_grove):
 		var pos := Vector2(randf_range(-12000, -2500), randf_range(-12000, -2500))
+		if _is_water_point(pos) or _is_on_highway(pos):
+			pos = _scatter_land_position(2500.0, 12000.0)
 		_create_tree(forests_node, pos)
 	
 	# 2. Southwest Whispering Woods
 	for i in range(per_grove):
 		var pos := Vector2(randf_range(-12000, -2500), randf_range(2500, 12000))
+		if _is_water_point(pos) or _is_on_highway(pos):
+			pos = _scatter_land_position(2500.0, 12000.0)
 		_create_tree(forests_node, pos)
 	
 	# 3. Southeast Great Forest
 	for i in range(per_grove):
 		var pos := Vector2(randf_range(2500, 12000), randf_range(2500, 12000))
+		if _is_water_point(pos) or _is_on_highway(pos):
+			pos = _scatter_land_position(2500.0, 12000.0)
 		_create_tree(forests_node, pos)
 	
 	# 4. Northeast Lake Canopy
 	for i in range(per_grove):
 		var pos := Vector2(randf_range(2500, 12000), randf_range(-12000, -2500))
+		if _is_water_point(pos) or _is_on_highway(pos):
+			pos = _scatter_land_position(2500.0, 12000.0)
 		_create_tree(forests_node, pos)
 	
 	# 5. Midland Meadows Groves
@@ -266,6 +348,8 @@ func _spawn_forest_trees() -> void:
 		var angle := randf() * TAU
 		var dist := randf_range(1200.0, 5000.0)
 		var pos := Vector2(cos(angle) * dist, sin(angle) * dist)
+		if _is_water_point(pos) or _is_on_highway(pos):
+			pos = _scatter_land_position(1200.0, 5000.0)
 		_create_tree(forests_node, pos)
 
 func _create_tree(parent: Node2D, pos: Vector2) -> void:
@@ -322,7 +406,9 @@ func _spawn_rocks() -> void:
 func _spawn_flowers() -> void:
 	var flowers_node := Node2D.new()
 	flowers_node.name = "Flowers"
-	flowers_node.y_sort_enabled = true
+	# Perf: flowers are flat ground decor with no collision. Y-sorting 220 of
+	# them every frame is pure overhead, so keep them unsorted.
+	flowers_node.y_sort_enabled = false
 	add_child(flowers_node)
 	
 	var flower_colors: Array[Color] = [
@@ -335,6 +421,8 @@ func _spawn_flowers() -> void:
 		var angle: float = randf() * TAU
 		var dist: float = randf_range(850.0, 15000.0)
 		var f_pos := Vector2(cos(angle) * dist, sin(angle) * dist)
+		if _is_water_point(f_pos) or _is_on_highway(f_pos):
+			f_pos = _scatter_land_position(850.0, 15000.0)
 		
 		var f := Node2D.new()
 		f.position = f_pos
@@ -427,21 +515,21 @@ func _spawn_wildlife() -> void:
 	for i in range(rabbits_n):
 		var rabbit := Wildlife.new()
 		rabbit.animal_type = Wildlife.AnimalType.RABBIT
-		rabbit.position = Vector2(randf_range(-14000, 14000), randf_range(-14000, 14000))
+		rabbit.position = _scatter_land_position(1000.0, 14000.0)
 		animals_node.add_child(rabbit)
 	
 	# Deer in woods
 	for i in range(deer_n):
 		var deer := Wildlife.new()
 		deer.animal_type = Wildlife.AnimalType.DEER
-		deer.position = Vector2(randf_range(-13000, 13000), randf_range(-13000, 13000))
+		deer.position = _scatter_land_position(1000.0, 13000.0)
 		animals_node.add_child(deer)
 	
 	# Birds
 	for i in range(birds_n):
 		var bird := Wildlife.new()
 		bird.animal_type = Wildlife.AnimalType.BIRD
-		bird.position = Vector2(randf_range(-15000, 15000), randf_range(-15000, 15000))
+		bird.position = _scatter_land_position(1000.0, 15000.0)
 		animals_node.add_child(bird)
 
 func _spawn_collectables() -> void:
@@ -457,17 +545,17 @@ func _spawn_collectables() -> void:
 	# Wood logs
 	for i in range(wood_n):
 		_spawn_item(coll_node, "wood", "Wood", 0, CustomDraw2D.EntityType.ITEM_WOOD,
-			Vector2(randf_range(-14000, 14000), randf_range(-14000, 14000)))
+			_scatter_land_position(1000.0, 14000.0))
 	
 	# Healing Herbs
 	for i in range(herb_n):
 		_spawn_item(coll_node, "herb", "Herb", 0, CustomDraw2D.EntityType.ITEM_HERB,
-			Vector2(randf_range(-14000, 14000), randf_range(-14000, 14000)))
+			_scatter_land_position(1000.0, 14000.0))
 	
 	# Red Mushrooms
 	for i in range(mush_n):
 		_spawn_item(coll_node, "mushroom", "Mushroom", 0, CustomDraw2D.EntityType.ITEM_MUSHROOM,
-			Vector2(randf_range(-14000, 14000), randf_range(-14000, 14000)))
+			_scatter_land_position(1000.0, 14000.0))
 
 func _spawn_item(parent: Node2D, item_id: String, item_name: String, item_type: int, draw_type: CustomDraw2D.EntityType, pos: Vector2) -> void:
 	var item := CollectableItem.new()

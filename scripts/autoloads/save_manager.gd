@@ -5,7 +5,9 @@ const SAVE_FILE := "save_slot_%d.json"
 const MAX_SLOTS := 3
 
 func _ready() -> void:
-	DirAccess.make_dir_recursive_absolute(SAVE_DIR)
+	var err := DirAccess.make_dir_recursive_absolute(SAVE_DIR)
+	if err != OK:
+		push_warning("SaveManager: could not create save dir (%s)" % error_string(err))
 
 func save_game(slot: int = 0) -> bool:
 	var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
@@ -70,7 +72,9 @@ func has_save(slot: int = 0) -> bool:
 func delete_save(slot: int = 0) -> void:
 	var path := SAVE_DIR + SAVE_FILE % slot
 	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
+		var err := DirAccess.remove_absolute(path)
+		if err != OK:
+			push_warning("SaveManager: could not delete %s (%s)" % [path, error_string(err)])
 
 func get_save_info(slot: int = 0) -> Dictionary:
 	var path := SAVE_DIR + SAVE_FILE % slot

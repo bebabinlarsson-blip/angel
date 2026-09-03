@@ -101,7 +101,7 @@ text = "Island Customizer"
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
-text = "How to Play & Controls"
+text = "How to Play and Controls"
 
 [node name="SettingsButton" type="Button" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
 custom_minimum_size = Vector2(0, 38)
@@ -130,5 +130,5 @@ grow_horizontal = 0
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.45, 0.55, 0.7, 0.6)
 theme_override_font_sizes/font_size = 12
-text = "v1.2.0 • HD Scaled"
+text = "v1.2.0 - HD Scaled"
 horizontal_alignment = 2

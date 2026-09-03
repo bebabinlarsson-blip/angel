@@ -13,6 +13,7 @@ var controls_panel: Control = null
 var customizer_panel: Control = null
 
 func _ready() -> void:
+	_ensure_audio_manager()
 	if new_game_btn:
 		new_game_btn.pressed.connect(_on_new_game)
 	if continue_btn:
@@ -30,6 +31,25 @@ func _ready() -> void:
 	
 	_create_settings_modal()
 	_create_controls_modal()
+	UITheme.style_recursive(self)
+	_play_entrance()
+
+func _ensure_audio_manager() -> void:
+	if get_tree().root.get_node_or_null("AudioManager") == null:
+		var mgr := AudioManager.new()
+		mgr.name = "AudioManager"
+		get_tree().root.add_child(mgr)
+
+func _play_entrance() -> void:
+	var card := get_node_or_null("CenterContainer/MenuCard")
+	if card is Control:
+		UIAnim.pop_in(card as Control, 0.35)
+	var vbox := get_node_or_null("CenterContainer/MenuCard/MarginContainer/VBoxContainer")
+	if vbox:
+		UIAnim.stagger_children(vbox, 0.06, 0.3)
+	for b in [new_game_btn, continue_btn, customizer_btn, controls_btn, settings_btn, quit_btn]:
+		if b is Button:
+			UIAnim.hook_button_sounds(b)
 
 func _create_settings_modal() -> void:
 	settings_panel = Control.new()
@@ -167,6 +187,8 @@ func _create_controls_modal() -> void:
 		["Mouse Cursor", "Aim Direction"],
 		["[F]", "Interact / Talk to NPCs / Campfire"],
 		["[I] or [Tab]", "Open Inventory & Equipment"],
+		["[J]", "Open Quest Journal"],
+		["[M] or Click Map", "Toggle Big Map"],
 		["[B]", "Open Island Customizer"],
 		["[Esc]", "Pause Menu & Save Game"]
 	]
@@ -203,7 +225,12 @@ func _on_new_game() -> void:
 func _on_continue() -> void:
 	GameManager.current_state = GameManager.GameState.PLAYING
 	get_tree().change_scene_to_file("res://scenes/game.tscn")
-	await get_tree().create_timer(0.2).timeout
+	# Was fixed 0.2s (racy on slow/web loads). Wait for the new scene + player.
+	for i in range(60):
+		await get_tree().process_frame
+		var p := get_tree().root.find_child("Player", true, false)
+		if p:
+			break
 	SaveManager.load_game(0)
 
 func _on_customizer() -> void:
@@ -221,10 +248,29 @@ func _on_customizer() -> void:
 func _on_controls() -> void:
 	if controls_panel:
 		controls_panel.visible = true
+		var card := controls_panel.get_node_or_null("CenterContainer/PanelContainer")
+		if card == null:
+			card = _find_card(controls_panel)
+		if card is Control:
+			UIAnim.pop_in(card as Control)
 
 func _on_settings() -> void:
 	if settings_panel:
 		settings_panel.visible = true
+		var card := settings_panel.get_node_or_null("CenterContainer/PanelContainer")
+		if card == null:
+			card = _find_card(settings_panel)
+		if card is Control:
+			UIAnim.pop_in(card as Control)
+
+func _find_card(node: Node) -> Control:
+	if node is PanelContainer:
+		return node as Control
+	for c in node.get_children():
+		var found := _find_card(c)
+		if found:
+			return found
+	return null
 
 func _on_quit() -> void:
 	get_tree().quit()

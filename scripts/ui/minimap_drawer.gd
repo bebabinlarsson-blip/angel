@@ -10,25 +10,74 @@ func _ready() -> void:
 
 var redraw_timer: float = 0.0
 var cached_npc_positions: Array[Vector2] = []
+var cached_monster_positions: Array[Vector2] = []
+var cached_waystone_positions: Array[Vector2] = []
 var npc_cache_timer: float = 0.0
+var _hud_ref: CanvasLayer = null
+
+var map_offset: Vector2 = Vector2.ZERO
+var map_zoom: float = 1.0
+var _is_dragging: bool = false
 
 func _on_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		var hud := get_tree().root.find_child("HUD", true, false)
-		if hud and "big_map" in hud and hud.big_map:
-			hud.big_map.visible = !hud.big_map.visible
+	if not is_big_map:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			if _hud_ref == null or not is_instance_valid(_hud_ref):
+				_hud_ref = get_tree().root.find_child("HUD", true, false)
+			var hud := _hud_ref
+			if hud and "big_map" in hud and hud.big_map:
+				hud.big_map.visible = !hud.big_map.visible
+	else:
+		if event is InputEventMouseButton:
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				if event.pressed:
+					_is_dragging = true
+				else:
+					_is_dragging = false
+			elif event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
+				map_zoom = clampf(map_zoom + 0.1, 0.4, 3.5)
+				queue_redraw()
+			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
+				map_zoom = clampf(map_zoom - 0.1, 0.4, 3.5)
+				queue_redraw()
+		elif event is InputEventMouseMotion:
+			if _is_dragging:
+				map_offset += event.relative / map_zoom
+				queue_redraw()
+
+func _refresh_caches() -> void:
+	cached_npc_positions.clear()
+	for npc in get_tree().get_nodes_in_group("npcs"):
+		if is_instance_valid(npc) and npc is Node2D:
+			cached_npc_positions.append((npc as Node2D).global_position)
+	cached_monster_positions.clear()
+	# Mini map skips monsters entirely if too many (perf); big map shows them.
+	var monster_nodes := get_tree().get_nodes_in_group("monsters")
+	var cap := monster_nodes.size() if is_big_map else mini(monster_nodes.size(), 60)
+	for i in range(cap):
+		var m: Node = monster_nodes[i]
+		if is_instance_valid(m) and m is Node2D:
+			# Skip dead without property lookup cost when possible
+			var dead := false
+			if "current_state" in m:
+				dead = (m.get("current_state") == 5)
+			if not dead:
+				cached_monster_positions.append((m as Node2D).global_position)
+	if cached_waystone_positions.is_empty():
+		for w in get_tree().get_nodes_in_group("waystones"):
+			if is_instance_valid(w) and w is Node2D:
+				cached_waystone_positions.append((w as Node2D).global_position)
 
 func _process(delta: float) -> void:
 	if is_big_map and not visible:
+		return
+	if not is_big_map and not visible:
 		return
 	
 	npc_cache_timer += delta
 	if npc_cache_timer >= 1.0 or cached_npc_positions.is_empty():
 		npc_cache_timer = 0.0
-		cached_npc_positions.clear()
-		for npc in get_tree().get_nodes_in_group("npcs"):
-			if is_instance_valid(npc) and npc is Node2D:
-				cached_npc_positions.append((npc as Node2D).global_position)
+		_refresh_caches()
 	
 	redraw_timer += delta
 	if redraw_timer >= 0.08: # 12.5 FPS update is buttery smooth and saves 90% minimap overhead
@@ -40,6 +89,10 @@ func _draw() -> void:
 	var h: float = size.y
 	var center := Vector2(w * 0.5, h * 0.5)
 	var scale_factor: float = (w * 0.46) / world_radius
+	
+	if is_big_map:
+		scale_factor *= map_zoom
+		center += map_offset * map_zoom
 	
 	# Background border
 	draw_rect(Rect2(0, 0, w, h), Color(0.1, 0.15, 0.22, 0.90))
@@ -83,18 +136,20 @@ func _draw() -> void:
 	var ruins_pos: Vector2 = center + Vector2(-2000, 8000) * scale_factor
 	draw_circle(ruins_pos, 4.0 if not is_big_map else 7.0, Color(0.5, 0.4, 0.6))
 	
-	# NPCs (Yellow dots)
+	# NPCs (Yellow dots, cached)
 	for npc_gpos in cached_npc_positions:
 		var npc_mpos: Vector2 = center + npc_gpos * scale_factor
 		draw_circle(npc_mpos, 3.0 if not is_big_map else 5.0, Color(1.0, 0.85, 0.1))
 	
-	# Monsters (Red dots)
-	for m in get_tree().get_nodes_in_group("monsters"):
-		if is_instance_valid(m) and m is CharacterBody2D and "current_state" in m:
-			if m.current_state != 5: # Not DEAD
-				var m_node: CharacterBody2D = m as CharacterBody2D
-				var m_mpos: Vector2 = center + m_node.global_position * scale_factor
-				draw_circle(m_mpos, 2.0 if not is_big_map else 3.5, Color(0.9, 0.2, 0.2))
+	# Monsters (Red dots, cached - no scene-tree query inside _draw)
+	for m_gpos in cached_monster_positions:
+		var m_mpos: Vector2 = center + m_gpos * scale_factor
+		draw_circle(m_mpos, 2.0 if not is_big_map else 3.5, Color(0.9, 0.2, 0.2))
+
+	# Waystones (Blue dots, cached)
+	for w_gpos in cached_waystone_positions:
+		var w_mpos: Vector2 = center + w_gpos * scale_factor
+		draw_circle(w_mpos, 3.0 if not is_big_map else 5.0, Color(0.3, 0.7, 1.0))
 	
 	# Player position marker (Glowing cyan arrow/dot)
 	if GameManager.player and is_instance_valid(GameManager.player):

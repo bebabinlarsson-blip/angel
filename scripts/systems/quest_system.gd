@@ -72,8 +72,13 @@ func accept_quest(quest_id: String) -> bool:
 func update_quest_progress(quest_type: String, target: String, amount: int = 1) -> void:
 	for quest_id in active_quests:
 		var quest: Dictionary = active_quests[quest_id]
-		if quest["type"] == quest_type and (quest["target"] == target or quest["target"] == "any_dish"):
-			quest["current_count"] = min(quest["current_count"] + amount, quest["target_count"])
+		if quest.get("type", "") != quest_type:
+			continue
+		var q_target: String = str(quest.get("target", ""))
+		# "any_dish" is only a wildcard for cook quests, not collect/kill.
+		var is_wildcard: bool = q_target == "any_dish" and quest_type == "cook"
+		if q_target == target or is_wildcard:
+			quest["current_count"] = mini(quest.get("current_count", 0) + amount, quest.get("target_count", 1))
 			EventBus.quest_updated.emit(quest_id)
 			
 			if quest["current_count"] >= quest["target_count"]:

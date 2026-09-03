@@ -8,6 +8,7 @@ func _ready() -> void:
 	get_tree().paused = false
 	GameManager.set_state(GameManager.GameState.PLAYING)
 	GameManager.village_spawn_point = Vector2(0, 0)
+	_ensure_audio_manager()
 	
 	# Spawn island world elements if generator isn't present
 	if get_node_or_null("World/WorldGenerator") == null:
@@ -22,9 +23,17 @@ func _ready() -> void:
 		gen.name = "WorldGenerator"
 		world_node.add_child(gen)
 	
-	# Connect monster kills & item pickups to quest system
-	EventBus.monster_killed.connect(_on_monster_killed)
-	EventBus.item_collected.connect(_on_item_collected)
+	# Connect monster kills & item pickups to quest system.
+	# EventBus persists across scene changes, so guard every connect
+	# (re-entering game.tscn would otherwise stack duplicate handlers).
+	_connect_once(EventBus.monster_killed, _on_monster_killed)
+	_connect_once(EventBus.item_collected, _on_item_collected)
+	# Juice: procedural SFX with no assets
+	_connect_once(EventBus.damage_dealt, _on_damage_dealt)
+	_connect_once(EventBus.cooking_finished, _on_cooking_finished)
+	_connect_once(EventBus.player_leveled_up, _on_leveled_up)
+	_connect_once(EventBus.player_died, _on_player_died)
+	_connect_once(EventBus.item_collected, _on_pickup_sound)
 	
 	# Initial player equipment and starter items
 	if player and player.inventory and player.inventory.items.is_empty():
@@ -58,6 +67,10 @@ func _ready() -> void:
 		EventBus.player_money_changed.emit(player.stats.money)
 		EventBus.show_notification.emit("Welcome to Angel! Explore, fight slimes, level up, and cook!")
 
+func _connect_once(sig: Signal, handler: Callable) -> void:
+	if not sig.is_connected(handler):
+		sig.connect(handler)
+
 func _on_monster_killed(_monster: Node, _position: Vector2) -> void:
 	if quest_system:
 		quest_system.update_quest_progress("kill", "slime", 1)
@@ -65,3 +78,37 @@ func _on_monster_killed(_monster: Node, _position: Vector2) -> void:
 func _on_item_collected(item_data: Dictionary) -> void:
 	if quest_system:
 		quest_system.update_quest_progress("collect", item_data.get("id", ""), item_data.get("quantity", 1))
+
+func _ensure_audio_manager() -> void:
+	if get_tree().root.get_node_or_null("AudioManager") == null:
+		var mgr := AudioManager.new()
+		mgr.name = "AudioManager"
+		get_tree().root.add_child.call_deferred(mgr)
+
+func _audio() -> Node:
+	return get_tree().root.get_node_or_null("AudioManager")
+
+func _on_damage_dealt(_target: Node, _amount: float) -> void:
+	var a := _audio()
+	if a and a.has_method("play_hit"):
+		a.call("play_hit")
+
+func _on_pickup_sound(_item: Dictionary) -> void:
+	var a := _audio()
+	if a and a.has_method("play_pickup"):
+		a.call("play_pickup")
+
+func _on_cooking_finished(_result: Dictionary) -> void:
+	var a := _audio()
+	if a and a.has_method("play_cook"):
+		a.call("play_cook")
+
+func _on_leveled_up(_level: int) -> void:
+	var a := _audio()
+	if a and a.has_method("play_levelup"):
+		a.call("play_levelup")
+
+func _on_player_died() -> void:
+	var a := _audio()
+	if a and a.has_method("play_death"):
+		a.call("play_death")

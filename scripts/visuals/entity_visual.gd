@@ -410,6 +410,10 @@ func _draw_slime() -> void:
 	# Specular Shine Highlights
 	draw_circle(Vector2(-6.0 * squash, -4.0 * stretch + y_lift), 3.5, Color(1, 1, 1, 0.75))
 	draw_circle(Vector2(-3.0 * squash, -7.0 * stretch + y_lift), 2.0, Color(1, 1, 1, 0.6))
+	# Cool rim light along the upper-left dome edge
+	draw_arc(center + Vector2(0, -1.0), 14.2 * squash, PI * 1.05, PI * 1.55, 12, Color(0.75, 1.0, 0.85, 0.5), 2.0)
+	# Grounded base band so the jelly sits in the scene
+	draw_arc(center, 13.5 * squash, PI * 0.15, PI * 0.85, 12, Color(dark_col, 0.55), 2.5)
 	
 	# Cute / Expressive Eyes
 	var eye_y: float = 0.5 + y_lift
@@ -719,35 +723,62 @@ func _draw_bird() -> void:
 # ==============================================================================
 func _draw_house() -> void:
 	draw_rect(Rect2(-36, -20, 72, 54), Color(0, 0, 0, 0.22))
-	# Walls
-	draw_rect(Rect2(-32, -16, 64, 40), Color(0.74, 0.60, 0.46))
-	draw_rect(Rect2(-32, -16, 64, 40), Color(0.48, 0.38, 0.28), false, 2.5)
-	# Door
-	draw_rect(Rect2(-8, 4, 16, 20), Color(0.44, 0.26, 0.14))
+	# Plaster walls with timber frame
+	draw_rect(Rect2(-32, -16, 64, 40), Color(0.82, 0.70, 0.55))
+	draw_rect(Rect2(-32, -16, 64, 40), Color(0.45, 0.34, 0.25), false, 2.5)
+	draw_line(Vector2(-32, -16), Vector2(32, 24), Color(0.45, 0.34, 0.25, 0.55), 2.0)
+	draw_line(Vector2(32, -16), Vector2(-32, 24), Color(0.45, 0.34, 0.25, 0.55), 2.0)
+	# Door with frame + step stone
+	draw_rect(Rect2(-9, 3, 18, 21), Color(0.38, 0.22, 0.12))
+	draw_rect(Rect2(-8, 4, 16, 20), Color(0.50, 0.30, 0.16))
+	draw_line(Vector2(0, 4), Vector2(0, 24), Color(0.38, 0.22, 0.12), 1.5)
 	draw_circle(Vector2(4, 14), 1.8, Color(0.95, 0.82, 0.2))
-	# Windows with warm golden interior glow
-	draw_rect(Rect2(-26, -6, 12, 12), Color(1.0, 0.9, 0.45))
-	draw_rect(Rect2(14, -6, 12, 12), Color(1.0, 0.9, 0.45))
+	draw_rect(Rect2(-11, 24, 22, 5), Color(0.60, 0.62, 0.66))
+	# Windows with warm golden interior glow + cross frames
+	draw_rect(Rect2(-26, -6, 12, 12), Color(1.0, 0.88, 0.50))
+	draw_rect(Rect2(14, -6, 12, 12), Color(1.0, 0.88, 0.50))
 	draw_rect(Rect2(-26, -6, 12, 12), Color(0.35, 0.25, 0.15), false, 1.5)
 	draw_rect(Rect2(14, -6, 12, 12), Color(0.35, 0.25, 0.15), false, 1.5)
-	# Red Terracotta Roof
+	draw_line(Vector2(-20, -6), Vector2(-20, 6), Color(0.35, 0.25, 0.15), 1.5)
+	draw_line(Vector2(-26, 0), Vector2(-14, 0), Color(0.35, 0.25, 0.15), 1.5)
+	draw_line(Vector2(20, -6), Vector2(20, 6), Color(0.35, 0.25, 0.15), 1.5)
+	draw_line(Vector2(14, 0), Vector2(26, 0), Color(0.35, 0.25, 0.15), 1.5)
+	# Red Terracotta Roof with ridge highlight
 	var roof := PackedVector2Array([
 		Vector2(-38, -15), Vector2(0, -38), Vector2(38, -15)
 	])
-	draw_colored_polygon(roof, Color(0.80, 0.28, 0.24))
-	draw_polyline(roof, Color(0.55, 0.16, 0.14), 2.5)
+	draw_colored_polygon(roof, Color(0.78, 0.30, 0.24))
+	draw_polyline(roof, Color(0.52, 0.15, 0.13), 2.5)
+	draw_line(Vector2(-19, -26.5), Vector2(0, -38), Color(0.92, 0.48, 0.38), 2.0)
+	# Stone chimney
+	draw_rect(Rect2(16, -34, 10, 16), Color(0.55, 0.55, 0.60))
+	draw_rect(Rect2(16, -34, 10, 16), Color(0.38, 0.38, 0.43), false, 1.5)
+	draw_rect(Rect2(15, -36, 12, 3), Color(0.42, 0.42, 0.47))
 
 func _draw_tree() -> void:
 	draw_circle(Vector2(0, 8), 16.0, Color(0, 0, 0, 0.25))
-	# Trunk
+	# Per-tree hue variation so the forest isn't clone-stamped.
+	# (Uses global position: every visual sits at its parent's origin.)
+	var variation: float = fmod(absf(global_position.x * 0.37 + global_position.y * 0.73), 1.0)
+	var leaf_dark := Color(0.15 + variation * 0.05, 0.50 + variation * 0.08, 0.22)
+	var leaf_mid := Color(0.20 + variation * 0.05, 0.62 + variation * 0.08, 0.27)
+	var leaf_light := Color(0.30 + variation * 0.05, 0.74 + variation * 0.06, 0.34)
+	# Trunk with outline + sunlit edge
 	draw_rect(Rect2(-5, -6, 10, 18), Color(0.46, 0.28, 0.16))
-	draw_rect(Rect2(-5, -6, 10, 18), Color(0.32, 0.18, 0.09), false, 1.2)
-	# 30 FPS Wind Swaying Foliage Canopy
-	var sway: float = sin(anim_time * 2.5 + position.x * 0.02) * 2.0
-	draw_circle(Vector2(-9 + sway, -16), 14.0, Color(0.18, 0.56, 0.25))
-	draw_circle(Vector2(9 + sway, -16), 14.0, Color(0.18, 0.56, 0.25))
-	draw_circle(Vector2(sway, -26), 16.0, Color(0.24, 0.68, 0.30))
-	draw_circle(Vector2(sway * 0.8, -20), 13.0, Color(0.34, 0.78, 0.38)) # Sunlit highlights
+	draw_rect(Rect2(-5, -6, 10, 18), Color(0.30, 0.17, 0.09), false, 1.5)
+	draw_line(Vector2(-2.5, -5), Vector2(-2.5, 10), Color(0.58, 0.38, 0.22), 2.0)
+	# Wind sway, desynced per tree (was position.x == 0 for every tree,
+	# so the whole forest swayed in perfect sync).
+	var sway: float = sin(anim_time * 2.2 + global_position.x * 0.05 + global_position.y * 0.031) * 2.2
+	# Dark outline shell first so canopy reads against bright grass
+	draw_circle(Vector2(-9 + sway, -16), 15.2, Color(0.10, 0.34, 0.16))
+	draw_circle(Vector2(9 + sway, -16), 15.2, Color(0.10, 0.34, 0.16))
+	draw_circle(Vector2(sway, -26), 17.2, Color(0.10, 0.34, 0.16))
+	draw_circle(Vector2(-9 + sway, -16), 14.0, leaf_dark)
+	draw_circle(Vector2(9 + sway, -16), 14.0, leaf_dark)
+	draw_circle(Vector2(sway, -26), 16.0, leaf_mid)
+	draw_circle(Vector2(sway * 0.8 - 3, -23), 12.0, leaf_mid)
+	draw_circle(Vector2(sway * 0.8 - 4, -25), 8.0, leaf_light) # Sunlit crown
 
 func _draw_rock() -> void:
 	draw_circle(Vector2(0, 4), 12.0, Color(0, 0, 0, 0.22))
@@ -764,21 +795,33 @@ func _draw_rock() -> void:
 	draw_colored_polygon(high_pts, Color(0.72, 0.76, 0.82, 0.85))
 
 func _draw_flower() -> void:
-	var breeze: float = sin(anim_time * 3.0 + position.y * 0.05) * 1.5
-	draw_line(Vector2(0, 0), Vector2(breeze, 7), Color(0.25, 0.62, 0.22), 1.8)
+	# Static petals (no per-frame tick): bake per-flower variety from
+	# global position so neighbours don't look stamped.
+	var breeze: float = sin(global_position.x * 0.11 + global_position.y * 0.07) * 2.0
+	var lean: float = sin(global_position.x * 0.05 - global_position.y * 0.09) * 1.5
+	draw_line(Vector2(0, 0), Vector2(breeze + lean, 7), Color(0.22, 0.55, 0.20), 1.8)
 	var col := custom_color if custom_color != Color.WHITE else Color(0.98, 0.35, 0.45)
 	for i in range(5):
 		var a: float = float(i) * (TAU / 5.0)
 		var p_pos := Vector2(cos(a) * 4.5 + breeze, sin(a) * 4.5 - 2.0)
 		draw_circle(p_pos, 3.0, col)
+		draw_circle(p_pos + Vector2(-0.8, -0.8), 1.2, Color(1, 1, 1, 0.45))
 	draw_circle(Vector2(breeze, -2), 2.5, Color(1.0, 0.88, 0.15))
 
 func _draw_ruin() -> void:
 	draw_circle(Vector2(0, 8), 18.0, Color(0, 0, 0, 0.22))
-	draw_rect(Rect2(-18, -28, 9, 36), Color(0.66, 0.66, 0.70))
-	draw_rect(Rect2(-20, -30, 13, 5), Color(0.78, 0.78, 0.82))
-	draw_rect(Rect2(9, -16, 9, 24), Color(0.66, 0.66, 0.70))
+	draw_rect(Rect2(-18, -28, 9, 36), Color(0.62, 0.63, 0.68))
+	draw_rect(Rect2(-18, -28, 9, 36), Color(0.42, 0.43, 0.47), false, 1.5)
+	draw_rect(Rect2(-20, -30, 13, 5), Color(0.76, 0.76, 0.80))
+	draw_rect(Rect2(9, -16, 9, 24), Color(0.62, 0.63, 0.68))
+	draw_rect(Rect2(9, -16, 9, 24), Color(0.42, 0.43, 0.47), false, 1.5)
 	draw_line(Vector2(-20, -30), Vector2(3, -30), Color(0.74, 0.74, 0.78), 6.0)
+	# Carved rune groove + moss creeping up the base
+	draw_line(Vector2(-15, -14), Vector2(-12, -2), Color(0.40, 0.62, 0.85, 0.8), 1.5)
+	draw_line(Vector2(-12, -2), Vector2(-15, 6), Color(0.40, 0.62, 0.85, 0.8), 1.5)
+	draw_circle(Vector2(-14, 6), 3.0, Color(0.30, 0.55, 0.28, 0.9))
+	draw_circle(Vector2(13, 6), 2.5, Color(0.30, 0.55, 0.28, 0.9))
+	draw_circle(Vector2(-9, 7), 2.0, Color(0.35, 0.60, 0.30, 0.9))
 
 func _draw_ore_vein() -> void:
 	draw_circle(Vector2(0, 5), 14.0, Color(0, 0, 0, 0.24))
@@ -788,11 +831,19 @@ func _draw_ore_vein() -> void:
 	])
 	draw_colored_polygon(rock, Color(0.40, 0.36, 0.44))
 	draw_polyline(rock, Color(0.25, 0.22, 0.29), 2.2)
+	# Gem tint follows the node: gold ore glows amber, iron ore cold blue.
+	var gem := Color(0.95, 0.68, 0.25)
+	var gem_hi := Color(1.0, 0.90, 0.40)
+	if custom_color != Color.WHITE:
+		gem = custom_color
+		gem_hi = custom_color.lightened(0.35)
 	# 30 FPS Shimmering Gems / Ores
 	var spark: float = (sin(anim_time * 6.0) + 1.0) * 0.5
-	draw_circle(Vector2(-5, -5), 3.5, Color(0.95, 0.65, 0.25, 0.85 + spark * 0.15))
-	draw_circle(Vector2(6, -2), 3.0, Color(1.0, 0.90, 0.35, 0.85 + spark * 0.15))
-	draw_circle(Vector2(-1, 4), 2.5, Color(0.95, 0.75, 0.25, 0.9))
+	var a: float = 0.85 + spark * 0.15
+	draw_circle(Vector2(-5, -5), 3.5, Color(gem, a))
+	draw_circle(Vector2(6, -2), 3.0, Color(gem_hi, a))
+	draw_circle(Vector2(-1, 4), 2.5, Color(gem, 0.9))
+	draw_circle(Vector2(-6, -6), 1.2, Color(1, 1, 1, 0.85))
 
 func _draw_item_wood() -> void:
 	var bob: float = sin(anim_time * 4.0) * 2.5

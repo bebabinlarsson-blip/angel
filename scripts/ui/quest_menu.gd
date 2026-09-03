@@ -17,14 +17,28 @@ func _ready() -> void:
 			if event is InputEventMouseButton and event.pressed:
 				_toggle()
 		)
+	UITheme.style_recursive(self)
 
 func _toggle() -> void:
 	visible = !visible
 	if visible:
+		var inv := get_tree().root.find_child("InventoryUI", true, false)
+		if inv and inv.visible:
+			inv.visible = false
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
+		if p_menu and p_menu.visible:
+			p_menu.visible = false
+		
 		_refresh()
 		get_tree().paused = true
+		var card := get_node_or_null("CenterContainer/PanelContainer")
+		if card is Control:
+			UIAnim.pop_in(card as Control, 0.2)
 	else:
-		get_tree().paused = false
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
+		var inv := get_tree().root.find_child("InventoryUI", true, false)
+		if (p_menu == null or not p_menu.visible) and (inv == null or not inv.visible):
+			get_tree().paused = false
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and visible:
@@ -64,6 +78,7 @@ func _refresh() -> void:
 		btn.text = "%s (%d/%d)%s" % [q.get("title", ""), q.get("current_count", 0), q.get("target_count", 1), ready_str]
 		btn.custom_minimum_size = Vector2(0, 38)
 		btn.pressed.connect(_show_quest_detail.bind(q))
+		UITheme.style_button(btn)
 		quest_list.add_child(btn)
 	
 	# Completed quests
@@ -78,6 +93,7 @@ func _refresh() -> void:
 		btn.text = "[Done] " + q.get("title", "")
 		btn.custom_minimum_size = Vector2(0, 36)
 		btn.pressed.connect(_show_quest_detail.bind(q))
+		UITheme.style_button(btn)
 		quest_list.add_child(btn)
 
 func _show_quest_detail(quest: Dictionary) -> void:

@@ -16,6 +16,9 @@ var cached_grass_pts: PackedVector2Array
 var cached_river_pts: PackedVector2Array
 var cached_cliff_pts: PackedVector2Array
 var cached_mouth_pts: PackedVector2Array
+var cached_grass_detail: PackedVector2Array = PackedVector2Array()
+var cached_sand_detail: PackedVector2Array = PackedVector2Array()
+var cached_meadow_patches: PackedVector2Array = PackedVector2Array()
 
 func _ready() -> void:
 	z_index = -100
@@ -26,18 +29,20 @@ func _ready() -> void:
 	queue_redraw()
 
 func _load_layout_config() -> void:
-	if FileAccess.file_exists("res://data/island_layout.json"):
-		var file := FileAccess.open("res://data/island_layout.json", FileAccess.READ)
-		if file:
-			var json_str := file.get_as_text()
-			var json = JSON.parse_string(json_str)
-			if json and typeof(json) == TYPE_DICTIONARY:
-				var settings: Dictionary = json.get("island_settings", {})
-				base_island_radius = settings.get("base_radius", 16800.0)
-				beach_radius = settings.get("beach_radius", 18500.0)
-				water_rim_radius = settings.get("water_rim_radius", 19800.0)
-				ocean_extent = settings.get("ocean_boundary", 35000.0)
-				village_radius = settings.get("village_radius", 800.0)
+	for path in ["user://island_layout.json", "res://data/island_layout.json"]:
+		if FileAccess.file_exists(path):
+			var file := FileAccess.open(path, FileAccess.READ)
+			if file:
+				var json_str := file.get_as_text()
+				var json = JSON.parse_string(json_str)
+				if json and typeof(json) == TYPE_DICTIONARY:
+					var settings: Dictionary = json.get("island_settings", {})
+					base_island_radius = settings.get("base_radius", 16800.0)
+					beach_radius = settings.get("beach_radius", 18500.0)
+					water_rim_radius = settings.get("water_rim_radius", 19800.0)
+					ocean_extent = settings.get("ocean_boundary", 35000.0)
+					village_radius = settings.get("village_radius", 800.0)
+					return
 
 func _precompute_geometry() -> void:
 	cached_beach_pts = _generate_island_polygon(beach_radius, 48, 12345)
@@ -75,14 +80,54 @@ func _precompute_geometry() -> void:
 		center + Vector2(280, 520)
 	])
 
+	# Deterministic ground detail (grass tufts + sand speckles) so the
+	# island doesn't look flat-shaded. Fixed seed -> stable across loads.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 777
+	cached_grass_detail.clear()
+	for i in range(400):
+		var a := rng.randf() * TAU
+		var d := rng.randf_range(900.0, base_island_radius - 600.0)
+		var p := Vector2(cos(a) * d, sin(a) * d)
+		if p.distance_to(Vector2(5500, 2500)) < 1350.0:
+			continue
+		if p.distance_to(Vector2(-5000, 3500)) < 1050.0:
+			continue
+		if p.distance_to(Vector2(3000, 9000)) < 1250.0:
+			continue
+		cached_grass_detail.append(p)
+	cached_sand_detail.clear()
+	for i in range(160):
+		var a := rng.randf() * TAU
+		var d := rng.randf_range(base_island_radius - 200.0, beach_radius - 200.0)
+		cached_sand_detail.append(Vector2(cos(a) * d, sin(a) * d))
+	# Broad meadow patches (soft two-tone grass, deterministic layout)
+	cached_meadow_patches.clear()
+	for i in range(26):
+		var a := rng.randf() * TAU
+		var d := rng.randf_range(1500.0, base_island_radius - 1500.0)
+		var p := Vector2(cos(a) * d, sin(a) * d)
+		if p.distance_to(Vector2(5500, 2500)) < 1600.0:
+			continue
+		if p.distance_to(Vector2(-5000, 3500)) < 1300.0:
+			continue
+		if p.distance_to(Vector2(3000, 9000)) < 1500.0:
+			continue
+		if p.length() < 1100.0:
+			continue
+		cached_meadow_patches.append(p)
+
 func reload_terrain() -> void:
 	_load_layout_config()
 	_precompute_geometry()
 	queue_redraw()
 
 func _draw() -> void:
-	# Deep Ocean background (single giant quad)
-	draw_rect(Rect2(-ocean_extent, -ocean_extent, ocean_extent * 2.0, ocean_extent * 2.0), Color(0.10, 0.32, 0.62))
+	# Deep Ocean background (single giant quad) + shallow shelf near island
+	draw_rect(Rect2(-ocean_extent, -ocean_extent, ocean_extent * 2.0, ocean_extent * 2.0), Color(0.07, 0.23, 0.48))
+	if not cached_water_rim_pts.is_empty():
+		# Wide soft shallow-water shelf hugging the island
+		draw_polyline(cached_water_rim_pts, Color(0.16, 0.45, 0.68, 0.55), 260.0)
 	
 	# Outer Sand Beach Contour
 	if not cached_beach_pts.is_empty():
@@ -92,14 +137,33 @@ func _draw() -> void:
 	if not cached_water_rim_pts.is_empty():
 		draw_polyline(cached_water_rim_pts, Color(0.35, 0.75, 0.90, 0.45), 24.0)
 	
-	# Grass Landmass
+	# Grass Landmass (slightly muted so sprites pop)
 	if not cached_grass_pts.is_empty():
-		draw_colored_polygon(cached_grass_pts, Color(0.26, 0.56, 0.30)) # Lush emerald grass
+		draw_colored_polygon(cached_grass_pts, Color(0.24, 0.52, 0.28))
+		# Coast inner shadow so the island edge reads at any zoom
+		draw_polyline(cached_grass_pts, Color(0.13, 0.33, 0.17, 0.8), 14.0)
+	# Meadow two-tone patches
+	for p in cached_meadow_patches:
+		var r: float = 700.0 + fmod(absf(p.x * 0.13 + p.y * 0.29), 500.0)
+		draw_circle(p, r, Color(0.27, 0.57, 0.30, 0.55))
+		draw_circle(p + Vector2(r * 0.3, -r * 0.2), r * 0.55, Color(0.21, 0.47, 0.25, 0.5))
+	# Second foam line for depth (cheap, static)
+	if not cached_beach_pts.is_empty():
+		draw_polyline(cached_beach_pts, Color(0.7, 0.9, 1.0, 0.35), 8.0)
+	# Ground detail: grass tufts + sand speckles (precomputed, one draw each)
+	for p in cached_grass_detail:
+		draw_line(p + Vector2(-4, 2), p + Vector2(4, -3), Color(0.2, 0.45, 0.24, 0.7), 3.0)
+	for p in cached_sand_detail:
+		draw_circle(p, 5.0, Color(0.92, 0.84, 0.6, 0.5))
 	
 	# Vast Village clearing
-	draw_circle(Vector2.ZERO, village_radius, Color(0.68, 0.54, 0.38)) # Village dirt ground
-	draw_circle(Vector2.ZERO, 380.0, Color(0.58, 0.46, 0.32)) # Cobblestone central plaza
-	draw_arc(Vector2.ZERO, village_radius, 0, TAU, 32, Color(0.46, 0.36, 0.24), 8.0)
+	draw_circle(Vector2.ZERO, village_radius, Color(0.66, 0.52, 0.36)) # Village dirt ground
+	draw_circle(Vector2.ZERO, 380.0, Color(0.55, 0.44, 0.31)) # Cobblestone central plaza
+	draw_arc(Vector2.ZERO, village_radius, 0, TAU, 48, Color(0.44, 0.34, 0.22), 8.0)
+	# Plaza cobble rings
+	draw_arc(Vector2.ZERO, 300.0, 0, TAU, 40, Color(0.46, 0.36, 0.25, 0.8), 4.0)
+	draw_arc(Vector2.ZERO, 200.0, 0, TAU, 32, Color(0.46, 0.36, 0.25, 0.8), 4.0)
+	draw_arc(Vector2.ZERO, 110.0, 0, TAU, 24, Color(0.46, 0.36, 0.25, 0.8), 4.0)
 	
 	# Cobblestone Highway Network
 	_draw_highways()
@@ -133,23 +197,28 @@ func _generate_island_polygon(base_radius: float, segments: int, seed_val: int) 
 	return pts
 
 func _draw_highways() -> void:
-	# North Highway to Northern Cave Mountain
-	draw_line(Vector2(0, -600), Vector2(0, -7500), Color(0.62, 0.48, 0.34), 65.0)
-	# South Highway to Ancient Ruins
-	draw_line(Vector2(0, 600), Vector2(-1900, 7800), Color(0.62, 0.48, 0.34), 60.0)
-	# East Highway to Eastern Forest and Coast
-	draw_line(Vector2(600, 0), Vector2(9200, 4800), Color(0.62, 0.48, 0.34), 60.0)
-	# West Highway to Western Cliffs
-	draw_line(Vector2(-600, 0), Vector2(-7400, -950), Color(0.62, 0.48, 0.34), 60.0)
+	# Packed-earth roads: dark edge bed, warm center, pale wheel ruts.
+	_draw_road(Vector2(0, -600), Vector2(0, -7500), 78.0)
+	_draw_road(Vector2(0, 600), Vector2(-1900, 7800), 72.0)
+	_draw_road(Vector2(600, 0), Vector2(9200, 4800), 72.0)
+	_draw_road(Vector2(-600, 0), Vector2(-7400, -950), 72.0)
+
+func _draw_road(from: Vector2, to: Vector2, width: float) -> void:
+	draw_line(from, to, Color(0.42, 0.31, 0.20), width)
+	draw_line(from, to, Color(0.60, 0.46, 0.32), width - 14.0)
+	draw_line(from, to, Color(0.68, 0.54, 0.38), 8.0)
 
 func _draw_water_body(center: Vector2, radius: float, col: Color) -> void:
 	# Sandy Shore rim
 	draw_circle(center, radius + 25.0, Color(0.78, 0.72, 0.52))
-	# Water surface
+	# Water surface + darker depth bowl
 	draw_circle(center, radius, col)
+	draw_circle(center + Vector2(0, radius * 0.18), radius * 0.72, col.darkened(0.22))
+	# Sunlit surface ellipse
+	draw_circle(center + Vector2(-radius * 0.18, -radius * 0.22), radius * 0.42, Color(col.lightened(0.18), 0.7))
 	# Wave shimmer lines
-	draw_line(center + Vector2(-radius * 0.5, -radius * 0.15), center + Vector2(radius * 0.5, -radius * 0.15), Color(0.55, 0.85, 1.0, 0.55), 6.0)
-	draw_line(center + Vector2(-radius * 0.35, radius * 0.15), center + Vector2(radius * 0.35, radius * 0.15), Color(0.55, 0.85, 1.0, 0.55), 6.0)
+	draw_line(center + Vector2(-radius * 0.5, -radius * 0.15), center + Vector2(radius * 0.5, -radius * 0.15), Color(0.75, 0.92, 1.0, 0.6), 6.0)
+	draw_line(center + Vector2(-radius * 0.35, radius * 0.15), center + Vector2(radius * 0.35, radius * 0.15), Color(0.75, 0.92, 1.0, 0.6), 6.0)
 
 func _draw_ruins_ground(center: Vector2, radius: float) -> void:
 	draw_circle(center, radius, Color(0.38, 0.42, 0.44)) # Ancient weathered stone

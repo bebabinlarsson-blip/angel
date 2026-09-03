@@ -28,6 +28,7 @@ signal interaction_unavailable()
 # Item signals
 signal item_collected(item_data: Dictionary)
 signal item_used(item_data: Dictionary)
+signal inventory_changed()
 
 # Quest signals
 signal quest_accepted(quest_id: String)

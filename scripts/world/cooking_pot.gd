@@ -16,6 +16,8 @@ func _ready() -> void:
 		visual.name = "CustomDraw2D"
 		visual.entity_type = CustomDraw2D.EntityType.CAMPFIRE
 		add_child(visual)
+	if get_node_or_null("Embers") == null:
+		VFX.campfire_embers(self)
 	
 	_create_cooking_ui()
 	
@@ -26,6 +28,7 @@ func _create_cooking_ui() -> void:
 	cooking_ui_layer = CanvasLayer.new()
 	cooking_ui_layer.name = "CookingUILayer"
 	cooking_ui_layer.layer = 50
+	cooking_ui_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -97,7 +100,7 @@ func _create_cooking_ui() -> void:
 func interact(player: CharacterBody2D) -> void:
 	cooking_system = get_tree().root.find_child("CookingSystem", true, false) as CookingSystem
 	if cooking_system == null:
-		EventBus.show_notification.emit("No cooking system found!")
+		EventBus.show_notification.emit("NXcooking system found!")
 		return
 	
 	if cooking_ui_layer == null:
@@ -106,6 +109,26 @@ func interact(player: CharacterBody2D) -> void:
 	cooking_ui_layer.visible = !cooking_ui_layer.visible
 	if cooking_ui_layer.visible:
 		_refresh_recipes(player)
+		# Was: world kept running while cooking (monsters hit you through menu).
+		get_tree().paused = true
+		var panel := cooking_ui_layer.get_node_or_null("Root/Center/Panel")
+		# Fallback: animate the whole layer's first panel if path differs.
+		if panel == null:
+			panel = _find_panel(cooking_ui_layer)
+		if panel is Control:
+			UIAnim.pop_in(panel as Control)
+	else:
+		if GameManager.current_state == GameManager.GameState.PLAYING:
+			get_tree().paused = false
+
+func _find_panel(node: Node) -> Control:
+	if node is PanelContainer:
+		return node as Control
+	for c in node.get_children():
+		var found := _find_panel(c)
+		if found:
+			return found
+	return null
 
 func _refresh_recipes(player: CharacterBody2D) -> void:
 	if recipe_list == null or cooking_system == null:
@@ -135,6 +158,7 @@ func _refresh_recipes(player: CharacterBody2D) -> void:
 		var cook_btn := Button.new()
 		cook_btn.text = "Cook" if recipe.get("can_cook", false) else "Need Items"
 		cook_btn.disabled = not recipe.get("can_cook", false)
+		UITheme.style_button(cook_btn)
 		var recipe_id: String = recipe.get("id", "")
 		cook_btn.pressed.connect(_on_cook.bind(recipe_id, player))
 		hbox.add_child(cook_btn)
@@ -149,6 +173,14 @@ func _on_cook(recipe_id: String, player: CharacterBody2D) -> void:
 func _close_cooking() -> void:
 	if cooking_ui_layer:
 		cooking_ui_layer.visible = false
+		if GameManager.current_state == GameManager.GameState.PLAYING:
+			get_tree().paused = false
+
+func _input(event: InputEvent) -> void:
+	if cooking_ui_layer and cooking_ui_layer.visible:
+		if event.is_action_pressed("pause") or event.is_action_pressed("interact"):
+			_close_cooking()
+			get_viewport().set_input_as_handled()
 
 func show_interaction_hint() -> void:
 	if interaction_label:

@@ -50,6 +50,7 @@ func _ready() -> void:
 		btn_potions.pressed.connect(func(): _set_filter(4))
 	if btn_materials:
 		btn_materials.pressed.connect(func(): _set_filter(0))
+	UITheme.style_recursive(self)
 
 func _set_filter(type: int) -> void:
 	filter_type = type
@@ -58,16 +59,26 @@ func _set_filter(type: int) -> void:
 func _toggle() -> void:
 	visible = !visible
 	if visible:
+		var q_menu := get_tree().root.find_child("QuestMenu", true, false)
+		if q_menu and q_menu.visible:
+			q_menu.visible = false
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
+		if p_menu and p_menu.visible:
+			p_menu.visible = false
+		
 		_refresh()
 		get_tree().paused = true
+		var card := get_node_or_null("CenterContainer/PanelContainer")
+		if card is Control:
+			UIAnim.pop_in(card as Control, 0.2)
 	else:
-		get_tree().paused = false
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
+		var q_menu := get_tree().root.find_child("QuestMenu", true, false)
+		if (p_menu == null or not p_menu.visible) and (q_menu == null or not q_menu.visible):
+			get_tree().paused = false
 
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("inventory") and visible:
-		_toggle()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("pause") and visible:
+	if event.is_action_pressed("pause") and visible:
 		_toggle()
 		get_viewport().set_input_as_handled()
 
@@ -115,9 +126,10 @@ x%d" % qty
 		
 		slot.text = name_str
 		slot.pressed.connect(_on_item_selected.bind(item))
+		UITheme.style_button(slot)
 		grid_container.add_child(slot)
 	
-	var remaining: int = max(0, 25 - display_items.size())
+	var remaining: int = maxi(0, 30 - display_items.size())
 	for i in range(remaining):
 		var empty_slot := Panel.new()
 		empty_slot.custom_minimum_size = Vector2(74, 74)

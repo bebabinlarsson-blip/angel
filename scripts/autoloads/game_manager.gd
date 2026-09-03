@@ -18,11 +18,30 @@ var village_spawn_point: Vector2 = Vector2(0, 0)
 # Waystones
 var unlocked_waystones: Dictionary = {}
 
+# Throttle time_changed: only emit when the displayed minute actually changes
+var _last_emit_hour: int = -1
+var _last_emit_minute: int = -1
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
+func _unhandled_input(event: InputEvent) -> void:
+	if current_state == GameState.MAIN_MENU:
+		return
+	if event.is_action_pressed("pause"):
+		EventBus.pause_toggled.emit()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("inventory"):
+		EventBus.inventory_toggled.emit()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("quest"):
+		EventBus.quest_menu_toggled.emit()
+		get_viewport().set_input_as_handled()
+
 func _process(delta: float) -> void:
 	if current_state != GameState.PLAYING:
+		return
+	if get_tree().paused:
 		return
 	_update_time(delta)
 
@@ -31,11 +50,16 @@ func _update_time(delta: float) -> void:
 	if game_time_hours >= 24.0:
 		game_time_hours -= 24.0
 		day_count += 1
-	
+
 	var hour := int(game_time_hours)
 	var minute := int((game_time_hours - hour) * 60)
-	EventBus.time_changed.emit(hour, minute)
-	
+	# Perf: was emitting every frame (~60/s) -> HUD + CanvasModulate redo.
+	# Now only emit when the visible minute flips (~1/min game-time).
+	if hour != _last_emit_hour or minute != _last_emit_minute:
+		_last_emit_hour = hour
+		_last_emit_minute = minute
+		EventBus.time_changed.emit(hour, minute)
+
 	var was_night := is_night
 	is_night = hour >= 20 or hour < 6
 	if is_night != was_night:
@@ -60,6 +84,8 @@ func pause_game() -> void:
 		set_state(GameState.PLAYING)
 
 func game_over() -> void:
+	if current_state == GameState.GAME_OVER:
+		return
 	set_state(GameState.GAME_OVER)
 	EventBus.player_died.emit()
 
@@ -97,3 +123,5 @@ func load_save_data(data: Dictionary) -> void:
 	game_time_hours = data.get("game_time_hours", 8.0)
 	day_count = data.get("day_count", 1)
 	unlocked_waystones = data.get("unlocked_waystones", {})
+	_last_emit_hour = -1
+	_last_emit_minute = -1

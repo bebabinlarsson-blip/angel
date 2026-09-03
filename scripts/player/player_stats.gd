@@ -67,8 +67,8 @@ func add_exp(amount: int) -> bool:
 func take_damage(amount: float) -> void:
 	current_hp = max(0, current_hp - amount)
 	EventBus.player_health_changed.emit(current_hp, get_max_hp())
-	if current_hp <= 0:
-		EventBus.player_died.emit()
+	# NOTE: death signal is owned by GameManager.game_over() (via Player.die)
+	# to avoid double player_died emits. Callers must check hp<=0.
 
 func heal(amount: float) -> void:
 	current_hp = min(get_max_hp(), current_hp + amount)

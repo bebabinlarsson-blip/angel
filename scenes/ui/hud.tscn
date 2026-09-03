@@ -10,9 +10,9 @@ custom_minimum_size = Vector2(200, 0)
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -352.0
-offset_top = 10.0
-offset_right = -352.0
+offset_left = -260.0
+offset_top = 16.0
+offset_right = -16.0
 offset_bottom = 10.0
 grow_horizontal = 0
 
@@ -21,18 +21,18 @@ layout_mode = 2
 text = "Lv. 0"
 
 [node name="HealthBar" type="ProgressBar" parent="TopRight" unique_id=749866745]
-custom_minimum_size = Vector2(180, 16)
+custom_minimum_size = Vector2(200, 20)
 layout_mode = 2
 value = 100.0
 
 [node name="StaminaBar" type="ProgressBar" parent="TopRight" unique_id=440843410]
-custom_minimum_size = Vector2(180, 10)
+custom_minimum_size = Vector2(200, 14)
 layout_mode = 2
 max_value = 30.0
 value = 30.0
 
 [node name="ExpBar" type="ProgressBar" parent="TopRight" unique_id=1136323716]
-custom_minimum_size = Vector2(180, 8)
+custom_minimum_size = Vector2(200, 10)
 layout_mode = 2
 
 [node name="MoneyLabel" type="Label" parent="TopRight" unique_id=1417766061]

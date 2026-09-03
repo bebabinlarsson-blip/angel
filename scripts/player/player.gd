@@ -5,7 +5,7 @@ const WALK_SPEED := 280.0
 const DASH_SPEED := 650.0
 const DASH_DURATION := 0.22
 const SWIM_SPEED := 160.0
-const CHARGE_TIME := 0.9
+const CHARGE_TIME := 0.5
 const ATTACK_COOLDOWN := 0.35
 const KNOCKBACK_FORCE := 350.0
 
@@ -21,6 +21,8 @@ var inventory: PlayerInventory = PlayerInventory.new()
 var direction: Vector2 = Vector2.ZERO
 var look_direction: Vector2 = Vector2.RIGHT
 var is_swimming: bool = false
+# Overlapping water zones counter (fixes exit-one-while-still-inside-another bug)
+var swim_zone_count: int = 0
 
 # Dash vars
 var dash_timer: float = 0.0
@@ -46,17 +48,27 @@ var nearby_interactable: Node = null
 
 var visual_renderer: CustomDraw2D = null
 
+# Camera feel: smoothing + trauma-based shake
+var camera: Camera2D = null
+var cam_trauma: float = 0.0
+const CAM_SHAKE_MAX := 16.0
+
 func _ready() -> void:
 	GameManager.player = self
 	add_to_group("player")
+
+	camera = get_node_or_null("Camera2D") as Camera2D
+	if camera:
+		camera.position_smoothing_enabled = true
+		camera.position_smoothing_speed = 7.0
+		camera.drag_horizontal_enabled = true
+		camera.drag_vertical_enabled = true
+		camera.drag_left_margin = 0.12
+		camera.drag_right_margin = 0.12
+		camera.drag_top_margin = 0.12
+		camera.drag_bottom_margin = 0.12
 	
-	# Add procedural visual renderer if not already present
-	visual_renderer = get_node_or_null("CustomDraw2D") as CustomDraw2D
-	if visual_renderer == null:
-		visual_renderer = CustomDraw2D.new()
-		visual_renderer.name = "CustomDraw2D"
-		visual_renderer.entity_type = CustomDraw2D.EntityType.PLAYER
-		add_child(visual_renderer)
+	# Procedural renderer removed in favor of AnimatedSprite2D
 	
 	stats.current_hp = stats.get_max_hp()
 	stats.current_stamina = stats.get_max_stamina()
@@ -82,19 +94,18 @@ func _physics_process(delta: float) -> void:
 	_update_timers(delta)
 	_update_state(delta)
 	_update_animation()
+	_update_camera_shake(delta)
 	move_and_slide()
 
 func _handle_input() -> void:
 	# Movement direction
 	direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	
-	# Aiming logic (mouse cursor direction, fallback to movement direction)
+	# Aiming logic (mouse cursor direction)
 	var mouse_pos := get_global_mouse_position()
 	var aim_dir := (mouse_pos - global_position).normalized()
-	if aim_dir.length() > 0.1:
+	if aim_dir != Vector2.ZERO:
 		look_direction = aim_dir
-	elif direction != Vector2.ZERO:
-		look_direction = direction.normalized()
 	
 	# Dash
 	if Input.is_action_just_pressed("dash") and current_state != State.DASHING:
@@ -117,14 +128,6 @@ func _handle_input() -> void:
 	if Input.is_action_just_pressed("interact") and nearby_interactable:
 		if nearby_interactable.has_method("interact"):
 			nearby_interactable.interact(self)
-	
-	# Inventory
-	if Input.is_action_just_pressed("inventory"):
-		EventBus.inventory_toggled.emit()
-	
-	# Pause
-	if Input.is_action_just_pressed("pause"):
-		EventBus.pause_toggled.emit()
 
 func _update_timers(delta: float) -> void:
 	if attack_timer > 0:
@@ -147,6 +150,8 @@ func _update_timers(delta: float) -> void:
 		if not stats.use_stamina(stats.SWIM_STAMINA_PER_SEC * delta):
 			# Out of stamina while swimming - take drowning damage
 			stats.take_damage(6.0 * delta)
+			if stats.current_hp <= 0:
+				die()
 		stamina_regen_cooldown = stats.STAMINA_REGEN_DELAY
 
 func _update_state(delta: float) -> void:
@@ -174,6 +179,36 @@ func _update_animation() -> void:
 		attack_area.position = look_direction.normalized() * 30
 		attack_area.rotation = look_direction.angle()
 	
+	if sprite:
+		if look_direction.x < 0:
+			sprite.flip_h = true
+		elif look_direction.x > 0:
+			sprite.flip_h = false
+			
+		if current_state == State.ATTACKING:
+			sprite.play("attack")
+		elif current_state == State.DASHING:
+			sprite.play("dash")
+		elif current_state == State.RUNNING:
+			sprite.play("walk")
+		elif current_state == State.DEAD:
+			sprite.play("hurt")
+		else:
+			sprite.play("idle")
+
+func _update_camera_shake(delta: float) -> void:
+	if camera == null or not is_instance_valid(camera):
+		return
+	if cam_trauma > 0.0:
+		cam_trauma = maxf(0.0, cam_trauma - delta * 1.6)
+		var strength: float = cam_trauma * cam_trauma * CAM_SHAKE_MAX
+		camera.offset = Vector2(randf_range(-strength, strength), randf_range(-strength, strength))
+	elif camera.offset != Vector2.ZERO:
+		camera.offset = Vector2.ZERO
+
+func add_trauma(amount: float) -> void:
+	cam_trauma = clampf(cam_trauma + amount, 0.0, 1.0)
+	
 	if sprite and sprite.sprite_frames:
 		if look_direction.x < 0:
 			sprite.flip_h = true
@@ -187,12 +222,29 @@ func get_effective_attack() -> float:
 	var bonus: float = inventory.equipped_weapon.get("attack_bonus", 0.0)
 	return base_atk + bonus
 
+func get_effective_defense() -> float:
+	# Was missing: inventory_ui fell back to 0 DEF forever.
+	# Supports both "defense" and legacy "defense_bonus" keys.
+	if inventory.equipped_armor.is_empty():
+		return 0.0
+	return float(inventory.equipped_armor.get("defense", inventory.equipped_armor.get("defense_bonus", 0.0)))
+
+func enter_water() -> void:
+	swim_zone_count += 1
+	set_swimming(true)
+
+func exit_water() -> void:
+	swim_zone_count = maxi(0, swim_zone_count - 1)
+	if swim_zone_count == 0:
+		set_swimming(false)
+
 func _try_dash() -> void:
 	if stats.use_stamina(stats.DASH_STAMINA_COST):
 		current_state = State.DASHING
 		dash_timer = DASH_DURATION
 		dash_direction = direction.normalized() if direction != Vector2.ZERO else look_direction
 		stamina_regen_cooldown = stats.STAMINA_REGEN_DELAY
+		VFX.dash_trail(self)
 
 func _normal_attack() -> void:
 	if attack_timer > 0:
@@ -201,9 +253,14 @@ func _normal_attack() -> void:
 	attack_timer = ATTACK_COOLDOWN
 	if attack_area:
 		attack_area.monitoring = true
-	_deal_damage_to_area(get_effective_attack())
+		# Fix first-swing whiff: Area overlaps update on physics tick,
+		# so wait one physics frame before querying.
+		await get_tree().physics_frame
+		if not is_instance_valid(attack_area):
+			return
+	_deal_damage_to_area(get_effective_attack(), false)
 	await get_tree().create_timer(0.15).timeout
-	if attack_area:
+	if is_instance_valid(self) and attack_area and is_instance_valid(attack_area):
 		attack_area.monitoring = false
 
 func _charge_attack() -> void:
@@ -213,13 +270,16 @@ func _charge_attack() -> void:
 	attack_timer = ATTACK_COOLDOWN * 1.5
 	if attack_area:
 		attack_area.monitoring = true
+		await get_tree().physics_frame
+		if not is_instance_valid(attack_area):
+			return
 	var charge_damage: float = get_effective_attack() * 2.0
-	_deal_damage_to_area(charge_damage)
+	_deal_damage_to_area(charge_damage, true)
 	await get_tree().create_timer(0.25).timeout
-	if attack_area:
+	if is_instance_valid(self) and attack_area and is_instance_valid(attack_area):
 		attack_area.monitoring = false
 
-func _deal_damage_to_area(damage: float) -> void:
+func _deal_damage_to_area(damage: float, is_charge: bool = false) -> void:
 	if attack_area == null:
 		return
 	var hit_targets: Array[Node] = []
@@ -231,6 +291,7 @@ func _deal_damage_to_area(damage: float) -> void:
 			var knockback_dir: Vector2 = (body.global_position - global_position).normalized()
 			body.take_damage(damage, knockback_dir * KNOCKBACK_FORCE)
 			EventBus.damage_dealt.emit(body, damage)
+			add_trauma(0.45 if is_charge else 0.25)
 	
 	# Check overlapping areas (hurtboxes, destructibles)
 	for area in attack_area.get_overlapping_areas():
@@ -240,26 +301,33 @@ func _deal_damage_to_area(damage: float) -> void:
 			var knockback_dir: Vector2 = (parent.global_position - global_position).normalized() if parent is Node2D else Vector2.ZERO
 			parent.take_damage(damage, knockback_dir * KNOCKBACK_FORCE)
 			EventBus.damage_dealt.emit(parent, damage)
+			add_trauma(0.45 if is_charge else 0.25)
 		elif area != self and area not in hit_targets and area.has_method("take_damage"):
 			hit_targets.append(area)
 			var knockback_dir: Vector2 = (area.global_position - global_position).normalized()
 			area.take_damage(damage, knockback_dir * KNOCKBACK_FORCE)
 			EventBus.damage_dealt.emit(area, damage)
+			add_trauma(0.45 if is_charge else 0.25)
 
 func take_damage(amount: float, knockback: Vector2 = Vector2.ZERO) -> void:
 	if current_state == State.DASHING or current_state == State.DEAD:
 		return # Invincible while dashing
-	var defense: float = inventory.equipped_armor.get("defense", 0.0)
+	var defense: float = get_effective_defense()
 	var final_dmg := maxf(1.0, amount - defense)
 	stats.take_damage(final_dmg)
+	add_trauma(0.45)
 	velocity += knockback
 	if stats.current_hp <= 0:
 		die()
 
 func die() -> void:
+	if current_state == State.DEAD:
+		return
 	current_state = State.DEAD
 	velocity = Vector2.ZERO
 	await get_tree().create_timer(1.2).timeout
+	if not is_instance_valid(self):
+		return
 	GameManager.game_over()
 
 func respawn() -> void:
@@ -267,6 +335,7 @@ func respawn() -> void:
 	stats.current_stamina = stats.get_max_stamina()
 	current_state = State.IDLE
 	is_swimming = false
+	swim_zone_count = 0
 	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
 	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
 

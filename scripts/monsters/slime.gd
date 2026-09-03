@@ -6,6 +6,8 @@ extends "res://scripts/monsters/base_monster.gd"
 
 var jump_timer: float = 0.0
 var is_jumping: bool = false
+var jump_lunge_timer: float = 0.0
+var jump_lunge_dir: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	base_hp = 60.0
@@ -20,11 +22,19 @@ func _ready() -> void:
 	jump_timer = randf_range(0.5, jump_interval)
 
 func _physics_process(delta: float) -> void:
-	if GameManager.player and is_instance_valid(GameManager.player):
-		if global_position.distance_squared_to(GameManager.player.global_position) > 2250000.0:
-			return
+	# LOD early-out lives in base; don't duplicate the distance check here.
 	super._physics_process(delta)
 	_handle_jump(delta)
+	# Lunge persists briefly so base AI doesn't overwrite velocity next frame.
+	# Skipped at LOD range so distant slimes stay asleep (perf).
+	if jump_lunge_timer > 0.0 and current_state != State.DEAD and current_state != State.HURT:
+		var p := GameManager.player
+		if p and is_instance_valid(p) and global_position.distance_squared_to((p as Node2D).global_position) < 2250000.0:
+			jump_lunge_timer -= delta
+			velocity = jump_lunge_dir * jump_force
+			move_and_slide()
+		else:
+			jump_lunge_timer = 0.0
 
 func _handle_jump(delta: float) -> void:
 	if current_state == State.DEAD:
@@ -40,11 +50,15 @@ func _do_jump() -> void:
 	
 	# Jump toward target or random direction
 	var jump_dir: Vector2
-	if target and global_position.distance_to(target.global_position) <= detection_range:
+	if target and is_instance_valid(target) and global_position.distance_to(target.global_position) <= detection_range:
 		jump_dir = (target.global_position - global_position).normalized()
 	else:
 		jump_dir = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
+		if jump_dir == Vector2.ZERO:
+			jump_dir = Vector2.RIGHT
 	
+	jump_lunge_dir = jump_dir
+	jump_lunge_timer = 0.35
 	velocity = jump_dir * jump_force
 	
 	# Scale up and down for jump visual

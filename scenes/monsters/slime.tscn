@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://cli7g4q70qm60"]
 
 [ext_resource type="Script" path="res://scripts/monsters/slime.gd" id="1_0kd0r"]
+[ext_resource type="SpriteFrames" path="res://assets/sprites/slime_frames.tres" id="2_frames"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_3autf"]
 radius = 9.0
@@ -16,6 +17,11 @@ y_sort_enabled = true
 script = ExtResource("1_0kd0r")
 
 [node name="Sprite2D" type="AnimatedSprite2D" parent="." unique_id=1903141078]
+texture_filter = 1
+position = Vector2(0, -8)
+sprite_frames = ExtResource("2_frames")
+animation = &"idle"
+autoplay = "idle"
 
 [node name="CollisionShape" type="CollisionShape2D" parent="." unique_id=907323180]
 position = Vector2(0, 3)

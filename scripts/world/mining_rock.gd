@@ -21,6 +21,11 @@ func _ready() -> void:
 		visual.name = "CustomDraw2D"
 		visual.entity_type = CustomDraw2D.EntityType.ORE_VEIN
 		add_child(visual)
+	# Tint the gems: gold glows amber, iron glows cold blue.
+	if ore_type == "gold_ore":
+		visual.custom_color = Color(0.98, 0.70, 0.22)
+	else:
+		visual.custom_color = Color(0.55, 0.80, 0.95)
 	set_process(false)
 
 func _process(delta: float) -> void:
@@ -34,6 +39,8 @@ func take_damage(amount: float, _knockback: Vector2 = Vector2.ZERO) -> void:
 		return
 	
 	current_hits += 1
+	VFX.mine_sparks(self)
+	VFX.flash_hit(visual)
 	var tween := create_tween()
 	if visual:
 		tween.tween_property(visual, "scale", Vector2(1.2, 0.8), 0.05)

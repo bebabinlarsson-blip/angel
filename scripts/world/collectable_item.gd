@@ -61,6 +61,7 @@ func _give_to_player(player: CharacterBody2D) -> void:
 		"description": "A natural material found across the island."
 	}
 	if player.inventory.add_item(item_data):
+		VFX.pickup_sparkle(self)
 		_collect()
 
 func _collect() -> void:

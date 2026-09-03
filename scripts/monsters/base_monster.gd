@@ -38,12 +38,7 @@ func _ready() -> void:
 	_scale_to_player_level()
 	current_hp = base_hp
 	
-	visual_renderer = get_node_or_null("CustomDraw2D") as CustomDraw2D
-	if visual_renderer == null:
-		visual_renderer = CustomDraw2D.new()
-		visual_renderer.name = "CustomDraw2D"
-		visual_renderer.entity_type = CustomDraw2D.EntityType.SLIME
-		add_child(visual_renderer)
+	# Procedural renderer removed in favor of AnimatedSprite2D
 	
 	if health_bar:
 		health_bar.max_value = base_hp
@@ -158,6 +153,8 @@ func take_damage(amount: float, knockback: Vector2 = Vector2.ZERO) -> void:
 	current_state = State.HURT
 	hurt_timer = 0.3
 	_spawn_damage_number(amount)
+	if sprite:
+		VFX.flash_hit(sprite)
 	
 	if health_bar:
 		health_bar.visible = true
@@ -167,17 +164,27 @@ func take_damage(amount: float, knockback: Vector2 = Vector2.ZERO) -> void:
 		die()
 
 func _spawn_damage_number(amount: float) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	# Pool cap: avoid Label + Tween spam when multi-hit / many slimes.
+	var existing := get_tree().get_nodes_in_group("damage_numbers")
+	if existing.size() > 24:
+		var oldest: Node = existing[0]
+		if is_instance_valid(oldest):
+			oldest.queue_free()
 	var label := Label.new()
+	label.add_to_group("damage_numbers")
 	label.text = "-%d" % int(amount)
 	label.modulate = Color(1.0, 0.35, 0.25, 1.0)
 	label.position = global_position + Vector2(-15, -35)
 	label.z_index = 100
-	if get_parent():
-		get_parent().add_child(label)
-		var tween := label.create_tween()
-		tween.tween_property(label, "position", label.position + Vector2(randf_range(-12, 12), -30), 0.6)
-		tween.parallel().tween_property(label, "modulate:a", 0.0, 0.6)
-		tween.tween_callback(label.queue_free)
+	parent.add_child(label)
+	var tween := label.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, "position", label.position + Vector2(randf_range(-12, 12), -30), 0.6)
+	tween.tween_property(label, "modulate:a", 0.0, 0.6)
+	tween.chain().tween_callback(label.queue_free)
 
 func _apply_knockback(delta: float) -> void:
 	if knockback_velocity.length() > 5:
@@ -189,6 +196,7 @@ func die() -> void:
 	velocity = Vector2.ZERO
 	_drop_loot()
 	EventBus.monster_killed.emit(self, global_position)
+	VFX.slime_pop(self)
 	var tween := create_tween()
 	if visual_renderer:
 		tween.tween_property(visual_renderer, "modulate:a", 0.0, 0.4)
@@ -225,3 +233,10 @@ func _update_animation() -> void:
 			sprite.flip_h = true
 		elif velocity.x > 0:
 			sprite.flip_h = false
+			
+		if current_state == State.HURT:
+			sprite.play("hurt")
+		elif current_state == State.CHASE or current_state == State.WANDER:
+			sprite.play("move")
+		else:
+			sprite.play("idle")
