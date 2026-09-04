@@ -147,10 +147,6 @@ func _spawn_village() -> void:
 	camp_col.position = Vector2(0, 2)
 	campfire.add_child(camp_col)
 	
-	var camp_vis := CustomDraw2D.new()
-	camp_vis.entity_type = CustomDraw2D.EntityType.CAMPFIRE
-	campfire.add_child(camp_vis)
-	
 	village_node.add_child(campfire)
 	
 	# Village Houses from Layout
@@ -166,10 +162,11 @@ func _spawn_village() -> void:
 		{"id": "house4", "pos": {"x": 350.0, "y": 280.0}}
 	])
 	
-	for h in houses_list:
+	for i in range(houses_list.size()):
+		var h: Dictionary = houses_list[i]
 		var pos_dict: Dictionary = h.get("pos", {"x": 0.0, "y": 0.0})
 		var h_pos := Vector2(pos_dict.get("x", 0.0), pos_dict.get("y", 0.0))
-		_create_house(houses_node, h_pos)
+		_create_house(houses_node, h_pos, i)
 	
 	# Village Quest NPCs
 	var npcs_node := Node2D.new()
@@ -190,7 +187,7 @@ func _spawn_village() -> void:
 			var draw_type: int = npc_data.get("type", 9)
 			_create_configured_npc(npcs_node, npc_name, npc_id, quest_id, n_pos, draw_type)
 
-func _create_house(parent: Node2D, pos: Vector2) -> void:
+func _create_house(parent: Node2D, pos: Vector2, house_idx: int = 0) -> void:
 	var body := StaticBody2D.new()
 	body.position = pos
 	body.y_sort_enabled = true
@@ -198,14 +195,23 @@ func _create_house(parent: Node2D, pos: Vector2) -> void:
 	# Accurate physics collision at wall base (allows walking behind roof with Y-sorting)
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
-	shape.size = Vector2(60, 22)
+	shape.size = Vector2(96, 32)
 	col.shape = shape
-	col.position = Vector2(0, 8)
+	col.position = Vector2(0, 16)
 	body.add_child(col)
 	
-	var visual := CustomDraw2D.new()
-	visual.entity_type = CustomDraw2D.EntityType.HOUSE
-	body.add_child(visual)
+	var sprite := Sprite2D.new()
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.position = Vector2(0, -16)
+	var house_textures := [
+		"res://assets/sprites/buildings/house_red.png",
+		"res://assets/sprites/buildings/house_blue.png",
+		"res://assets/sprites/buildings/house_green.png",
+		"res://assets/sprites/buildings/house_stone.png"
+	]
+	var chosen_tex: String = house_textures[house_idx % house_textures.size()]
+	sprite.texture = load(chosen_tex)
+	body.add_child(sprite)
 	
 	parent.add_child(body)
 
@@ -265,7 +271,11 @@ func _create_configured_npc(parent: Node2D, npc_name: String, npc_id: String, qu
 	var visual := AnimatedSprite2D.new()
 	visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	visual.position = Vector2(0, -12)
-	visual.sprite_frames = load("res://assets/sprites/npc_frames.tres")
+	var frames_path := "res://assets/sprites/npc_%s_frames.tres" % npc_id
+	if ResourceLoader.exists(frames_path):
+		visual.sprite_frames = load(frames_path)
+	else:
+		visual.sprite_frames = load("res://assets/sprites/npc_elder_frames.tres")
 	visual.animation = "idle"
 	visual.play("idle")
 	npc.add_child(visual)
@@ -365,9 +375,15 @@ func _create_tree(parent: Node2D, pos: Vector2) -> void:
 	col.position = Vector2(0, 6)
 	body.add_child(col)
 	
-	var visual := CustomDraw2D.new()
-	visual.entity_type = CustomDraw2D.EntityType.TREE
-	body.add_child(visual)
+	var spr := Sprite2D.new()
+	spr.name = "Sprite2D"
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if randf() > 0.35:
+		spr.texture = load("res://assets/sprites/world/tree_oak.png")
+	else:
+		spr.texture = load("res://assets/sprites/world/tree_apple.png")
+	spr.offset = Vector2(0, -18)
+	body.add_child(spr)
 	
 	parent.add_child(body)
 
@@ -397,9 +413,14 @@ func _spawn_rocks() -> void:
 			col.position = Vector2(0, 3)
 			body.add_child(col)
 			
-			var visual := CustomDraw2D.new()
-			visual.entity_type = CustomDraw2D.EntityType.ROCK
-			body.add_child(visual)
+			var spr := Sprite2D.new()
+			spr.name = "Sprite2D"
+			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			if randf() > 0.5:
+				spr.texture = load("res://assets/sprites/world/rock_boulder.png")
+			else:
+				spr.texture = load("res://assets/sprites/world/rock_cluster.png")
+			body.add_child(spr)
 			
 			rocks_node.add_child(body)
 
@@ -427,10 +448,12 @@ func _spawn_flowers() -> void:
 		var f := Node2D.new()
 		f.position = f_pos
 		f.y_sort_enabled = true
-		var visual := CustomDraw2D.new()
-		visual.entity_type = CustomDraw2D.EntityType.FLOWER
-		visual.custom_color = flower_colors[i % flower_colors.size()]
-		f.add_child(visual)
+		var spr := Sprite2D.new()
+		spr.name = "Sprite2D"
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.texture = load("res://assets/sprites/world/wildflower.png")
+		spr.modulate = flower_colors[i % flower_colors.size()]
+		f.add_child(spr)
 		flowers_node.add_child(f)
 
 func _spawn_ruins() -> void:
@@ -459,9 +482,11 @@ func _spawn_ruins() -> void:
 		col.position = Vector2(0, 6)
 		body.add_child(col)
 		
-		var visual := CustomDraw2D.new()
-		visual.entity_type = CustomDraw2D.EntityType.RUIN
-		body.add_child(visual)
+		var spr := Sprite2D.new()
+		spr.name = "Sprite2D"
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.texture = load("res://assets/sprites/world/ruin_pillar.png")
+		body.add_child(spr)
 		
 		ruins_node.add_child(body)
 
@@ -494,10 +519,6 @@ func _spawn_cave_mining_area() -> void:
 		col.shape = shape
 		col.position = Vector2(0, 3)
 		rock.add_child(col)
-		
-		var visual := CustomDraw2D.new()
-		visual.entity_type = CustomDraw2D.EntityType.ORE_VEIN
-		rock.add_child(visual)
 		
 		cave_area.add_child(rock)
 
@@ -571,10 +592,6 @@ func _spawn_item(parent: Node2D, item_id: String, item_name: String, item_type: 
 	col.shape = shape
 	item.add_child(col)
 	
-	var visual := CustomDraw2D.new()
-	visual.entity_type = draw_type
-	item.add_child(visual)
-	
 	parent.add_child(item)
 
 func _spawn_waystones() -> void:
@@ -609,9 +626,11 @@ func _spawn_waystones() -> void:
 		col.position = Vector2(0, 4)
 		waystone.add_child(col)
 		
-		var visual := CustomDraw2D.new()
-		visual.entity_type = CustomDraw2D.EntityType.WAYSTONE
-		waystone.add_child(visual)
+		var sprite := Sprite2D.new()
+		sprite.texture = load("res://assets/sprites/world/waystone.png")
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite.position = Vector2(0, -16)
+		waystone.add_child(sprite)
 		
 		ws_node.add_child(waystone)
 

@@ -7,24 +7,26 @@ enum AnimalType { RABBIT, DEER, BIRD }
 
 var wander_timer: float = 0.0
 var wander_dir: Vector2 = Vector2.ZERO
-var visual: CustomDraw2D = null
+var sprite: AnimatedSprite2D = null
 
 func _ready() -> void:
-	visual = get_node_or_null("CustomDraw2D") as CustomDraw2D
-	if visual == null:
-		visual = CustomDraw2D.new()
-		visual.name = "CustomDraw2D"
+	sprite = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if sprite == null:
+		sprite = AnimatedSprite2D.new()
+		sprite.name = "AnimatedSprite2D"
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		match animal_type:
 			AnimalType.RABBIT:
-				visual.entity_type = CustomDraw2D.EntityType.ANIMAL_RABBIT
+				sprite.sprite_frames = load("res://assets/sprites/wildlife/rabbit_frames.tres")
 				move_speed = 70.0
 			AnimalType.DEER:
-				visual.entity_type = CustomDraw2D.EntityType.ANIMAL_DEER
+				sprite.sprite_frames = load("res://assets/sprites/wildlife/deer_frames.tres")
 				move_speed = 50.0
 			AnimalType.BIRD:
-				visual.entity_type = CustomDraw2D.EntityType.ANIMAL_BIRD
+				sprite.sprite_frames = load("res://assets/sprites/wildlife/bird_frames.tres")
 				move_speed = 90.0
-		add_child(visual)
+		sprite.play("idle")
+		add_child(sprite)
 	
 	wander_timer = randf_range(1.0, 4.0)
 
@@ -59,8 +61,8 @@ func _physics_process(delta: float) -> void:
 	
 	if wander_dir != Vector2.ZERO:
 		velocity = wander_dir * move_speed
-		if visual:
-			visual.scale.x = -1.0 if wander_dir.x < 0 else 1.0
+		if sprite:
+			sprite.flip_h = wander_dir.x < 0
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, 300.0 * delta)
 	

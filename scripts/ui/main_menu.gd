@@ -38,7 +38,7 @@ func _ensure_audio_manager() -> void:
 	if get_tree().root.get_node_or_null("AudioManager") == null:
 		var mgr := AudioManager.new()
 		mgr.name = "AudioManager"
-		get_tree().root.add_child(mgr)
+		get_tree().root.add_child.call_deferred(mgr)
 
 func _play_entrance() -> void:
 	var card := get_node_or_null("CenterContainer/MenuCard")

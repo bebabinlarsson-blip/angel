@@ -11,26 +11,29 @@ var is_collected: bool = false
 var respawn_timer: float = 0.0
 
 @onready var collision: CollisionShape2D = get_node_or_null("CollisionShape2D")
-var visual: CustomDraw2D = null
+var visual: CanvasItem = null
 
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	
-	visual = get_node_or_null("CustomDraw2D") as CustomDraw2D
+	visual = get_node_or_null("Sprite2D") as CanvasItem
 	if visual == null:
-		visual = CustomDraw2D.new()
-		visual.name = "CustomDraw2D"
+		var spr := Sprite2D.new()
+		spr.name = "Sprite2D"
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		match item_id:
 			"wood":
-				visual.entity_type = CustomDraw2D.EntityType.ITEM_WOOD
+				spr.texture = load("res://assets/sprites/items/item_wood.png")
 			"herb":
-				visual.entity_type = CustomDraw2D.EntityType.ITEM_HERB
+				spr.texture = load("res://assets/sprites/items/item_herb.png")
 			"mushroom":
-				visual.entity_type = CustomDraw2D.EntityType.ITEM_MUSHROOM
+				spr.texture = load("res://assets/sprites/items/item_mushroom.png")
 			"iron_ore", "gold_ore":
-				visual.entity_type = CustomDraw2D.EntityType.ITEM_ORE
+				spr.texture = load("res://assets/sprites/items/item_ore.png")
 			_:
-				visual.entity_type = CustomDraw2D.EntityType.ITEM_HERB
+				spr.texture = load("res://assets/sprites/items/item_herb.png")
+		add_child(spr)
+		visual = spr
 	set_process(false)
 
 func _process(delta: float) -> void:

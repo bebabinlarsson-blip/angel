@@ -10,12 +10,14 @@ var cooking_system: CookingSystem = null
 var visual: CustomDraw2D = null
 
 func _ready() -> void:
-	visual = get_node_or_null("CustomDraw2D") as CustomDraw2D
-	if visual == null:
-		visual = CustomDraw2D.new()
-		visual.name = "CustomDraw2D"
-		visual.entity_type = CustomDraw2D.EntityType.CAMPFIRE
-		add_child(visual)
+	var sprite := AnimatedSprite2D.new()
+	sprite.name = "CampfireSprite"
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.sprite_frames = load("res://assets/sprites/world/campfire_frames.tres")
+	sprite.animation = "idle"
+	sprite.play("idle")
+	add_child(sprite)
+	
 	if get_node_or_null("Embers") == null:
 		VFX.campfire_embers(self)
 	
@@ -178,7 +180,7 @@ func _close_cooking() -> void:
 
 func _input(event: InputEvent) -> void:
 	if cooking_ui_layer and cooking_ui_layer.visible:
-		if event.is_action_pressed("pause") or event.is_action_pressed("interact"):
+		if event.is_action_pressed("pause") or event.is_action_pressed("interact") or event.is_action_pressed("ui_cancel"):
 			_close_cooking()
 			get_viewport().set_input_as_handled()
 

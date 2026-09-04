@@ -5,19 +5,22 @@ extends StaticBody2D
 @export var display_name: String = "Village Waystone"
 @export var is_unlocked: bool = false
 
-var visual: CustomDraw2D = null
+var visual: CanvasItem = null
+var sprite: Sprite2D = null
 var fast_travel_layer: CanvasLayer = null
 var fast_travel_popup: PanelContainer = null
 
 func _ready() -> void:
 	add_to_group("waystones")
 	
-	visual = get_node_or_null("CustomDraw2D") as CustomDraw2D
-	if visual == null:
-		visual = CustomDraw2D.new()
-		visual.name = "CustomDraw2D"
-		visual.entity_type = CustomDraw2D.EntityType.WAYSTONE
-		add_child(visual)
+	sprite = get_node_or_null("Sprite2D") as Sprite2D
+	if sprite == null:
+		sprite = Sprite2D.new()
+		sprite.name = "Sprite2D"
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite.texture = load("res://assets/sprites/world/waystone.png")
+		add_child(sprite)
+	visual = sprite
 	
 	if is_unlocked or waystone_id in GameManager.unlocked_waystones:
 		is_unlocked = true

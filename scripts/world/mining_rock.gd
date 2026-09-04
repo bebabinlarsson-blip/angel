@@ -12,20 +12,22 @@ var respawn_time: float = 45.0
 var respawn_timer: float = 0.0
 
 @onready var collision: CollisionShape2D = get_node_or_null("CollisionShape2D")
-var visual: CustomDraw2D = null
+var visual: CanvasItem = null
+var sprite: Sprite2D = null
 
 func _ready() -> void:
-	visual = get_node_or_null("CustomDraw2D") as CustomDraw2D
-	if visual == null:
-		visual = CustomDraw2D.new()
-		visual.name = "CustomDraw2D"
-		visual.entity_type = CustomDraw2D.EntityType.ORE_VEIN
-		add_child(visual)
-	# Tint the gems: gold glows amber, iron glows cold blue.
-	if ore_type == "gold_ore":
-		visual.custom_color = Color(0.98, 0.70, 0.22)
-	else:
-		visual.custom_color = Color(0.55, 0.80, 0.95)
+	sprite = get_node_or_null("Sprite2D") as Sprite2D
+	if sprite == null:
+		sprite = Sprite2D.new()
+		sprite.name = "Sprite2D"
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite.texture = load("res://assets/sprites/world/ore_vein.png")
+		if ore_type == "gold_ore":
+			sprite.modulate = Color(1.2, 0.95, 0.5)
+		else:
+			sprite.modulate = Color(0.9, 1.0, 1.1)
+		add_child(sprite)
+	visual = sprite
 	set_process(false)
 
 func _process(delta: float) -> void:

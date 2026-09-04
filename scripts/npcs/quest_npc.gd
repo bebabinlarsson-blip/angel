@@ -61,7 +61,7 @@ func _create_dialogue_ui() -> void:
 
 	dialogue_panel = PanelContainer.new()
 	dialogue_panel.name = "DialoguePanel"
-	dialogue_panel.custom_minimum_size = Vector2(380, 220)
+	dialogue_panel.custom_minimum_size = Vector2(460, 220)
 	dialogue_panel.visible = false
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.10, 0.16, 0.97)
@@ -84,14 +84,40 @@ func _create_dialogue_ui() -> void:
 	vbox.add_theme_constant_override("separation", 12)
 	margin.add_child(vbox)
 
+	var content_row := HBoxContainer.new()
+	content_row.name = "ContentRow"
+	content_row.add_theme_constant_override("separation", 14)
+	vbox.add_child(content_row)
+
+	var portrait_id := npc_id if npc_id != "cook" else "chef"
+	var portrait_path := "res://assets/sprites/actors/npc_%s/faceset.png" % portrait_id
+	if ResourceLoader.exists(portrait_path):
+		var port_frame := PanelContainer.new()
+		var p_style := StyleBoxFlat.new()
+		p_style.bg_color = Color(0.12, 0.15, 0.22, 1.0)
+		p_style.border_color = Color(0.95, 0.75, 0.35, 0.8)
+		p_style.set_border_width_all(2)
+		p_style.set_corner_radius_all(6)
+		port_frame.add_theme_stylebox_override("panel", p_style)
+		
+		var portrait := TextureRect.new()
+		portrait.custom_minimum_size = Vector2(76, 76)
+		portrait.texture = load(portrait_path)
+		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		port_frame.add_child(portrait)
+		content_row.add_child(port_frame)
+
 	dialogue_label = RichTextLabel.new()
 	dialogue_label.name = "DialogueLabel"
-	dialogue_label.custom_minimum_size = Vector2(340, 120)
+	dialogue_label.custom_minimum_size = Vector2(320, 110)
+	dialogue_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	dialogue_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	dialogue_label.bbcode_enabled = true
 	dialogue_label.fit_content = true
 	dialogue_label.scroll_active = false
-	vbox.add_child(dialogue_label)
+	content_row.add_child(dialogue_label)
 
 	var btn_row := HBoxContainer.new()
 	btn_row.name = "ButtonRow"
