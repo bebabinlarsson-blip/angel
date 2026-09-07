@@ -10,14 +10,18 @@ extends Area2D
 var is_collected: bool = false
 var respawn_timer: float = 0.0
 
-@onready var collision: CollisionShape2D = get_node_or_null("CollisionShape2D")
+var collision: CollisionShape2D = null
 var visual: CanvasItem = null
 
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	
-	visual = get_node_or_null("Sprite2D") as CanvasItem
-	if visual == null:
+	if has_node("CollisionShape2D"):
+		collision = get_node("CollisionShape2D") as CollisionShape2D
+	
+	if has_node("Sprite2D"):
+		visual = get_node("Sprite2D") as CanvasItem
+	else:
 		var spr := Sprite2D.new()
 		spr.name = "Sprite2D"
 		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -77,9 +81,7 @@ func _collect() -> void:
 		collision.set_deferred("disabled", true)
 	EventBus.show_notification.emit("Collected %s x%d" % [item_name, quantity])
 	
-	var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
-	if quest_system:
-		quest_system.update_quest_progress("collect", item_id, quantity)
+
 
 func _respawn() -> void:
 	is_collected = false

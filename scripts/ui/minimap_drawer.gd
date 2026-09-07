@@ -2,167 +2,277 @@ class_name MinimapDrawer
 extends Control
 
 @export var is_big_map: bool = false
-@export var world_radius: float = 19500.0
+@export var world_radius: float = 3200.0
+var map_offset := Vector2.ZERO
+var map_zoom: float = 1.0
+var _dragging: bool = false
+var _timer: float = 0.0
+var _terrain: IslandWorld
+var _stones: Array[Node] = []
+var _npcs: Array[Node] = []
+const INK := Color("#f3e7ce")
+const OCEAN := Color("#244853")
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(160, 160) if not is_big_map else Vector2(600, 600)
+	clip_contents = true
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	focus_mode = Control.FOCUS_ALL
+	tooltip_text = "Open island chart [M]" if not is_big_map else "Drag to pan. Scroll to zoom. Home to find yourself."
 	gui_input.connect(_on_gui_input)
-
-var redraw_timer: float = 0.0
-var cached_npc_positions: Array[Vector2] = []
-var cached_monster_positions: Array[Vector2] = []
-var cached_waystone_positions: Array[Vector2] = []
-var npc_cache_timer: float = 0.0
-var _hud_ref: CanvasLayer = null
-
-var map_offset: Vector2 = Vector2.ZERO
-var map_zoom: float = 1.0
-var _is_dragging: bool = false
-
-func _on_gui_input(event: InputEvent) -> void:
-	if not is_big_map:
-		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-			if _hud_ref == null or not is_instance_valid(_hud_ref):
-				_hud_ref = get_tree().root.find_child("HUD", true, false)
-			var hud := _hud_ref
-			if hud and "big_map" in hud and hud.big_map:
-				hud.big_map.visible = !hud.big_map.visible
-	else:
-		if event is InputEventMouseButton:
-			if event.button_index == MOUSE_BUTTON_LEFT:
-				if event.pressed:
-					_is_dragging = true
-				else:
-					_is_dragging = false
-			elif event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-				map_zoom = clampf(map_zoom + 0.1, 0.4, 3.5)
-				queue_redraw()
-			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-				map_zoom = clampf(map_zoom - 0.1, 0.4, 3.5)
-				queue_redraw()
-		elif event is InputEventMouseMotion:
-			if _is_dragging:
-				map_offset += event.relative / map_zoom
-				queue_redraw()
-
-func _refresh_caches() -> void:
-	cached_npc_positions.clear()
-	for npc in get_tree().get_nodes_in_group("npcs"):
-		if is_instance_valid(npc) and npc is Node2D:
-			cached_npc_positions.append((npc as Node2D).global_position)
-	cached_monster_positions.clear()
-	# Mini map skips monsters entirely if too many (perf); big map shows them.
-	var monster_nodes := get_tree().get_nodes_in_group("monsters")
-	var cap := monster_nodes.size() if is_big_map else mini(monster_nodes.size(), 60)
-	for i in range(cap):
-		var m: Node = monster_nodes[i]
-		if is_instance_valid(m) and m is Node2D:
-			# Skip dead without property lookup cost when possible
-			var dead := false
-			if "current_state" in m:
-				dead = (m.get("current_state") == 5)
-			if not dead:
-				cached_monster_positions.append((m as Node2D).global_position)
-	if cached_waystone_positions.is_empty():
-		for w in get_tree().get_nodes_in_group("waystones"):
-			if is_instance_valid(w) and w is Node2D:
-				cached_waystone_positions.append((w as Node2D).global_position)
+	visibility_changed.connect(func(): _dragging = false)
+	resized.connect(queue_redraw)
 
 func _process(delta: float) -> void:
-	if is_big_map and not visible:
+	if not is_visible_in_tree():
 		return
-	if not is_big_map and not visible:
+	_timer += delta
+	if _timer < 0.08:
 		return
-	
-	npc_cache_timer += delta
-	if npc_cache_timer >= 1.0 or cached_npc_positions.is_empty():
-		npc_cache_timer = 0.0
-		_refresh_caches()
-	
-	redraw_timer += delta
-	if redraw_timer >= 0.08: # 12.5 FPS update is buttery smooth and saves 90% minimap overhead
-		redraw_timer = 0.0
-		queue_redraw()
+	_timer = 0.0
+	if not is_instance_valid(_terrain):
+		_terrain = get_tree().get_first_node_in_group("island_world") as IslandWorld
+	_stones = get_tree().get_nodes_in_group("waystones")
+	_npcs = get_tree().get_nodes_in_group("npcs")
+	queue_redraw()
+
+func _map_scale() -> float:
+	if not is_instance_valid(_terrain):
+		return 1.0
+	if not is_big_map:
+		return minf(size.x, size.y - 22.0) / 1500.0
+	return minf(size.x - 340.0, size.y - 130.0) / _terrain.bounds.size.x * map_zoom
+
+func _center() -> Vector2:
+	if is_big_map:
+		return Vector2((size.x - 200.0) * 0.5, size.y * 0.5 + 10.0) + map_offset * _map_scale()
+	var p := Vector2.ZERO
+	if is_instance_valid(GameManager.player):
+		p = GameManager.player.global_position
+	return Vector2(size.x * 0.5, (size.y + 22.0) * 0.5) - p * _map_scale()
+
+func center_on_player() -> void:
+	if is_instance_valid(GameManager.player):
+		map_offset = -GameManager.player.global_position
+	queue_redraw()
+
+func fit_island() -> void:
+	map_zoom = 1.0
+	map_offset = Vector2.ZERO
+	queue_redraw()
+
+func _on_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if not is_big_map and event.pressed:
+				get_tree().root.find_child("HUD", true, false).set_map_open(true)
+			else:
+				_dragging = event.pressed
+				grab_focus()
+		if is_big_map and event.pressed:
+			if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+				map_zoom = clampf(map_zoom * 1.2, 0.7, 5.0)
+			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				map_zoom = clampf(map_zoom / 1.2, 0.7, 5.0)
+		accept_event()
+	elif event is InputEventMouseMotion and _dragging:
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			map_offset += event.relative / maxf(_map_scale(), 0.001)
+		else:
+			_dragging = false
+	elif event is InputEventKey and event.pressed:
+		if event.keycode == KEY_HOME:
+			center_on_player()
+		elif event.keycode == KEY_ENTER and not is_big_map:
+			get_tree().root.find_child("HUD", true, false).set_map_open(true)
+		elif is_big_map:
+			match event.keycode:
+				KEY_LEFT: map_offset.x += 100.0 / map_zoom
+				KEY_RIGHT: map_offset.x -= 100.0 / map_zoom
+				KEY_UP: map_offset.y += 100.0 / map_zoom
+				KEY_DOWN: map_offset.y -= 100.0 / map_zoom
+				KEY_EQUAL, KEY_PLUS: map_zoom = minf(5.0, map_zoom * 1.2)
+				KEY_MINUS: map_zoom = maxf(0.7, map_zoom / 1.2)
+			accept_event()
+	queue_redraw()
+
+func _label(pos: Vector2, text: String, font_size: int = 14, color: Color = INK) -> void:
+	draw_string_outline(ThemeDB.fallback_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, 4, Color("#101c24"))
+	draw_string(ThemeDB.fallback_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 func _draw() -> void:
-	var w: float = size.x
-	var h: float = size.y
-	var center := Vector2(w * 0.5, h * 0.5)
-	var scale_factor: float = (w * 0.46) / world_radius
+	# 1. Base ocean fill
+	draw_rect(Rect2(Vector2.ZERO, size), OCEAN)
 	
+	if not is_instance_valid(_terrain) or _terrain.map_texture == null:
+		_label(Vector2(12, 28), "Charting island...", 14)
+		return
+		
+	var factor: float = _map_scale()
+	var center: Vector2 = _center()
+	
+	# 2. Map terrain texture (nearest neighbor crisp rendering)
+	var map_rect := Rect2(center + _terrain.bounds.position * factor, _terrain.bounds.size * factor)
+	draw_texture_rect(_terrain.map_texture, map_rect, false)
+	
+	# 3. Subtle grid lines on Big Map
 	if is_big_map:
-		scale_factor *= map_zoom
-		center += map_offset * map_zoom
-	
-	# Background border
-	draw_rect(Rect2(0, 0, w, h), Color(0.1, 0.15, 0.22, 0.90))
-	draw_rect(Rect2(0, 0, w, h), Color(0.85, 0.75, 0.45), false, 2.0 if not is_big_map else 3.0)
-	
-	# Island shape
-	var island_r: float = 16800.0 * scale_factor
-	draw_circle(center, island_r + 1700.0 * scale_factor, Color(0.88, 0.78, 0.52, 0.9)) # Sand Beach
-	draw_circle(center, island_r, Color(0.26, 0.56, 0.30, 0.9)) # Grass
-	
-	# Village center
-	var village_r: float = 800.0 * scale_factor
-	draw_circle(center, maxf(village_r, 4.0), Color(0.68, 0.54, 0.38))
-	
-	# Eastern Great Lake
-	var lake_pos: Vector2 = center + Vector2(5500, 2500) * scale_factor
-	draw_circle(lake_pos, 1200.0 * scale_factor, Color(0.18, 0.48, 0.80))
-	
-	# Western Pond
-	var w_pond_pos: Vector2 = center + Vector2(-5000, 3500) * scale_factor
-	draw_circle(w_pond_pos, 900.0 * scale_factor, Color(0.18, 0.48, 0.80))
-	
-	# Southern Lagoon
-	var lagoon_pos: Vector2 = center + Vector2(3000, 9000) * scale_factor
-	draw_circle(lagoon_pos, 1100.0 * scale_factor, Color(0.16, 0.46, 0.78))
-	
-	# River line
-	var r1: Vector2 = center + Vector2(1000, -7200) * scale_factor
-	var r2: Vector2 = center + Vector2(3800, -1500) * scale_factor
-	var r3: Vector2 = center + Vector2(5500, 2500) * scale_factor
-	var r4: Vector2 = center + Vector2(11500, 8500) * scale_factor
-	draw_line(r1, r2, Color(0.2, 0.55, 0.85), 2.5)
-	draw_line(r2, r3, Color(0.2, 0.55, 0.85), 2.5)
-	draw_line(r3, r4, Color(0.2, 0.55, 0.85), 2.5)
-	
-	# Cave icon (North Mountain)
-	var cave_pos: Vector2 = center + Vector2(0, -7500) * scale_factor
-	draw_circle(cave_pos, 4.5 if not is_big_map else 8.0, Color(0.3, 0.3, 0.35))
-	
-	# Southern Ruins icon
-	var ruins_pos: Vector2 = center + Vector2(-2000, 8000) * scale_factor
-	draw_circle(ruins_pos, 4.0 if not is_big_map else 7.0, Color(0.5, 0.4, 0.6))
-	
-	# NPCs (Yellow dots, cached)
-	for npc_gpos in cached_npc_positions:
-		var npc_mpos: Vector2 = center + npc_gpos * scale_factor
-		draw_circle(npc_mpos, 3.0 if not is_big_map else 5.0, Color(1.0, 0.85, 0.1))
-	
-	# Monsters (Red dots, cached - no scene-tree query inside _draw)
-	for m_gpos in cached_monster_positions:
-		var m_mpos: Vector2 = center + m_gpos * scale_factor
-		draw_circle(m_mpos, 2.0 if not is_big_map else 3.5, Color(0.9, 0.2, 0.2))
+		var grid_step: float = 32.0 * 8.0 * factor
+		if grid_step > 16.0:
+			var start_x: float = fposmod(map_rect.position.x, grid_step)
+			while start_x < size.x - 210.0:
+				if start_x > 0:
+					draw_line(Vector2(start_x, 56), Vector2(start_x, size.y - 36), Color(0.12, 0.22, 0.28, 0.35), 1.0)
+				start_x += grid_step
+			var start_y: float = fposmod(map_rect.position.y, grid_step)
+			while start_y < size.y - 36.0:
+				if start_y > 56:
+					draw_line(Vector2(0, start_y), Vector2(size.x - 210.0, start_y), Color(0.12, 0.22, 0.28, 0.35), 1.0)
+				start_y += grid_step
 
-	# Waystones (Blue dots, cached)
-	for w_gpos in cached_waystone_positions:
-		var w_mpos: Vector2 = center + w_gpos * scale_factor
-		draw_circle(w_mpos, 3.0 if not is_big_map else 5.0, Color(0.3, 0.7, 1.0))
-	
-	# Player position marker (Glowing cyan arrow/dot)
-	if GameManager.player and is_instance_valid(GameManager.player):
-		var p_pos: Vector2 = center + GameManager.player.global_position * scale_factor
-		draw_circle(p_pos, 4.0 if not is_big_map else 7.0, Color(1.0, 1.0, 1.0))
-		draw_circle(p_pos, 3.0 if not is_big_map else 5.0, Color(0.1, 0.6, 1.0))
-		# Facing direction
-		var f_dir: Vector2 = GameManager.player.look_direction.normalized()
-		draw_line(p_pos, p_pos + f_dir * (8.0 if not is_big_map else 14.0), Color(1.0, 1.0, 0.2), 2.0)
-	
-	# Map label
-	if not is_big_map:
-		draw_string(ThemeDB.fallback_font, Vector2(6, 16), "Map [Click]", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 1, 1, 0.8))
+	# 4. Waystones markers
+	for stone: Node in _stones:
+		if not is_instance_valid(stone):
+			continue
+		var p: Vector2 = center + stone.global_position * factor
+		var unlocked: bool = stone.is_unlocked
+		var col_gem := Color("#4ef3e6") if unlocked else Color("#889299")
+		# Diamond shape
+		var d_out := PackedVector2Array([p + Vector2(0, -7), p + Vector2(6, 0), p + Vector2(0, 7), p + Vector2(-6, 0)])
+		var d_in := PackedVector2Array([p + Vector2(0, -4), p + Vector2(3.5, 0), p + Vector2(0, 4), p + Vector2(-3.5, 0)])
+		draw_colored_polygon(d_out, Color("#101c24"))
+		draw_colored_polygon(d_in, col_gem)
+		if is_big_map:
+			_label(p + Vector2(10, 4), String(stone.display_name).replace(" Waystone", ""), 12, Color("#eef3f6"))
+
+	# 5. NPCs markers
+	for npc: Node in _npcs:
+		if is_instance_valid(npc) and (not is_big_map or map_zoom >= 1.6):
+			var p: Vector2 = center + npc.global_position * factor
+			draw_circle(p, 4.0, Color("#101c24"))
+			draw_circle(p, 2.5, Color("#ffcf48"))
+
+	# 6. Player marker
+	if is_instance_valid(GameManager.player):
+		var p: Vector2 = center + GameManager.player.global_position * factor
+		var facing: Vector2 = GameManager.player.look_direction.normalized()
+		if facing == Vector2.ZERO:
+			facing = Vector2.DOWN
+		var side: Vector2 = facing.orthogonal()
+		# High-contrast golden explorer arrow
+		var pts_outline := PackedVector2Array([
+			p + facing * 11,
+			p - facing * 7 + side * 7,
+			p - facing * 4,
+			p - facing * 7 - side * 7
+		])
+		var pts_inner := PackedVector2Array([
+			p + facing * 8,
+			p - facing * 5 + side * 5,
+			p - facing * 3,
+			p - facing * 5 - side * 5
+		])
+		draw_circle(p, 8.5, Color("#101c24"))
+		draw_colored_polygon(pts_outline, Color("#ffd448"))
+		draw_colored_polygon(pts_inner, Color("#1b394f"))
+		draw_circle(p + facing * 2, 2.0, Color("#ffd448"))
+
+	# 7. Framing and Overlays
+	if is_big_map:
+		# Top Header Banner
+		draw_rect(Rect2(0, 0, size.x, 56), Color("#12202a"))
+		draw_line(Vector2(0, 56), Vector2(size.x, 56), Color("#9f824e"), 2.0)
+		_label(Vector2(24, 28), "ANGEL ISLAND: EXPLORER'S CHART", 18, Color("#ffe08a"))
+		_label(Vector2(24, 46), "Recorded landmarks, paths, woodland and waystone beacons", 12, Color("#a8c0cf"))
+
+		# Right Ledger / Legend Panel
+		var leg_w: float = 210.0
+		var leg_x: float = size.x - leg_w
+		draw_rect(Rect2(leg_x, 56, leg_w, size.y - 56 - 36), Color("#101c25"))
+		draw_line(Vector2(leg_x, 56), Vector2(leg_x, size.y - 36), Color("#9f824e"), 2.0)
+		
+		var ly: float = 84.0
+		_label(Vector2(leg_x + 18, ly), "CHART KEY", 14, Color("#ffe08a"))
+		draw_line(Vector2(leg_x + 18, ly + 6), Vector2(leg_x + leg_w - 18, ly + 6), Color("#564731"), 1.0)
+		ly += 28.0
+
+		# Key item: Player
+		draw_circle(Vector2(leg_x + 28, ly - 4), 6.0, Color("#101c24"))
+		draw_colored_polygon(PackedVector2Array([Vector2(leg_x + 28, ly - 9), Vector2(leg_x + 33, ly), Vector2(leg_x + 28, ly - 2), Vector2(leg_x + 23, ly)]), Color("#ffd448"))
+		_label(Vector2(leg_x + 44, ly), "You (Explorer)", 13, Color("#eef3f6"))
+		ly += 26.0
+
+		# Key item: NPC
+		draw_circle(Vector2(leg_x + 28, ly - 4), 4.5, Color("#101c24"))
+		draw_circle(Vector2(leg_x + 28, ly - 4), 3.0, Color("#ffcf48"))
+		_label(Vector2(leg_x + 44, ly), "Villagers", 13, Color("#eef3f6"))
+		ly += 26.0
+
+		# Key item: Unlocked Waystone
+		var d_u := PackedVector2Array([Vector2(leg_x + 28, ly - 10), Vector2(leg_x + 34, ly - 4), Vector2(leg_x + 28, ly + 2), Vector2(leg_x + 22, ly - 4)])
+		draw_colored_polygon(d_u, Color("#4ef3e6"))
+		_label(Vector2(leg_x + 44, ly), "Active Waystone", 13, Color("#eef3f6"))
+		ly += 26.0
+
+		# Key item: Dormant Waystone
+		var d_l := PackedVector2Array([Vector2(leg_x + 28, ly - 10), Vector2(leg_x + 34, ly - 4), Vector2(leg_x + 28, ly + 2), Vector2(leg_x + 22, ly - 4)])
+		draw_polyline(d_l, Color("#889299"), 2.0)
+		_label(Vector2(leg_x + 44, ly), "Dormant Beacon", 13, Color("#a8b3ba"))
+		ly += 26.0
+
+		# Key item: Road & Bridge
+		draw_rect(Rect2(leg_x + 22, ly - 9, 12, 10), Color("#c39e68"))
+		_label(Vector2(leg_x + 44, ly), "Stone & Dirt Paths", 13, Color("#eef3f6"))
+		ly += 26.0
+
+		# Key item: Forest
+		draw_rect(Rect2(leg_x + 22, ly - 9, 12, 10), Color("#264c2f"))
+		_label(Vector2(leg_x + 44, ly), "Woodland Groves", 13, Color("#eef3f6"))
+		ly += 26.0
+
+		# Key item: Farmland
+		draw_rect(Rect2(leg_x + 22, ly - 9, 12, 10), Color("#673e1e"))
+		_label(Vector2(leg_x + 44, ly), "Village Farmland", 13, Color("#eef3f6"))
+		
+		# Compass Rose
+		var cr_pos := Vector2(leg_x + leg_w * 0.5, size.y - 100.0)
+		draw_circle(cr_pos, 22.0, Color("#0d171e"))
+		draw_circle(cr_pos, 20.0, Color("#15242f"))
+		# North needle (red)
+		draw_colored_polygon(PackedVector2Array([cr_pos + Vector2(0, -18), cr_pos + Vector2(4, 0), cr_pos, cr_pos + Vector2(-4, 0)]), Color("#e84a4a"))
+		# South needle (silver)
+		draw_colored_polygon(PackedVector2Array([cr_pos + Vector2(0, 18), cr_pos + Vector2(4, 0), cr_pos, cr_pos + Vector2(-4, 0)]), Color("#c8d0d6"))
+		# East/West needles
+		draw_colored_polygon(PackedVector2Array([cr_pos + Vector2(18, 0), cr_pos + Vector2(0, 4), cr_pos, cr_pos + Vector2(0, -4)]), Color("#889299"))
+		draw_colored_polygon(PackedVector2Array([cr_pos + Vector2(-18, 0), cr_pos + Vector2(0, 4), cr_pos, cr_pos + Vector2(0, -4)]), Color("#889299"))
+		draw_circle(cr_pos, 3.0, Color("#ffe08a"))
+		_label(cr_pos + Vector2(-5, -22), "N", 12, Color("#ff6b6b"))
+
+		# Bottom Bar
+		var b_y: float = size.y - 36.0
+		draw_rect(Rect2(0, b_y, size.x, 36), Color("#12202a"))
+		draw_line(Vector2(0, b_y), Vector2(size.x, b_y), Color("#9f824e"), 2.0)
+		var scale_paces: float = 300.0
+		var bar_px: float = scale_paces * factor
+		if bar_px > 10.0 and bar_px < 220.0:
+			draw_line(Vector2(24, b_y + 18), Vector2(24 + bar_px, b_y + 18), Color("#ffe08a"), 2.0)
+			draw_line(Vector2(24, b_y + 12), Vector2(24, b_y + 24), Color("#ffe08a"), 2.0)
+			draw_line(Vector2(24 + bar_px, b_y + 12), Vector2(24 + bar_px, b_y + 24), Color("#ffe08a"), 2.0)
+			_label(Vector2(28 + bar_px, b_y + 22), "%d paces" % int(scale_paces), 12, Color("#ffe08a"))
+		_label(Vector2(size.x * 0.35, b_y + 22), "Drag / Arrows: Pan   |   Wheel / (+/-): Zoom   |   [Home]: Center   |   [M]: Close", 13, Color("#c3d4e0"))
+
+		# Outer Border
+		draw_rect(Rect2(Vector2.ONE, size - Vector2.ONE * 2), Color("#9f824e"), false, 3.0)
 	else:
-		draw_string(ThemeDB.fallback_font, Vector2(20, 30), "Starting Island Map - Angel", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 1, 1, 1.0))
-		draw_string(ThemeDB.fallback_font, Vector2(20, h - 20), "Legend: Cyan=Player | Yellow=NPC | Red=Slimes | Blue=Waystone | Gray=Cave", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.9, 0.9, 0.9, 0.9))
+		# Minimap Header
+		draw_rect(Rect2(0, 0, size.x, 22), Color("#12202a"))
+		draw_line(Vector2(0, 22), Vector2(size.x, 22), Color("#8a7143"), 1.0)
+		_label(Vector2(8, 16), "Nearby [M]", 11, Color("#ffe08a"))
+		# Compass indicator
+		var comp_x: float = size.x - 22.0
+		draw_colored_polygon(PackedVector2Array([Vector2(comp_x, 4), Vector2(comp_x + 3, 11), Vector2(comp_x - 3, 11)]), Color("#e84a4a"))
+		draw_colored_polygon(PackedVector2Array([Vector2(comp_x, 18), Vector2(comp_x + 3, 11), Vector2(comp_x - 3, 11)]), Color("#c8d0d6"))
+		_label(Vector2(size.x - 12, 16), "N", 10, Color("#ff7b7b"))
+		# Bezel Frame
+		draw_rect(Rect2(Vector2.ZERO, size), Color("#101c24"), false, 3.0)
+		draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color("#9f824e") if has_focus() else Color("#6b5735"), false, 1.0)

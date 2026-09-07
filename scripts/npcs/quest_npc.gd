@@ -10,35 +10,33 @@ extends StaticBody2D
 @export var quest_complete_text: String = "Wonderful! Here's your reward."
 @export var quest_done_text: String = "Thank you for your help!"
 
-@onready var name_label: Label = get_node_or_null("NameLabel")
-@onready var dialogue_panel: PanelContainer = get_node_or_null("DialogueLayer/Center/DialoguePanel")
-@onready var dialogue_label: RichTextLabel = get_node_or_null("DialogueLayer/Center/DialoguePanel/Margin/VBox/DialogueLabel")
-@onready var accept_btn: Button = get_node_or_null("DialogueLayer/Center/DialoguePanel/Margin/VBox/ButtonRow/AcceptButton")
-@onready var complete_btn: Button = get_node_or_null("DialogueLayer/Center/DialoguePanel/Margin/VBox/ButtonRow/CompleteButton")
-@onready var close_btn: Button = get_node_or_null("DialogueLayer/Center/DialoguePanel/Margin/VBox/ButtonRow/CloseButton")
-@onready var interaction_label: Label = get_node_or_null("InteractionLabel")
-@onready var dialogue_layer: CanvasLayer = get_node_or_null("DialogueLayer")
+var name_label: Label = null
+var dialogue_panel: PanelContainer = null
+var dialogue_label: RichTextLabel = null
+var accept_btn: Button = null
+var complete_btn: Button = null
+var close_btn: Button = null
+var interaction_label: Label = null
+var dialogue_layer: CanvasLayer = null
 
 var quest_system: QuestSystem = null
 var is_dialogue_open: bool = false
 var visual: CustomDraw2D = null
 var _dialogue_player: Node2D = null
+var sprite: AnimatedSprite2D = null
+var facing_direction: String = "down"
 
 func _ready() -> void:
 	add_to_group("npcs")
 	
-	if name_label:
+	if has_node("NameLabel"):
+		name_label = get_node("NameLabel") as Label
 		name_label.text = npc_name
 	
-	if dialogue_layer == null:
-		_create_dialogue_ui()
-	elif dialogue_panel:
-		dialogue_panel.visible = false
-		if accept_btn: accept_btn.pressed.connect(_on_accept)
-		if complete_btn: complete_btn.pressed.connect(_on_complete)
-		if close_btn: close_btn.pressed.connect(_close_dialogue)
+	_create_dialogue_ui()
 	
-	if interaction_label:
+	if has_node("InteractionLabel"):
+		interaction_label = get_node("InteractionLabel") as Label
 		interaction_label.visible = false
 	
 	quest_system = _find_quest_system()
@@ -170,15 +168,55 @@ func interact(_player: CharacterBody2D) -> void:
 
 func _input(event: InputEvent) -> void:
 	if is_dialogue_open:
-		if event.is_action_pressed("pause") or event.is_action_pressed("interact"):
+		if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
 			_close_dialogue()
 			get_viewport().set_input_as_handled()
 
 func _process(_delta: float) -> void:
+	if sprite == null:
+		sprite = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+		if sprite == null:
+			for child in get_children():
+				if child is AnimatedSprite2D:
+					sprite = child
+					break
+	
 	# Auto-close if the player walks away with the panel open.
 	if is_dialogue_open and _dialogue_player and is_instance_valid(_dialogue_player):
 		if (_dialogue_player as Node2D).global_position.distance_to(global_position) > 160.0:
 			_close_dialogue()
+	
+	_update_facing()
+
+func _update_facing() -> void:
+	if is_dialogue_open and _dialogue_player and is_instance_valid(_dialogue_player):
+		var to_player: Vector2 = (_dialogue_player as Node2D).global_position - global_position
+		if absf(to_player.x) > absf(to_player.y):
+			facing_direction = "right" if to_player.x > 0 else "left"
+		else:
+			facing_direction = "down" if to_player.y > 0 else "up"
+	elif GameManager.player and is_instance_valid(GameManager.player):
+		var dist_sq: float = global_position.distance_squared_to(GameManager.player.global_position)
+		if dist_sq < 6400.0: # within 80px
+			var to_player: Vector2 = GameManager.player.global_position - global_position
+			if absf(to_player.x) > absf(to_player.y):
+				facing_direction = "right" if to_player.x > 0 else "left"
+			else:
+				facing_direction = "down" if to_player.y > 0 else "up"
+		else:
+			facing_direction = "down"
+	else:
+		facing_direction = "down"
+	
+	if sprite and sprite.sprite_frames:
+		sprite.flip_h = false
+		var anim := "idle_" + facing_direction
+		if sprite.sprite_frames.has_animation(anim):
+			if sprite.animation != anim:
+				sprite.play(anim)
+		elif sprite.sprite_frames.has_animation("idle"):
+			if sprite.animation != "idle":
+				sprite.play("idle")
 
 func _update_dialogue() -> void:
 	if quest_id.is_empty() or quest_system == null:

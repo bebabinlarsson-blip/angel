@@ -36,7 +36,7 @@ func _process(delta: float) -> void:
 		if respawn_timer <= 0:
 			_respawn()
 
-func take_damage(amount: float, _knockback: Vector2 = Vector2.ZERO) -> void:
+func take_damage(_amount: float, _knockback: Vector2 = Vector2.ZERO) -> void:
 	if is_depleted:
 		return
 	
@@ -51,7 +51,7 @@ func take_damage(amount: float, _knockback: Vector2 = Vector2.ZERO) -> void:
 	if current_hits >= max_hits:
 		_deplete()
 
-func interact(player: CharacterBody2D) -> void:
+func interact(_player: CharacterBody2D) -> void:
 	if not is_depleted:
 		take_damage(25.0)
 		EventBus.show_notification.emit("Mined " + ore_name + " rock!")
@@ -78,10 +78,7 @@ func _deplete() -> void:
 		GameManager.player.inventory.add_item(item_data)
 		EventBus.show_notification.emit("Obtained %s x%d!" % [ore_name, ore_count])
 		
-		# Progress cave exploration quest if active
-		var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
-		if quest_system:
-			quest_system.update_quest_progress("collect", ore_type, ore_count)
+
 
 func _respawn() -> void:
 	is_depleted = false

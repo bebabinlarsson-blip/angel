@@ -337,14 +337,14 @@ func _draw_player() -> void:
 func _draw_slime() -> void:
 	var is_hurt: bool = false
 	var is_jumping: bool = false
-	var is_dead: bool = false
 	var vel_len: float = 0.0
 	
 	if parent_node:
 		if "current_state" in parent_node:
 			var s = parent_node.current_state
 			is_hurt = (s == 4) # HURT
-			is_dead = (s == 5) # DEAD
+			if s == 5: # DEAD
+				return
 		if "is_jumping" in parent_node:
 			is_jumping = parent_node.is_jumping
 		if "velocity" in parent_node:

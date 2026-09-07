@@ -1,7 +1,7 @@
 class_name CookingPot
 extends StaticBody2D
 
-@onready var interaction_label: Label = get_node_or_null("InteractionLabel")
+var interaction_label: Label = null
 
 var cooking_ui_layer: CanvasLayer = null
 var recipe_list: VBoxContainer = null
@@ -18,13 +18,21 @@ func _ready() -> void:
 	sprite.play("idle")
 	add_child(sprite)
 	
-	if get_node_or_null("Embers") == null:
+	if not has_node("Embers"):
 		VFX.campfire_embers(self)
 	
 	_create_cooking_ui()
 	
-	if interaction_label:
+	if has_node("InteractionLabel"):
+		interaction_label = get_node("InteractionLabel") as Label
 		interaction_label.visible = false
+	else:
+		interaction_label = Label.new()
+		interaction_label.name = "InteractionLabel"
+		interaction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		interaction_label.position = Vector2(-40, -40)
+		interaction_label.visible = false
+		add_child(interaction_label)
 
 func _create_cooking_ui() -> void:
 	cooking_ui_layer = CanvasLayer.new()
@@ -180,7 +188,7 @@ func _close_cooking() -> void:
 
 func _input(event: InputEvent) -> void:
 	if cooking_ui_layer and cooking_ui_layer.visible:
-		if event.is_action_pressed("pause") or event.is_action_pressed("interact") or event.is_action_pressed("ui_cancel"):
+		if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
 			_close_cooking()
 			get_viewport().set_input_as_handled()
 

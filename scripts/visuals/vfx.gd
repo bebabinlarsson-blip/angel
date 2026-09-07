@@ -35,12 +35,9 @@ static func burst(parent: Node, pos: Vector2, color: Color, amount: int = 12, sp
 	parent.add_child(p)
 	p.emitting = true
 	# Free after emission finishes (lifetime + render tail).
-	var tree := parent.get_tree()
-	if tree:
-		tree.create_timer(lifetime + 0.6).timeout.connect(func():
-			if is_instance_valid(p):
-				p.queue_free()
-		)
+	var cleanup := p.create_tween()
+	cleanup.tween_interval(lifetime + 0.6)
+	cleanup.tween_callback(p.queue_free)
 
 static func dash_trail(player: Node2D) -> void:
 	burst(player.get_parent(), player.global_position, Color(0.5, 0.85, 1.0, 0.9), 10, 60.0, 0.35, Vector2.ZERO)

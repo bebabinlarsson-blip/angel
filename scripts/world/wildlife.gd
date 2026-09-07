@@ -10,8 +10,9 @@ var wander_dir: Vector2 = Vector2.ZERO
 var sprite: AnimatedSprite2D = null
 
 func _ready() -> void:
-	sprite = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
-	if sprite == null:
+	if has_node("AnimatedSprite2D"):
+		sprite = get_node("AnimatedSprite2D") as AnimatedSprite2D
+	else:
 		sprite = AnimatedSprite2D.new()
 		sprite.name = "AnimatedSprite2D"
 		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -28,6 +29,17 @@ func _ready() -> void:
 		sprite.play("idle")
 		add_child(sprite)
 	
+	add_to_group("wildlife")
+	collision_layer = 0
+	collision_mask = 1
+	if not has_node("FeetCollision"):
+		var feet := CollisionShape2D.new()
+		feet.name = "FeetCollision"
+		var shape := CircleShape2D.new()
+		shape.radius = 8.0 if animal_type == AnimalType.DEER else 4.0
+		feet.shape = shape
+		feet.position.y = 5.0
+		add_child(feet)
 	wander_timer = randf_range(1.0, 4.0)
 
 var lod_tick: float = 0.0
@@ -48,7 +60,7 @@ func _physics_process(delta: float) -> void:
 	# Flee from player if too close
 	if GameManager.player and is_instance_valid(GameManager.player):
 		var dist: float = global_position.distance_to(GameManager.player.global_position)
-		if dist < 100.0:
+		if dist < 100.0 and wander_timer <= 0.5:
 			wander_dir = (global_position - GameManager.player.global_position).normalized()
 			wander_timer = 2.0
 	
@@ -62,8 +74,21 @@ func _physics_process(delta: float) -> void:
 	if wander_dir != Vector2.ZERO:
 		velocity = wander_dir * move_speed
 		if sprite:
-			sprite.flip_h = wander_dir.x < 0
+			if wander_dir.x < -0.1:
+				sprite.flip_h = true
+			elif wander_dir.x > 0.1:
+				sprite.flip_h = false
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, 300.0 * delta)
 	
+	var terrain := get_tree().get_first_node_in_group("island_world") as IslandWorld
+	if terrain and animal_type != AnimalType.BIRD and terrain.is_water(global_position + velocity.normalized() * 40.0):
+		wander_dir = -wander_dir
+		velocity = wander_dir * move_speed
+	if sprite:
+		var moving: bool = velocity.length() > 5.0
+		if moving and sprite.sprite_frames.has_animation("walk"):
+			sprite.play("walk")
+		else:
+			sprite.play("idle")
 	move_and_slide()

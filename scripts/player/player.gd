@@ -19,7 +19,8 @@ var inventory: PlayerInventory = PlayerInventory.new()
 
 # Movement vars
 var direction: Vector2 = Vector2.ZERO
-var look_direction: Vector2 = Vector2.RIGHT
+var look_direction: Vector2 = Vector2.DOWN
+var facing_direction: String = "down"
 var is_swimming: bool = false
 # Overlapping water zones counter (fixes exit-one-while-still-inside-another bug)
 var swim_zone_count: int = 0
@@ -90,6 +91,10 @@ func _physics_process(delta: float) -> void:
 	if current_state == State.DEAD:
 		return
 	
+	var terrain := get_tree().get_first_node_in_group("island_world") as IslandWorld
+	if terrain:
+		set_swimming(terrain.is_water(global_position + Vector2(0, 8)))
+	_update_active_interactable()
 	_handle_input()
 	_update_timers(delta)
 	_update_state(delta)
@@ -100,12 +105,12 @@ func _physics_process(delta: float) -> void:
 func _handle_input() -> void:
 	# Movement direction
 	direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	
-	# Aiming logic (mouse cursor direction)
-	var mouse_pos := get_global_mouse_position()
-	var aim_dir := (mouse_pos - global_position).normalized()
-	if aim_dir != Vector2.ZERO:
-		look_direction = aim_dir
+	if direction != Vector2.ZERO:
+		look_direction = direction
+		if absf(direction.x) > absf(direction.y):
+			facing_direction = "right" if direction.x > 0 else "left"
+		else:
+			facing_direction = "down" if direction.y > 0 else "up"
 	
 	# Dash
 	if Input.is_action_just_pressed("dash") and current_state != State.DASHING:
@@ -113,6 +118,14 @@ func _handle_input() -> void:
 	
 	# Attack / Charge attack
 	if Input.is_action_just_pressed("attack") and current_state not in [State.DASHING, State.DEAD]:
+		var mouse_pos := get_global_mouse_position()
+		var aim_dir := (mouse_pos - global_position).normalized()
+		if aim_dir != Vector2.ZERO:
+			look_direction = aim_dir
+			if absf(aim_dir.x) > absf(aim_dir.y):
+				facing_direction = "right" if aim_dir.x > 0 else "left"
+			else:
+				facing_direction = "down" if aim_dir.y > 0 else "up"
 		is_charging = true
 		charge_timer = 0.0
 	
@@ -179,22 +192,35 @@ func _update_animation() -> void:
 		attack_area.position = look_direction.normalized() * 30
 		attack_area.rotation = look_direction.angle()
 	
-	if sprite:
-		if look_direction.x < 0:
-			sprite.flip_h = true
-		elif look_direction.x > 0:
-			sprite.flip_h = false
-			
-		if current_state == State.ATTACKING:
-			sprite.play("attack")
-		elif current_state == State.DASHING:
-			sprite.play("dash")
-		elif current_state == State.RUNNING:
-			sprite.play("walk")
-		elif current_state == State.DEAD:
-			sprite.play("hurt")
-		else:
-			sprite.play("idle")
+	if sprite and sprite.sprite_frames:
+		sprite.flip_h = false
+		match current_state:
+			State.ATTACKING:
+				var anim := "attack_" + facing_direction
+				if sprite.sprite_frames.has_animation(anim):
+					sprite.play(anim)
+				else:
+					sprite.play("attack")
+			State.DASHING:
+				if sprite.sprite_frames.has_animation("dash"):
+					sprite.play("dash")
+				else:
+					sprite.play("walk_" + facing_direction)
+			State.RUNNING:
+				var anim := "walk_" + facing_direction
+				if sprite.sprite_frames.has_animation(anim):
+					sprite.play(anim)
+				else:
+					sprite.play("walk")
+			State.DEAD:
+				if sprite.sprite_frames.has_animation("hurt"):
+					sprite.play("hurt")
+			_: # IDLE / SWIMMING
+				var anim := "idle_" + facing_direction
+				if sprite.sprite_frames.has_animation(anim):
+					sprite.play(anim)
+				else:
+					sprite.play("idle")
 
 func _update_camera_shake(delta: float) -> void:
 	if camera == null or not is_instance_valid(camera):
@@ -208,12 +234,6 @@ func _update_camera_shake(delta: float) -> void:
 
 func add_trauma(amount: float) -> void:
 	cam_trauma = clampf(cam_trauma + amount, 0.0, 1.0)
-	
-	if sprite and sprite.sprite_frames:
-		if look_direction.x < 0:
-			sprite.flip_h = true
-		elif look_direction.x > 0:
-			sprite.flip_h = false
 
 var nearby_interactables: Array[Node] = []
 
@@ -260,8 +280,11 @@ func _normal_attack() -> void:
 			return
 	_deal_damage_to_area(get_effective_attack(), false)
 	await get_tree().create_timer(0.15).timeout
-	if is_instance_valid(self) and attack_area and is_instance_valid(attack_area):
-		attack_area.monitoring = false
+	if is_instance_valid(self):
+		if attack_area and is_instance_valid(attack_area):
+			attack_area.monitoring = false
+		if current_state == State.ATTACKING:
+			current_state = State.IDLE if not is_swimming else State.SWIMMING
 
 func _charge_attack() -> void:
 	if attack_timer > 0:
@@ -276,8 +299,11 @@ func _charge_attack() -> void:
 	var charge_damage: float = get_effective_attack() * 2.0
 	_deal_damage_to_area(charge_damage, true)
 	await get_tree().create_timer(0.25).timeout
-	if is_instance_valid(self) and attack_area and is_instance_valid(attack_area):
-		attack_area.monitoring = false
+	if is_instance_valid(self):
+		if attack_area and is_instance_valid(attack_area):
+			attack_area.monitoring = false
+		if current_state == State.ATTACKING:
+			current_state = State.IDLE if not is_swimming else State.SWIMMING
 
 func _deal_damage_to_area(damage: float, is_charge: bool = false) -> void:
 	if attack_area == null:
@@ -340,6 +366,8 @@ func respawn() -> void:
 	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
 
 func set_swimming(swimming: bool) -> void:
+	if is_swimming == swimming:
+		return
 	is_swimming = swimming
 	if swimming and current_state != State.DEAD and current_state != State.DASHING:
 		current_state = State.SWIMMING
@@ -349,8 +377,9 @@ func set_swimming(swimming: bool) -> void:
 func _update_active_interactable() -> void:
 	nearby_interactables = nearby_interactables.filter(func(n): return is_instance_valid(n))
 	if nearby_interactables.is_empty():
-		nearby_interactable = null
-		EventBus.interaction_unavailable.emit()
+		if nearby_interactable != null:
+			nearby_interactable = null
+			EventBus.interaction_unavailable.emit()
 		return
 	
 	# Pick the closest one
@@ -364,8 +393,9 @@ func _update_active_interactable() -> void:
 				closest = item
 		else:
 			closest = item
-	nearby_interactable = closest
-	EventBus.interaction_available.emit(nearby_interactable)
+	if nearby_interactable != closest:
+		nearby_interactable = closest
+		EventBus.interaction_available.emit(nearby_interactable)
 
 func _on_interaction_area_body_entered(body: Node2D) -> void:
 	if body != self and body.has_method("interact"):

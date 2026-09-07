@@ -19,20 +19,20 @@ func _init():
     if dir:
         ResourceSaver.save(tileset, "res://assets/tilesets/grass_tileset.tres")
     
-    var root = Node2D.new()
-    root.name = "IslandTilemap"
+    var scene_root = Node2D.new()
+    scene_root.name = "IslandTilemap"
     
     var ground_layer = TileMapLayer.new()
     ground_layer.name = "GroundLayer"
     ground_layer.tile_set = tileset
-    root.add_child(ground_layer)
-    ground_layer.owner = root
+    scene_root.add_child(ground_layer)
+    ground_layer.owner = scene_root
     
     var path_layer = TileMapLayer.new()
     path_layer.name = "PathLayer"
     path_layer.tile_set = tileset
-    root.add_child(path_layer)
-    path_layer.owner = root
+    scene_root.add_child(path_layer)
+    path_layer.owner = scene_root
     
     # Generate map
     var noise = FastNoiseLite.new()
@@ -60,7 +60,7 @@ func _init():
         path_layer.set_cell(Vector2i(0, i), 1, Vector2i(1, 0)) # path tile
                 
     var packed = PackedScene.new()
-    packed.pack(root)
+    packed.pack(scene_root)
     
     var scenes_dir = DirAccess.open("res://scenes/world")
     if not scenes_dir:

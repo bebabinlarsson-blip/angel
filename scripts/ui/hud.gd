@@ -17,8 +17,10 @@ var notification_timer: float = 0.0
 var _notif_tween: Tween = null
 var _displayed_hp: float = -1.0
 var _displayed_stam: float = -1.0
+var big_draw_node: MinimapDrawer = null
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	EventBus.player_health_changed.connect(_on_health_changed)
 	EventBus.player_stamina_changed.connect(_on_stamina_changed)
 	EventBus.player_money_changed.connect(_on_money_changed)
@@ -46,27 +48,29 @@ func _ready() -> void:
 		big_draw.name = "BigMapDrawer"
 		big_draw.set_anchors_preset(Control.PRESET_FULL_RECT)
 		big_map.add_child(big_draw)
+		big_draw_node = big_draw
 		
-		# Buttons container
+		# Buttons container neatly placed in the ledger panel below the chart key
 		var btn_container := VBoxContainer.new()
 		btn_container.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		btn_container.anchor_left = 1.0
 		btn_container.anchor_right = 1.0
-		btn_container.offset_left = -160
-		btn_container.offset_top = 20
-		btn_container.offset_right = -20
-		btn_container.offset_bottom = 180
+		btn_container.offset_left = -195
+		btn_container.offset_right = -15
+		btn_container.name = "MapControls"
+		btn_container.add_theme_constant_override("separation", 6)
+		btn_container.offset_top = 280
 		
 		var close_btn := Button.new()
 		close_btn.text = "Close Map [M]"
 		UITheme.style_button(close_btn)
-		close_btn.pressed.connect(func(): big_map.visible = false)
+		close_btn.pressed.connect(func(): set_map_open(false))
 		btn_container.add_child(close_btn)
 		
 		var center_btn := Button.new()
 		center_btn.text = "Center on Player"
 		UITheme.style_button(center_btn)
-		center_btn.pressed.connect(func(): big_draw.map_offset = Vector2.ZERO; big_draw.queue_redraw())
+		center_btn.pressed.connect(big_draw.center_on_player)
 		btn_container.add_child(center_btn)
 		
 		var zoom_in_btn := Button.new()
@@ -81,6 +85,16 @@ func _ready() -> void:
 		zoom_out_btn.pressed.connect(func(): big_draw.map_zoom = clampf(big_draw.map_zoom - 0.5, 0.4, 3.5); big_draw.queue_redraw())
 		btn_container.add_child(zoom_out_btn)
 		
+		var fit_btn := Button.new()
+		fit_btn.name = "FitIsland"
+		fit_btn.text = "Fit Island"
+		UITheme.style_button(fit_btn)
+		fit_btn.pressed.connect(big_draw.fit_island)
+		btn_container.add_child(fit_btn)
+		
+		for button: Button in btn_container.get_children():
+			button.custom_minimum_size.y = 32
+			UITheme.style_button(button)
 		big_map.add_child(btn_container)
 	
 	if notification_label:
@@ -107,12 +121,20 @@ func _apply_theme() -> void:
 	if big_map and big_map is Panel:
 		(big_map as Panel).add_theme_stylebox_override("panel", UITheme.panel_style(UITheme.EDGE, Color(0.05, 0.07, 0.12, 0.85)))
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("toggle_map") and big_map:
-		big_map.visible = !big_map.visible
+func set_map_open(open: bool) -> void:
+	big_map.visible = open
+	get_tree().paused = open
+	interaction_hint.visible = false
+	notification_label.visible = false
+	if open and is_instance_valid(big_draw_node):
+		big_draw_node.grab_focus()
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_map") and (big_map.visible or not get_tree().paused):
+		set_map_open(not big_map.visible)
 		get_viewport().set_input_as_handled()
-	elif (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause")) and big_map and big_map.visible:
-		big_map.visible = false
+	elif event.is_action_pressed("ui_cancel") and big_map.visible:
+		set_map_open(false)
 		get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
@@ -166,7 +188,7 @@ func _on_show_notification(text: String) -> void:
 		if _notif_tween and _notif_tween.is_valid():
 			_notif_tween.kill()
 		notification_label.text = text
-		notification_label.visible = true
+		notification_label.visible = not big_map.visible
 		notification_label.modulate.a = 0.0
 		notification_label.scale = Vector2(0.9, 0.9)
 		notification_label.pivot_offset = notification_label.size * 0.5
@@ -197,8 +219,19 @@ func _on_exp_gained(_amount: int, total: int, required: int) -> void:
 
 func _on_interaction_available(_interactable: Node) -> void:
 	if interaction_hint:
-		interaction_hint.visible = true
-		interaction_hint.text = "[F] Interact"
+		interaction_hint.visible = not big_map.visible
+		var label: String = "Interact"
+		if _interactable is QuestNPC:
+			label = "Talk to " + _interactable.npc_name
+		elif _interactable is Waystone:
+			label = _interactable.display_name
+		elif _interactable is CookingPot:
+			label = "Cook at the hearth"
+		elif _interactable is MiningRock:
+			label = "Mine " + _interactable.ore_name
+		elif _interactable.is_in_group("supply_caches"):
+			label = "Open supply cache"
+		interaction_hint.text = "[F] " + label
 		interaction_hint.modulate.a = 0.0
 		var tween := interaction_hint.create_tween()
 		tween.tween_property(interaction_hint, "modulate:a", 1.0, 0.15)

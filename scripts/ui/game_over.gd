@@ -20,8 +20,6 @@ func _on_player_died() -> void:
 	if message_label:
 		message_label.text = "You have fallen...\nAll items and materials have been kept."
 	var panel := get_node_or_null("Panel")
-	if panel == null:
-		panel = get_node_or_null("CenterContainer/PanelContainer")
 	if panel is Control:
 		UIAnim.pop_in(panel as Control, 0.3)
 

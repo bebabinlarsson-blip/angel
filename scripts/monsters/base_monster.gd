@@ -24,6 +24,7 @@ var wander_timer: float = 0.0
 var wander_direction: Vector2 = Vector2.ZERO
 var knockback_velocity: Vector2 = Vector2.ZERO
 var hurt_timer: float = 0.0
+var facing_direction: String = "down"
 
 @onready var sprite: AnimatedSprite2D = get_node_or_null("Sprite2D")
 @onready var collision_shape: CollisionShape2D = get_node_or_null("CollisionShape")
@@ -75,10 +76,18 @@ func _physics_process(delta: float) -> void:
 				wander_timer = randf_range(2.0, 5.0)
 			return
 	
+	if global_position.length() < 480.0:
+		velocity = global_position.normalized() * scaled_speed
+		move_and_slide()
+		return
 	_update_timers(delta)
 	_update_ai(delta)
 	_apply_knockback(delta)
 	_update_animation()
+	var terrain := get_tree().get_first_node_in_group("island_world") as IslandWorld
+	if terrain and terrain.is_water(global_position + velocity.normalized() * 28.0):
+		velocity = Vector2.ZERO
+		wander_direction = -wander_direction
 	move_and_slide()
 
 func _update_timers(delta: float) -> void:
@@ -95,7 +104,7 @@ func _update_ai(delta: float) -> void:
 	
 	# Find player
 	target = GameManager.player
-	if target == null or target.current_state == target.State.DEAD:
+	if target == null or target.current_state == target.State.DEAD or target.global_position.length() < 450.0:
 		target = null
 	
 	if target:
@@ -227,16 +236,58 @@ func _drop_loot() -> void:
 				GameManager.player.inventory.add_item(drop_data)
 				EventBus.show_notification.emit("+1 %s dropped!" % chosen.capitalize())
 
-func _update_animation() -> void:
-	if sprite and sprite.sprite_frames:
-		if velocity.x < 0:
-			sprite.flip_h = true
-		elif velocity.x > 0:
-			sprite.flip_h = false
-			
-		if current_state == State.HURT:
-			sprite.play("hurt")
-		elif current_state == State.CHASE or current_state == State.WANDER:
-			sprite.play("move")
+func _update_facing() -> void:
+	if velocity.length_squared() > 10.0:
+		if absf(velocity.x) > absf(velocity.y):
+			facing_direction = "right" if velocity.x > 0 else "left"
 		else:
-			sprite.play("idle")
+			facing_direction = "down" if velocity.y > 0 else "up"
+	elif target and is_instance_valid(target):
+		var to_target := target.global_position - global_position
+		if to_target.length_squared() > 10.0:
+			if absf(to_target.x) > absf(to_target.y):
+				facing_direction = "right" if to_target.x > 0 else "left"
+			else:
+				facing_direction = "down" if to_target.y > 0 else "up"
+
+func _update_animation() -> void:
+	if sprite == null or sprite.sprite_frames == null:
+		return
+	
+	_update_facing()
+	sprite.flip_h = false
+	
+	if current_state == State.HURT:
+		if sprite.sprite_frames.has_animation("hurt"):
+			if sprite.animation != "hurt":
+				sprite.play("hurt")
+	elif current_state == State.ATTACK:
+		var anim: String = "attack_" + facing_direction
+		if sprite.sprite_frames.has_animation(anim):
+			if sprite.animation != anim:
+				sprite.play(anim)
+		elif sprite.sprite_frames.has_animation("attack"):
+			if sprite.animation != "attack":
+				sprite.play("attack")
+	elif (current_state == State.CHASE or current_state == State.WANDER) and velocity.length_squared() > 10.0:
+		var anim: String = "move_" + facing_direction
+		if sprite.sprite_frames.has_animation(anim):
+			if sprite.animation != anim:
+				sprite.play(anim)
+		elif sprite.sprite_frames.has_animation("walk_" + facing_direction):
+			if sprite.animation != "walk_" + facing_direction:
+				sprite.play("walk_" + facing_direction)
+		elif sprite.sprite_frames.has_animation("move"):
+			if sprite.animation != "move":
+				sprite.play("move")
+		elif sprite.sprite_frames.has_animation("walk"):
+			if sprite.animation != "walk":
+				sprite.play("walk")
+	else:
+		var anim: String = "idle_" + facing_direction
+		if sprite.sprite_frames.has_animation(anim):
+			if sprite.animation != anim:
+				sprite.play(anim)
+		elif sprite.sprite_frames.has_animation("idle"):
+			if sprite.animation != "idle":
+				sprite.play("idle")

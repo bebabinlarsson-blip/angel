@@ -3,12 +3,10 @@ extends Node2D
 
 const CookingPotScript = preload("res://scripts/world/cooking_pot.gd")
 const WaterZoneScript = preload("res://scripts/world/water_zone.gd")
-const TileMapTerrainScript = preload("res://scripts/world/tilemap_terrain.gd")
 
-## Populates 15x starting island with customizable environmental features, NPCs, wildlife, and structures
+## Populates island world with environmental features, NPCs, wildlife, and structures
 
 var layout_config: Dictionary = {}
-var tilemap_terrain: Node2D = null
 
 func _ready() -> void:
 	y_sort_enabled = true
@@ -16,47 +14,39 @@ func _ready() -> void:
 	generate_world()
 
 func _load_config() -> void:
-	for path in ["user://island_layout.json", "res://data/island_layout.json"]:
-		if FileAccess.file_exists(path):
-			var file := FileAccess.open(path, FileAccess.READ)
-			if file:
-				var json_str := file.get_as_text()
-				var json = JSON.parse_string(json_str)
-				if json and typeof(json) == TYPE_DICTIONARY:
-					layout_config = json
-					return
+	var path := "res://data/island_layout.json"
+	if FileAccess.file_exists(path):
+		var file := FileAccess.open(path, FileAccess.READ)
+		if file:
+			var json_str := file.get_as_text()
+			var json = JSON.parse_string(json_str)
+			if json and typeof(json) == TYPE_DICTIONARY:
+				layout_config = json
+				return
 	
 	# Default fallback config
 	layout_config = {
-		"island_settings": {"base_radius": 16800.0, "beach_radius": 18500.0, "village_radius": 800.0},
+		"island_settings": {"base_radius": 1050.0, "beach_radius": 1150.0, "village_radius": 350.0},
 		"density_settings": {
-			"tree_count": 350, "rock_clusters": 24, "flower_count": 220,
-			"wildlife_rabbits": 28, "wildlife_deer": 20, "wildlife_birds": 30,
-			"material_wood": 60, "material_herb": 60, "material_mushroom": 50,
-			"mining_nodes": 32
+			"tree_count": 0, "rock_clusters": 0, "flower_count": 0,
+			"wildlife_rabbits": 6, "wildlife_deer": 4, "wildlife_birds": 6,
+			"material_wood": 12, "material_herb": 12, "material_mushroom": 10,
+			"mining_nodes": 8
 		}
 	}
 
 func generate_world() -> void:
 	# Clear previous children safely (deferred free, then build fresh).
-	# NOTE: terrain is rebuilt too so stale polygons can't linger.
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
 	
-	# Respect handcrafted placed TileMapLayers if present in the scene
-	var existing_ground: Node = get_parent().get_node_or_null("GroundLayer") if get_parent() else null
-	if existing_ground == null:
-		tilemap_terrain = TileMapTerrainScript.new()
-		tilemap_terrain.name = "TileMapTerrain"
-		tilemap_terrain.z_index = -100
-		tilemap_terrain.z_as_relative = false
-		add_child(tilemap_terrain)
-		if tilemap_terrain.has_method("set_layout"):
-			tilemap_terrain.set_layout(layout_config)
-	
-	var base_r: float = layout_config.get("island_settings", {}).get("base_radius", 16800.0)
-	
+	var terrain := IslandWorld.new()
+	terrain.name = "IslandWorld"
+	terrain.add_to_group("island_world")
+	add_child(terrain)
+	terrain.rebuild(get_parent(), layout_config)
+
 	_spawn_village()
 	_spawn_tree_ring()
 	_spawn_forest_trees()
@@ -67,66 +57,53 @@ func generate_world() -> void:
 	_spawn_wildlife()
 	_spawn_collectables()
 	_spawn_waystones()
-	_setup_water_zones()
-
-func regenerate_world(new_config: Dictionary = {}) -> void:
-	if not new_config.is_empty():
-		layout_config = new_config
-	# Despawn old monsters so Apply doesn't stack two populations.
-	var spawner := get_parent().get_node_or_null("WorldSpawner") as WorldSpawner
-	if spawner == null:
-		spawner = get_tree().root.find_child("WorldSpawner", true, false) as WorldSpawner
-	if spawner:
-		spawner.clear_all_monsters()
-	generate_world()
-	if tilemap_terrain:
-		tilemap_terrain.reload_terrain()
+	# Swimming follows the same occupied cells that are drawn on the map.
+	if GameManager.player:
+		GameManager.player.set_swimming(terrain.is_water(GameManager.player.global_position))
 
 # --- Map-aware placement helpers (mirrors island_layout.json) ---
 func _is_water_point(pos: Vector2) -> bool:
-	if pos.distance_to(Vector2(5500, 2500)) < 1350.0:
+	var terrain := get_node_or_null("IslandWorld") as IslandWorld
+	if terrain:
+		return terrain.is_water(pos)
+	if pos.distance_to(Vector2(670, 32)) < 200.0:
 		return true
-	if pos.distance_to(Vector2(-5000, 3500)) < 1050.0:
-		return true
-	if pos.distance_to(Vector2(3000, 9000)) < 1250.0:
-		return true
-	if pos.distance_to(Vector2(550, 320)) < 170.0:
-		return true
-	if pos.distance_to(Vector2(-600, 480)) < 150.0:
-		return true
-	var base_r: float = layout_config.get("island_settings", {}).get("base_radius", 16800.0)
-	if pos.length() > base_r - 300.0:
+	# Outer Ocean
+	var base_r: float = layout_config.get("island_settings", {}).get("base_radius", 1050.0)
+	if pos.length() > base_r - 80.0:
 		return true
 	return false
 
 func _is_on_highway(pos: Vector2) -> bool:
-	# Rough distance to the 4 highways so trees/rocks don't block roads.
-	if absf(pos.x) < 120.0 and pos.y < 600.0 and pos.y > -7600.0:
+	# Keep clear of main road cross (+/- 50 px from X=0 and Y=0 within village radius)
+	if absf(pos.x) < 50.0 and absf(pos.y) < 700.0:
 		return true
-	var south_dir := Vector2(-1900, 7800).normalized()
-	var rel: Vector2 = pos
-	if absf(rel.x * -south_dir.y + rel.y * south_dir.x) < 120.0 and rel.dot(south_dir) > 0.0 and rel.dot(south_dir) < 8100.0:
-		return true
-	var east_dir := Vector2(9200, 4800).normalized()
-	if absf(rel.x * -east_dir.y + rel.y * east_dir.x) < 120.0 and rel.dot(east_dir) > 0.0 and rel.dot(east_dir) < 10400.0:
-		return true
-	var west_dir := Vector2(-7400, -950).normalized()
-	if absf(rel.x * -west_dir.y + rel.y * west_dir.x) < 120.0 and rel.dot(west_dir) > 0.0 and rel.dot(west_dir) < 7500.0:
+	if absf(pos.y) < 50.0 and absf(pos.x) < 800.0:
 		return true
 	return false
 
 func _scatter_land_position(min_r: float, max_r: float) -> Vector2:
-	for attempt in range(12):
-		var angle := randf() * TAU
-		var dist := randf_range(min_r, max_r)
-		var pos := Vector2(cos(angle) * dist, sin(angle) * dist)
-		if _is_water_point(pos):
+	var base_r: float = layout_config.get("island_settings", {}).get("base_radius", 1050.0)
+	var real_max_r: float = minf(max_r * 3.0, base_r - 180.0)
+	var real_min_r: float = minf(min_r, real_max_r * 0.4)
+	for attempt in range(20):
+		var ang := randf() * TAU
+		var dist := randf_range(real_min_r, real_max_r)
+		var pos := Vector2(cos(ang) * dist, sin(ang) * dist)
+		var terrain := get_node_or_null("IslandWorld") as IslandWorld
+		if _is_water_point(pos) or (terrain != null and not terrain.is_clear(pos)) or _is_on_highway(pos):
 			continue
-		if _is_on_highway(pos):
-			continue
+		if terrain:
+			terrain.reserved.append(pos)
 		return pos
-	var angle := randf() * TAU
-	return Vector2(cos(angle), sin(angle)) * ((min_r + max_r) * 0.5)
+	var fallback_terrain := get_node_or_null("IslandWorld") as IslandWorld
+	if fallback_terrain:
+		for cell: Vector2i in fallback_terrain.land:
+			var candidate: Vector2 = fallback_terrain.ground.map_to_local(cell)
+			if fallback_terrain.is_clear(candidate):
+				fallback_terrain.reserved.append(candidate)
+				return candidate
+	return Vector2(0, 90)
 
 func _spawn_village() -> void:
 	var village_node := Node2D.new()
@@ -221,7 +198,7 @@ func _spawn_default_npcs(parent: Node2D) -> void:
 	_create_configured_npc(parent, "Chef Maria", "cook", "first_meal", Vector2(100, 50), CustomDraw2D.EntityType.NPC_COOK)
 	_create_configured_npc(parent, "Miner Torvald", "miner", "explore_cave", Vector2(-60, -380), CustomDraw2D.EntityType.NPC_MINER)
 
-func _create_configured_npc(parent: Node2D, npc_name: String, npc_id: String, quest_id: String, pos: Vector2, draw_type: int) -> void:
+func _create_configured_npc(parent: Node2D, npc_name: String, npc_id: String, quest_id: String, pos: Vector2, _draw_type: int) -> void:
 	var npc := QuestNPC.new()
 	npc.npc_name = npc_name
 	npc.npc_id = npc_id
@@ -269,6 +246,7 @@ func _create_configured_npc(parent: Node2D, npc_name: String, npc_id: String, qu
 	npc.add_child(col)
 	
 	var visual := AnimatedSprite2D.new()
+	visual.name = "AnimatedSprite2D"
 	visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	visual.position = Vector2(0, -12)
 	var frames_path := "res://assets/sprites/npc_%s_frames.tres" % npc_id
@@ -297,12 +275,17 @@ func _create_configured_npc(parent: Node2D, npc_name: String, npc_id: String, qu
 	parent.add_child(npc)
 
 func _spawn_tree_ring() -> void:
+	if get_parent() and get_parent().get_node_or_null("TreeLayer") != null:
+		return
+	if layout_config.get("village", {}).get("tree_ring_count", 0) == 0:
+		return
+	
 	var tree_ring_node := Node2D.new()
 	tree_ring_node.name = "ProtectiveTreeRing"
 	tree_ring_node.y_sort_enabled = true
 	add_child(tree_ring_node)
 	
-	var count: int = layout_config.get("village", {}).get("tree_ring_count", 36)
+	var count: int = layout_config.get("village", {}).get("tree_ring_count", 0)
 	var radius: float = layout_config.get("village", {}).get("tree_ring_radius", 780.0)
 	
 	for i in range(count):
@@ -317,57 +300,16 @@ func _spawn_tree_ring() -> void:
 		_create_tree(tree_ring_node, pos)
 
 func _spawn_forest_trees() -> void:
-	var forests_node := Node2D.new()
-	forests_node.name = "ForestGroves"
-	forests_node.y_sort_enabled = true
-	add_child(forests_node)
-	
-	var total_trees: int = layout_config.get("density_settings", {}).get("tree_count", 350)
-	var per_grove: int = int(float(total_trees) / 5.0)
-	
-	# 1. Northwest Ancient Redwood Grove
-	for i in range(per_grove):
-		var pos := Vector2(randf_range(-12000, -2500), randf_range(-12000, -2500))
-		if _is_water_point(pos) or _is_on_highway(pos):
-			pos = _scatter_land_position(2500.0, 12000.0)
-		_create_tree(forests_node, pos)
-	
-	# 2. Southwest Whispering Woods
-	for i in range(per_grove):
-		var pos := Vector2(randf_range(-12000, -2500), randf_range(2500, 12000))
-		if _is_water_point(pos) or _is_on_highway(pos):
-			pos = _scatter_land_position(2500.0, 12000.0)
-		_create_tree(forests_node, pos)
-	
-	# 3. Southeast Great Forest
-	for i in range(per_grove):
-		var pos := Vector2(randf_range(2500, 12000), randf_range(2500, 12000))
-		if _is_water_point(pos) or _is_on_highway(pos):
-			pos = _scatter_land_position(2500.0, 12000.0)
-		_create_tree(forests_node, pos)
-	
-	# 4. Northeast Lake Canopy
-	for i in range(per_grove):
-		var pos := Vector2(randf_range(2500, 12000), randf_range(-12000, -2500))
-		if _is_water_point(pos) or _is_on_highway(pos):
-			pos = _scatter_land_position(2500.0, 12000.0)
-		_create_tree(forests_node, pos)
-	
-	# 5. Midland Meadows Groves
-	for i in range(per_grove):
-		var angle := randf() * TAU
-		var dist := randf_range(1200.0, 5000.0)
-		var pos := Vector2(cos(angle) * dist, sin(angle) * dist)
-		if _is_water_point(pos) or _is_on_highway(pos):
-			pos = _scatter_land_position(1200.0, 5000.0)
-		_create_tree(forests_node, pos)
+	if get_parent() and get_parent().get_node_or_null("TreeLayer") != null:
+		return
+	if layout_config.get("density_settings", {}).get("tree_count", 0) == 0:
+		return
 
 func _create_tree(parent: Node2D, pos: Vector2) -> void:
 	var body := StaticBody2D.new()
 	body.position = pos
 	body.y_sort_enabled = true
 	
-	# Accurate trunk base physics collision
 	var col := CollisionShape2D.new()
 	var shape := CircleShape2D.new()
 	shape.radius = 7.0
@@ -378,134 +320,43 @@ func _create_tree(parent: Node2D, pos: Vector2) -> void:
 	var spr := Sprite2D.new()
 	spr.name = "Sprite2D"
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	if randf() > 0.35:
-		spr.texture = load("res://assets/sprites/world/tree_oak.png")
-	else:
-		spr.texture = load("res://assets/sprites/world/tree_apple.png")
+	spr.texture = load("res://assets/sprites/world/tree_oak.png")
 	spr.offset = Vector2(0, -18)
 	body.add_child(spr)
 	
 	parent.add_child(body)
 
 func _spawn_rocks() -> void:
-	var rocks_node := Node2D.new()
-	rocks_node.name = "Rocks"
-	rocks_node.y_sort_enabled = true
-	add_child(rocks_node)
-	
-	var clusters_count: int = layout_config.get("density_settings", {}).get("rock_clusters", 24)
-	
-	for c in range(clusters_count):
-		var cluster_angle := randf() * TAU
-		var cluster_dist := randf_range(1500.0, 14000.0)
-		var center := Vector2(cos(cluster_angle) * cluster_dist, sin(cluster_angle) * cluster_dist)
-		
-		for i in range(5):
-			var r_pos := center + Vector2(randf_range(-120, 120), randf_range(-120, 120))
-			var body := StaticBody2D.new()
-			body.position = r_pos
-			body.y_sort_enabled = true
-			
-			var col := CollisionShape2D.new()
-			var shape := CircleShape2D.new()
-			shape.radius = 10.0
-			col.shape = shape
-			col.position = Vector2(0, 3)
-			body.add_child(col)
-			
-			var spr := Sprite2D.new()
-			spr.name = "Sprite2D"
-			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			if randf() > 0.5:
-				spr.texture = load("res://assets/sprites/world/rock_boulder.png")
-			else:
-				spr.texture = load("res://assets/sprites/world/rock_cluster.png")
-			body.add_child(spr)
-			
-			rocks_node.add_child(body)
+	if get_parent() and get_parent().get_node_or_null("DecorLayer") != null:
+		return
+	if layout_config.get("density_settings", {}).get("rock_clusters", 0) == 0:
+		return
 
 func _spawn_flowers() -> void:
-	var flowers_node := Node2D.new()
-	flowers_node.name = "Flowers"
-	# Perf: flowers are flat ground decor with no collision. Y-sorting 220 of
-	# them every frame is pure overhead, so keep them unsorted.
-	flowers_node.y_sort_enabled = false
-	add_child(flowers_node)
-	
-	var flower_colors: Array[Color] = [
-		Color(0.95, 0.3, 0.3), Color(0.95, 0.85, 0.2),
-		Color(0.4, 0.6, 0.95), Color(0.85, 0.4, 0.9), Color(1.0, 0.6, 0.8)
-	]
-	
-	var count: int = layout_config.get("density_settings", {}).get("flower_count", 220)
-	for i in range(count):
-		var angle: float = randf() * TAU
-		var dist: float = randf_range(850.0, 15000.0)
-		var f_pos := Vector2(cos(angle) * dist, sin(angle) * dist)
-		if _is_water_point(f_pos) or _is_on_highway(f_pos):
-			f_pos = _scatter_land_position(850.0, 15000.0)
-		
-		var f := Node2D.new()
-		f.position = f_pos
-		f.y_sort_enabled = true
-		var spr := Sprite2D.new()
-		spr.name = "Sprite2D"
-		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		spr.texture = load("res://assets/sprites/world/wildflower.png")
-		spr.modulate = flower_colors[i % flower_colors.size()]
-		f.add_child(spr)
-		flowers_node.add_child(f)
+	if get_parent() and get_parent().get_node_or_null("DecorLayer") != null:
+		return
+	if layout_config.get("density_settings", {}).get("flower_count", 0) == 0:
+		return
 
 func _spawn_ruins() -> void:
-	var ruins_node := Node2D.new()
-	ruins_node.name = "AncientRuins"
-	ruins_node.y_sort_enabled = true
-	var r_center_dict: Dictionary = layout_config.get("landmarks", {}).get("ancient_ruins", {}).get("center", {"x": -2000.0, "y": 8000.0})
-	ruins_node.position = Vector2(r_center_dict.get("x", -2000.0), r_center_dict.get("y", 8000.0))
-	add_child(ruins_node)
-	
-	var ruin_offsets: Array[Vector2] = [
-		Vector2(-160, -120), Vector2(0, -160), Vector2(160, -120),
-		Vector2(-200, 0), Vector2(200, 0),
-		Vector2(-140, 140), Vector2(0, 180), Vector2(140, 140),
-		Vector2(-80, -40), Vector2(80, -40), Vector2(-60, 60), Vector2(60, 60)
-	]
-	for off in ruin_offsets:
-		var body := StaticBody2D.new()
-		body.position = off
-		body.y_sort_enabled = true
-		
-		var col := CollisionShape2D.new()
-		var shape := RectangleShape2D.new()
-		shape.size = Vector2(24, 18)
-		col.shape = shape
-		col.position = Vector2(0, 6)
-		body.add_child(col)
-		
-		var spr := Sprite2D.new()
-		spr.name = "Sprite2D"
-		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		spr.texture = load("res://assets/sprites/world/ruin_pillar.png")
-		body.add_child(spr)
-		
-		ruins_node.add_child(body)
+	if get_parent() and get_parent().get_node_or_null("DecorLayer") != null:
+		return
 
 func _spawn_cave_mining_area() -> void:
 	var cave_area := Node2D.new()
 	cave_area.name = "CaveMiningArea"
 	cave_area.y_sort_enabled = true
-	var c_pos_dict: Dictionary = layout_config.get("landmarks", {}).get("northern_mountain", {}).get("cave_mouth", {"x": 0.0, "y": -7500.0})
-	cave_area.position = Vector2(c_pos_dict.get("x", 0.0), c_pos_dict.get("y", -7500.0))
+	var c_pos_dict: Dictionary = layout_config.get("landmarks", {}).get("northern_mountain", {}).get("cave_mouth", {"x": 0.0, "y": -680.0})
+	cave_area.position = Vector2(c_pos_dict.get("x", 0.0), c_pos_dict.get("y", -680.0))
 	add_child(cave_area)
 	
-	var mining_count: int = layout_config.get("density_settings", {}).get("mining_nodes", 32)
-	
+	var mining_count: int = layout_config.get("density_settings", {}).get("mining_nodes", 8)
 	for i in range(mining_count):
 		var ore_type := "iron_ore" if i % 3 != 0 else "gold_ore"
 		var ore_name := "Iron Ore" if ore_type == "iron_ore" else "Gold Ore"
 		var angle := randf() * TAU
-		var dist := randf_range(80.0, 700.0)
-		var rock_pos := Vector2(cos(angle) * dist, sin(angle) * dist * 0.6)
+		var dist := randf_range(30.0, 150.0)
+		var rock_pos := Vector2(cos(angle) * dist, sin(angle) * dist * 0.5)
 		
 		var rock := MiningRock.new()
 		rock.position = rock_pos
@@ -528,29 +379,29 @@ func _spawn_wildlife() -> void:
 	animals_node.y_sort_enabled = true
 	add_child(animals_node)
 	
-	var rabbits_n: int = layout_config.get("density_settings", {}).get("wildlife_rabbits", 28)
-	var deer_n: int = layout_config.get("density_settings", {}).get("wildlife_deer", 20)
-	var birds_n: int = layout_config.get("density_settings", {}).get("wildlife_birds", 30)
+	var rabbits_n: int = layout_config.get("density_settings", {}).get("wildlife_rabbits", 6)
+	var deer_n: int = layout_config.get("density_settings", {}).get("wildlife_deer", 4)
+	var birds_n: int = layout_config.get("density_settings", {}).get("wildlife_birds", 6)
 	
 	# Rabbits in grasslands
 	for i in range(rabbits_n):
 		var rabbit := Wildlife.new()
 		rabbit.animal_type = Wildlife.AnimalType.RABBIT
-		rabbit.position = _scatter_land_position(1000.0, 14000.0)
+		rabbit.position = _scatter_land_position(200.0, 800.0)
 		animals_node.add_child(rabbit)
 	
 	# Deer in woods
 	for i in range(deer_n):
 		var deer := Wildlife.new()
 		deer.animal_type = Wildlife.AnimalType.DEER
-		deer.position = _scatter_land_position(1000.0, 13000.0)
+		deer.position = _scatter_land_position(200.0, 800.0)
 		animals_node.add_child(deer)
 	
 	# Birds
 	for i in range(birds_n):
 		var bird := Wildlife.new()
 		bird.animal_type = Wildlife.AnimalType.BIRD
-		bird.position = _scatter_land_position(1000.0, 15000.0)
+		bird.position = _scatter_land_position(200.0, 800.0)
 		animals_node.add_child(bird)
 
 func _spawn_collectables() -> void:
@@ -566,19 +417,19 @@ func _spawn_collectables() -> void:
 	# Wood logs
 	for i in range(wood_n):
 		_spawn_item(coll_node, "wood", "Wood", 0, CustomDraw2D.EntityType.ITEM_WOOD,
-			_scatter_land_position(1000.0, 14000.0))
+			_scatter_land_position(180.0, 800.0))
 	
 	# Healing Herbs
 	for i in range(herb_n):
 		_spawn_item(coll_node, "herb", "Herb", 0, CustomDraw2D.EntityType.ITEM_HERB,
-			_scatter_land_position(1000.0, 14000.0))
+			_scatter_land_position(180.0, 800.0))
 	
 	# Red Mushrooms
 	for i in range(mush_n):
 		_spawn_item(coll_node, "mushroom", "Mushroom", 0, CustomDraw2D.EntityType.ITEM_MUSHROOM,
-			_scatter_land_position(1000.0, 14000.0))
+			_scatter_land_position(180.0, 800.0))
 
-func _spawn_item(parent: Node2D, item_id: String, item_name: String, item_type: int, draw_type: CustomDraw2D.EntityType, pos: Vector2) -> void:
+func _spawn_item(parent: Node2D, item_id: String, item_name: String, item_type: int, _draw_type: CustomDraw2D.EntityType, pos: Vector2) -> void:
 	var item := CollectableItem.new()
 	item.item_id = item_id
 	item.item_name = item_name
@@ -602,11 +453,10 @@ func _spawn_waystones() -> void:
 	
 	var waystones_data: Array = layout_config.get("waystones", [
 		{"id": "village", "name": "Village Waystone", "pos": {"x": 0.0, "y": -220.0}, "unlocked": true},
-		{"id": "cave", "name": "Northern Cave Waystone", "pos": {"x": 0.0, "y": -7200.0}, "unlocked": false},
-		{"id": "ruins", "name": "Southern Ruins Waystone", "pos": {"x": -1800.0, "y": 7500.0}, "unlocked": false},
-		{"id": "east_forest", "name": "Eastern Forest Waystone", "pos": {"x": 7500.0, "y": 1200.0}, "unlocked": false},
-		{"id": "west_cliffs", "name": "Western Cliffs Waystone", "pos": {"x": -7500.0, "y": -1000.0}, "unlocked": false},
-		{"id": "coast", "name": "Sunrise Coast Waystone", "pos": {"x": 9500.0, "y": 5000.0}, "unlocked": false}
+		{"id": "cave", "name": "Northern Cave Waystone", "pos": {"x": 0.0, "y": -700.0}, "unlocked": false},
+		{"id": "ruins", "name": "Southern Ruins Waystone", "pos": {"x": -180.0, "y": 680.0}, "unlocked": false},
+		{"id": "east_forest", "name": "Eastern Forest Waystone", "pos": {"x": 750.0, "y": 40.0}, "unlocked": false},
+		{"id": "west_cliffs", "name": "Western Orchard Waystone", "pos": {"x": -750.0, "y": 40.0}, "unlocked": false}
 	])
 	
 	for ws in waystones_data:
@@ -627,6 +477,7 @@ func _spawn_waystones() -> void:
 		waystone.add_child(col)
 		
 		var sprite := Sprite2D.new()
+		sprite.name = "Sprite2D"
 		sprite.texture = load("res://assets/sprites/world/waystone.png")
 		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		sprite.position = Vector2(0, -16)
@@ -640,63 +491,24 @@ func _setup_water_zones() -> void:
 	add_child(water_zones)
 	
 	# Eastern Great Lake
-	var lake := WaterZone.new()
-	lake.position = Vector2(5500, 2500)
+	var lake := WaterZoneScript.new()
+	lake.position = Vector2(670, 32)
 	var col_lake := CollisionShape2D.new()
 	var s_lake := CircleShape2D.new()
-	s_lake.radius = 1200.0
+	s_lake.radius = 180.0
 	col_lake.shape = s_lake
 	lake.add_child(col_lake)
 	water_zones.add_child(lake)
 	
-	# Western Pond
-	var w_pond := WaterZone.new()
-	w_pond.position = Vector2(-5000, 3500)
-	var col_wp := CollisionShape2D.new()
-	var s_wp := CircleShape2D.new()
-	s_wp.radius = 900.0
-	col_wp.shape = s_wp
-	w_pond.add_child(col_wp)
-	water_zones.add_child(w_pond)
-	
-	# Southern Lagoon
-	var lagoon := WaterZone.new()
-	lagoon.position = Vector2(3000, 9000)
-	var col_lagoon := CollisionShape2D.new()
-	var s_lagoon := CircleShape2D.new()
-	s_lagoon.radius = 1100.0
-	col_lagoon.shape = s_lagoon
-	lagoon.add_child(col_lagoon)
-	water_zones.add_child(lagoon)
-	
-	# Village Ponds
-	var v_pond1 := WaterZone.new()
-	v_pond1.position = Vector2(550, 320)
-	var col_vp1 := CollisionShape2D.new()
-	var s_vp1 := CircleShape2D.new()
-	s_vp1.radius = 120.0
-	col_vp1.shape = s_vp1
-	v_pond1.add_child(col_vp1)
-	water_zones.add_child(v_pond1)
-	
-	var v_pond2 := WaterZone.new()
-	v_pond2.position = Vector2(-600, 480)
-	var col_vp2 := CollisionShape2D.new()
-	var s_vp2 := CircleShape2D.new()
-	s_vp2.radius = 100.0
-	col_vp2.shape = s_vp2
-	v_pond2.add_child(col_vp2)
-	water_zones.add_child(v_pond2)
-	
 	# Outer Ocean Swimming Ring
-	var ocean_zone := WaterZone.new()
-	var base_r: float = layout_config.get("island_settings", {}).get("base_radius", 16800.0)
-	for i in range(16):
-		var angle: float = float(i) * (TAU / 16.0)
-		var o_pos := Vector2(cos(angle) * (base_r + 1500.0), sin(angle) * (base_r + 1500.0))
+	var ocean_zone := WaterZoneScript.new()
+	var base_r: float = layout_config.get("island_settings", {}).get("base_radius", 1050.0)
+	for i in range(12):
+		var angle: float = float(i) * (TAU / 12.0)
+		var o_pos := Vector2(cos(angle) * (base_r + 200.0), sin(angle) * (base_r + 200.0))
 		var o_col := CollisionShape2D.new()
 		var o_shape := CircleShape2D.new()
-		o_shape.radius = 3500.0
+		o_shape.radius = 400.0
 		o_col.shape = o_shape
 		o_col.position = o_pos
 		ocean_zone.add_child(o_col)

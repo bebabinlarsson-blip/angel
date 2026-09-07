@@ -4,7 +4,6 @@ extends Control
 @onready var resume_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ResumeButton")
 @onready var save_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/SaveButton")
 @onready var quest_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/QuestButton")
-@onready var customizer_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CustomizerButton")
 @onready var settings_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/SettingsButton")
 @onready var main_menu_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/MainMenuButton")
 @onready var dimmer: ColorRect = get_node_or_null("Dimmer")
@@ -21,8 +20,6 @@ func _ready() -> void:
 		save_btn.pressed.connect(_on_save)
 	if quest_btn:
 		quest_btn.pressed.connect(_on_quest)
-	if customizer_btn:
-		customizer_btn.pressed.connect(_on_customizer)
 	if settings_btn:
 		settings_btn.pressed.connect(_on_settings)
 	if main_menu_btn:
@@ -34,7 +31,7 @@ func _ready() -> void:
 		)
 	
 	_create_settings_panel()
-	for b in [resume_btn, save_btn, quest_btn, customizer_btn, settings_btn, main_menu_btn]:
+	for b in [resume_btn, save_btn, quest_btn, settings_btn, main_menu_btn]:
 		if b is Button:
 			UIAnim.hook_button_sounds(b)
 	UITheme.style_recursive(self)
@@ -150,12 +147,6 @@ func _on_settings() -> void:
 	if settings_panel:
 		settings_panel.visible = !settings_panel.visible
 
-func _on_customizer() -> void:
-	var customizer := get_tree().root.find_child("IslandCustomizer", true, false)
-	if customizer and customizer.has_method("open"):
-		customizer.open()
-	elif customizer:
-		customizer.visible = true
 
 func _on_quest() -> void:
 	_toggle()

@@ -1,97 +1,185 @@
-﻿{
+{
   "island_settings": {
-    "scale_multiplier": 15.0,
-    "base_radius": 16800.0,
-    "beach_radius": 18500.0,
-    "water_rim_radius": 19800.0,
-    "ocean_boundary": 35000.0,
-    "village_radius": 800.0
+    "scale_multiplier": 1.0,
+    "base_radius": 1050.0,
+    "beach_radius": 1150.0,
+    "water_rim_radius": 1200.0,
+    "ocean_boundary": 1500.0,
+    "village_radius": 350.0
   },
   "density_settings": {
-    "tree_count": 350,
-    "rock_clusters": 24,
-    "flower_count": 220,
-    "wildlife_rabbits": 28,
-    "wildlife_deer": 20,
-    "wildlife_birds": 30,
-    "material_wood": 60,
-    "material_herb": 60,
-    "material_mushroom": 50,
-    "mining_nodes": 32,
-    "monster_spawners": 8
+    "tree_count": 0,
+    "rock_clusters": 0,
+    "flower_count": 0,
+    "wildlife_rabbits": 6,
+    "wildlife_deer": 4,
+    "wildlife_birds": 6,
+    "material_wood": 12,
+    "material_herb": 12,
+    "material_mushroom": 10,
+    "mining_nodes": 8,
+    "monster_spawners": 1
   },
   "village": {
-    "center": {"x": 0.0, "y": 0.0},
-    "campfire": {"x": 0.0, "y": 0.0},
-    "tree_ring_radius": 780.0,
-    "tree_ring_count": 36,
+    "center": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "campfire": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "tree_ring_radius": 360.0,
+    "tree_ring_count": 0,
     "houses": [
-      {"id": "house_elder", "name": "Elder's House", "pos": {"x": -350.0, "y": -260.0}},
-      {"id": "house_carpenter", "name": "Carpenter Workshop", "pos": {"x": 350.0, "y": -260.0}},
-      {"id": "house_cook", "name": "Tavern & Kitchen", "pos": {"x": -350.0, "y": 280.0}},
-      {"id": "house_miner", "name": "Miner's Lodge", "pos": {"x": 350.0, "y": 280.0}},
-      {"id": "house_storage", "name": "Village Storehouse", "pos": {"x": 0.0, "y": -420.0}}
+      {
+        "id": "house_elder",
+        "name": "Elder's House",
+        "pos": {
+          "x": -350.0,
+          "y": -260.0
+        }
+      },
+      {
+        "id": "house_carpenter",
+        "name": "Carpenter Workshop",
+        "pos": {
+          "x": 350.0,
+          "y": -260.0
+        }
+      },
+      {
+        "id": "house_cook",
+        "name": "Tavern & Kitchen",
+        "pos": {
+          "x": -350.0,
+          "y": 280.0
+        }
+      },
+      {
+        "id": "house_miner",
+        "name": "Miner's Lodge",
+        "pos": {
+          "x": 350.0,
+          "y": 280.0
+        }
+      }
     ],
     "npcs": [
       {
         "id": "elder",
         "name": "Village Elder",
-        "pos": {"x": -140.0, "y": -100.0},
+        "pos": {
+          "x": -140.0,
+          "y": -100.0
+        },
         "quest_id": "slay_slimes",
         "type": 9
       },
       {
         "id": "carpenter",
         "name": "Carpenter",
-        "pos": {"x": 260.0, "y": -100.0},
+        "pos": {
+          "x": 260.0,
+          "y": -100.0
+        },
         "quest_id": "gather_wood",
         "type": 10
       },
       {
         "id": "cook",
         "name": "Chef Maria",
-        "pos": {"x": 100.0, "y": 50.0},
+        "pos": {
+          "x": 100.0,
+          "y": 50.0
+        },
         "quest_id": "first_meal",
         "type": 11
       },
       {
         "id": "miner",
         "name": "Miner Torvald",
-        "pos": {"x": -60.0, "y": -380.0},
+        "pos": {
+          "x": -60.0,
+          "y": -380.0
+        },
         "quest_id": "explore_cave",
         "type": 12
       }
     ]
   },
   "waystones": [
-    {"id": "village", "name": "Village Waystone", "pos": {"x": 0.0, "y": -220.0}, "unlocked": true},
-    {"id": "cave", "name": "Northern Cave Waystone", "pos": {"x": 0.0, "y": -7200.0}, "unlocked": false},
-    {"id": "ruins", "name": "Southern Ruins Waystone", "pos": {"x": -1800.0, "y": 7500.0}, "unlocked": false},
-    {"id": "east_forest", "name": "Eastern Forest Waystone", "pos": {"x": 7500.0, "y": 1200.0}, "unlocked": false},
-    {"id": "west_cliffs", "name": "Western Cliffs Waystone", "pos": {"x": -7500.0, "y": -1000.0}, "unlocked": false},
-    {"id": "coast", "name": "Sunrise Coast Waystone", "pos": {"x": 9500.0, "y": 5000.0}, "unlocked": false}
+    {
+      "id": "village",
+      "name": "Village Waystone",
+      "pos": {
+        "x": 0.0,
+        "y": -220.0
+      },
+      "unlocked": true
+    },
+    {
+      "id": "cave",
+      "name": "Northern Cave Waystone",
+      "pos": {
+        "x": 0.0,
+        "y": -700.0
+      },
+      "unlocked": false
+    },
+    {
+      "id": "ruins",
+      "name": "Southern Ruins Waystone",
+      "pos": {
+        "x": -180.0,
+        "y": 680.0
+      },
+      "unlocked": false
+    },
+    {
+      "id": "east_forest",
+      "name": "Eastern Forest Waystone",
+      "pos": {
+        "x": 750.0,
+        "y": 40.0
+      },
+      "unlocked": false
+    },
+    {
+      "id": "west_cliffs",
+      "name": "Western Orchard Waystone",
+      "pos": {
+        "x": -750.0,
+        "y": 40.0
+      },
+      "unlocked": false
+    }
   ],
   "landmarks": {
     "northern_mountain": {
-      "center": {"x": 0.0, "y": -8000.0},
-      "radius": 2400.0,
-      "cave_mouth": {"x": 0.0, "y": -7500.0}
+      "center": {
+        "x": 0.0,
+        "y": -700.0
+      },
+      "radius": 220.0,
+      "cave_mouth": {
+        "x": 0.0,
+        "y": -680.0
+      }
     },
     "ancient_ruins": {
-      "center": {"x": -2000.0, "y": 8000.0},
-      "radius": 1800.0
+      "center": {
+        "x": -180.0,
+        "y": 680.0
+      },
+      "radius": 160.0
     },
     "eastern_great_lake": {
-      "center": {"x": 5500.0, "y": 2500.0},
-      "radius": 1200.0
-    },
-    "western_pond": {
-      "center": {"x": -5000.0, "y": 3500.0},
-      "radius": 900.0
-    },
-    "southern_lagoon": {
-      "center": {"x": 3000.0, "y": 9000.0},
-      "radius": 1100.0
+      "center": {
+        "x": 670.0,
+        "y": 32.0
+      },
+      "radius": 190.0
     }
   }
 }

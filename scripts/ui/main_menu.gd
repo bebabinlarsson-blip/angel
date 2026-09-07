@@ -3,14 +3,12 @@ extends Control
 
 @onready var new_game_btn: Button = get_node_or_null("CenterContainer/MenuCard/MarginContainer/VBoxContainer/NewGameButton")
 @onready var continue_btn: Button = get_node_or_null("CenterContainer/MenuCard/MarginContainer/VBoxContainer/ContinueButton")
-@onready var customizer_btn: Button = get_node_or_null("CenterContainer/MenuCard/MarginContainer/VBoxContainer/CustomizerButton")
 @onready var controls_btn: Button = get_node_or_null("CenterContainer/MenuCard/MarginContainer/VBoxContainer/ControlsButton")
 @onready var settings_btn: Button = get_node_or_null("CenterContainer/MenuCard/MarginContainer/VBoxContainer/SettingsButton")
 @onready var quit_btn: Button = get_node_or_null("CenterContainer/MenuCard/MarginContainer/VBoxContainer/QuitButton")
 
 var settings_panel: Control = null
 var controls_panel: Control = null
-var customizer_panel: Control = null
 
 func _ready() -> void:
 	_ensure_audio_manager()
@@ -20,14 +18,15 @@ func _ready() -> void:
 		continue_btn.pressed.connect(_on_continue)
 		var has_save: bool = SaveManager.has_save(0)
 		continue_btn.disabled = not has_save
-	if customizer_btn:
-		customizer_btn.pressed.connect(_on_customizer)
 	if controls_btn:
 		controls_btn.pressed.connect(_on_controls)
 	if settings_btn:
 		settings_btn.pressed.connect(_on_settings)
 	if quit_btn:
-		quit_btn.pressed.connect(_on_quit)
+		if OS.has_feature("web"):
+			quit_btn.visible = false
+		else:
+			quit_btn.pressed.connect(_on_quit)
 	
 	_create_settings_modal()
 	_create_controls_modal()
@@ -47,7 +46,7 @@ func _play_entrance() -> void:
 	var vbox := get_node_or_null("CenterContainer/MenuCard/MarginContainer/VBoxContainer")
 	if vbox:
 		UIAnim.stagger_children(vbox, 0.06, 0.3)
-	for b in [new_game_btn, continue_btn, customizer_btn, controls_btn, settings_btn, quit_btn]:
+	for b in [new_game_btn, continue_btn, controls_btn, settings_btn, quit_btn]:
 		if b is Button:
 			UIAnim.hook_button_sounds(b)
 
@@ -71,12 +70,7 @@ func _create_settings_modal() -> void:
 	
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(400, 360)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.10, 0.16, 0.98)
-	style.border_color = Color(0.35, 0.80, 1.0)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(8)
-	card.add_theme_stylebox_override("panel", style)
+	card.add_theme_stylebox_override("panel", UITheme.panel_style())
 	
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 24)
@@ -151,12 +145,7 @@ func _create_controls_modal() -> void:
 	
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(520, 480)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.10, 0.16, 0.98)
-	style.border_color = Color(0.35, 0.80, 1.0)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(8)
-	card.add_theme_stylebox_override("panel", style)
+	card.add_theme_stylebox_override("panel", UITheme.panel_style())
 	
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 24)
@@ -189,7 +178,6 @@ func _create_controls_modal() -> void:
 		["[I] or [Tab]", "Open Inventory & Equipment"],
 		["[J]", "Open Quest Journal"],
 		["[M] or Click Map", "Toggle Big Map"],
-		["[B]", "Open Island Customizer"],
 		["[Esc]", "Pause Menu & Save Game"]
 	]
 	
@@ -219,6 +207,10 @@ func _create_controls_modal() -> void:
 	add_child(controls_panel)
 
 func _on_new_game() -> void:
+	GameManager.opened_caches.clear()
+	GameManager.unlocked_waystones.clear()
+	GameManager.game_time_hours = 8.0
+	GameManager.day_count = 1
 	GameManager.current_state = GameManager.GameState.PLAYING
 	get_tree().change_scene_to_file("res://scenes/game.tscn")
 
@@ -232,18 +224,6 @@ func _on_continue() -> void:
 		if p:
 			break
 	SaveManager.load_game(0)
-
-func _on_customizer() -> void:
-	if customizer_panel == null:
-		var cust_scene = load("res://scenes/ui/island_customizer.tscn")
-		if cust_scene:
-			customizer_panel = cust_scene.instantiate()
-			add_child(customizer_panel)
-	if customizer_panel:
-		if customizer_panel.has_method("open"):
-			customizer_panel.open()
-		else:
-			customizer_panel.visible = true
 
 func _on_controls() -> void:
 	if controls_panel:

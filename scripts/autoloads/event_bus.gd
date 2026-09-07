@@ -1,3 +1,4 @@
+@warning_ignore("unused_signal")
 extends Node
 
 # Player signals

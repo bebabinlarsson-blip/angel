@@ -7,21 +7,23 @@ extends Node2D
 func _ready() -> void:
 	get_tree().paused = false
 	GameManager.set_state(GameManager.GameState.PLAYING)
-	GameManager.village_spawn_point = Vector2(0, 0)
+	GameManager.village_spawn_point = Vector2(0, 90)
 	_ensure_audio_manager()
 	
 	# Spawn island world elements if generator isn't present
-	if get_node_or_null("World/WorldGenerator") == null:
-		var world_node := get_node_or_null("World")
-		if world_node == null:
-			world_node = Node2D.new()
-			world_node.name = "World"
-			add_child(world_node)
-			move_child(world_node, 0)
-		
-		var gen := WorldGenerator.new()
-		gen.name = "WorldGenerator"
-		world_node.add_child(gen)
+	var world_node := get_node_or_null("World")
+	if world_node == null:
+		world_node = Node2D.new()
+		world_node.name = "World"
+		add_child(world_node)
+		move_child(world_node, 0)
+	var terrain: IslandWorld = world_node.get_node_or_null("IslandWorld") as IslandWorld
+	if terrain == null:
+		terrain = IslandWorld.new()
+		terrain.name = "IslandWorld"
+		terrain.add_to_group("island_world")
+		world_node.add_child(terrain)
+	terrain.rebuild(world_node)
 	
 	# Connect monster kills & item pickups to quest system.
 	# EventBus persists across scene changes, so guard every connect

@@ -17,6 +17,7 @@ var village_spawn_point: Vector2 = Vector2(0, 0)
 
 # Waystones
 var unlocked_waystones: Dictionary = {}
+var opened_caches: Array = []
 
 # Throttle time_changed: only emit when the displayed minute actually changes
 var _last_emit_hour: int = -1
@@ -104,7 +105,8 @@ func fast_travel_to(waystone_id: String) -> void:
 	if waystone_id in unlocked_waystones:
 		var data: Dictionary = unlocked_waystones[waystone_id]
 		if player:
-			player.global_position = data["position"]
+			player.global_position = data["position"] + Vector2(0, 44)
+			player.velocity = Vector2.ZERO
 		EventBus.fast_travel_requested.emit(waystone_id)
 
 func get_time_string() -> String:
@@ -116,12 +118,20 @@ func get_save_data() -> Dictionary:
 	return {
 		"game_time_hours": game_time_hours,
 		"day_count": day_count,
-		"unlocked_waystones": unlocked_waystones,
+		"unlocked_waystones": unlocked_waystones.keys(),
+		"opened_caches": opened_caches.duplicate(),
 	}
 
 func load_save_data(data: Dictionary) -> void:
 	game_time_hours = data.get("game_time_hours", 8.0)
 	day_count = data.get("day_count", 1)
-	unlocked_waystones = data.get("unlocked_waystones", {})
+	var saved: Variant = data.get("unlocked_waystones", [])
+	var ids: Array = saved.keys() if saved is Dictionary else saved
+	unlocked_waystones.clear()
+	for stone: Node in get_tree().get_nodes_in_group("waystones"):
+		stone.is_unlocked = stone.waystone_id == "village" or stone.waystone_id in ids
+		if stone.is_unlocked:
+			register_waystone(stone.waystone_id, stone.global_position, stone.display_name)
+	opened_caches = data.get("opened_caches", []).duplicate()
 	_last_emit_hour = -1
 	_last_emit_minute = -1
