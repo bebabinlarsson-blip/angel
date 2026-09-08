@@ -76,13 +76,13 @@ func _ready() -> void:
 		var zoom_in_btn := Button.new()
 		zoom_in_btn.text = "Zoom In (+)"
 		UITheme.style_button(zoom_in_btn)
-		zoom_in_btn.pressed.connect(func(): big_draw.map_zoom = clampf(big_draw.map_zoom + 0.5, 0.4, 3.5); big_draw.queue_redraw())
+		zoom_in_btn.pressed.connect(func(): big_draw.zoom_in())
 		btn_container.add_child(zoom_in_btn)
 		
 		var zoom_out_btn := Button.new()
 		zoom_out_btn.text = "Zoom Out (-)"
 		UITheme.style_button(zoom_out_btn)
-		zoom_out_btn.pressed.connect(func(): big_draw.map_zoom = clampf(big_draw.map_zoom - 0.5, 0.4, 3.5); big_draw.queue_redraw())
+		zoom_out_btn.pressed.connect(func(): big_draw.zoom_out())
 		btn_container.add_child(zoom_out_btn)
 		
 		var fit_btn := Button.new()

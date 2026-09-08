@@ -17,9 +17,6 @@ enum EntityType {
 	NPC_CARPENTER,
 	NPC_COOK,
 	NPC_MINER,
-	ANIMAL_RABBIT,
-	ANIMAL_DEER,
-	ANIMAL_BIRD,
 	ORE_VEIN,
 	ITEM_WOOD,
 	ITEM_HERB,
@@ -50,10 +47,7 @@ func _ready() -> void:
 		EntityType.NPC_ELDER,
 		EntityType.NPC_CARPENTER,
 		EntityType.NPC_COOK,
-		EntityType.NPC_MINER,
-		EntityType.ANIMAL_RABBIT,
-		EntityType.ANIMAL_DEER,
-		EntityType.ANIMAL_BIRD
+		EntityType.NPC_MINER
 	]
 	
 	if not is_animated:
@@ -119,12 +113,6 @@ func _draw() -> void:
 			_draw_npc_cook()
 		EntityType.NPC_MINER:
 			_draw_npc_miner()
-		EntityType.ANIMAL_RABBIT:
-			_draw_rabbit()
-		EntityType.ANIMAL_DEER:
-			_draw_deer()
-		EntityType.ANIMAL_BIRD:
-			_draw_bird()
 		EntityType.ORE_VEIN:
 			_draw_ore_vein()
 		EntityType.ITEM_WOOD:
@@ -634,90 +622,6 @@ func _draw_npc_miner() -> void:
 	draw_arc(Vector2(-12, -22 + bob), 8.0, -PI * 0.75, -PI * 0.25, 8, Color(0.7, 0.72, 0.78), 4.0) # Steel head
 
 # ==============================================================================
-# 6. WILDLIFE (Rabbit, Deer, Bird - 30 FPS Organic Gait Cycles)
-# ==============================================================================
-func _draw_rabbit() -> void:
-	var hop_phase: float = fmod(anim_time * 5.0, 1.0)
-	var hop_y: float = 0.0
-	var squash: float = 1.0
-	
-	if hop_phase < 0.25:
-		squash = 1.25
-	elif hop_phase < 0.75:
-		hop_y = -sin((hop_phase - 0.25) / 0.5 * PI) * 8.0
-		squash = 0.85
-	
-	# Shadow
-	draw_set_transform(Vector2(0, 4), 0, Vector2(squash, 0.5))
-	draw_circle(Vector2.ZERO, 6.0, Color(0, 0, 0, 0.2))
-	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
-	
-	# Body
-	var body_p := Vector2(0, -2.0 + hop_y)
-	draw_circle(body_p, 5.5, Color(0.94, 0.90, 0.85))
-	# Head
-	var head_p := body_p + Vector2(4.5, -3.0)
-	draw_circle(head_p, 4.0, Color(0.94, 0.90, 0.85))
-	# Twitching Ears (30 FPS)
-	var ear_twitch: float = sin(anim_time * 14.0) * 1.5
-	draw_line(head_p + Vector2(-1, -2), head_p + Vector2(-2 + ear_twitch, -10), Color(0.94, 0.90, 0.85), 2.5)
-	draw_line(head_p + Vector2(1, -2), head_p + Vector2(2 - ear_twitch, -10), Color(0.94, 0.90, 0.85), 2.5)
-	draw_line(head_p + Vector2(-1, -2), head_p + Vector2(-2 + ear_twitch, -8), Color(1.0, 0.7, 0.75), 1.2) # Pink inner ear
-	# Eye & Fluffy Tail
-	draw_circle(head_p + Vector2(1.5, -0.5), 1.0, Color(0.85, 0.15, 0.25))
-	draw_circle(body_p + Vector2(-5.0, 1.0), 2.2, Color(1, 1, 1))
-
-func _draw_deer() -> void:
-	var trot: float = sin(anim_time * 6.0)
-	var bob: float = absf(sin(anim_time * 6.0)) * 2.0
-	
-	# Shadow
-	draw_set_transform(Vector2(0, 8), 0, Vector2(1.4, 0.5))
-	draw_circle(Vector2.ZERO, 9.0, Color(0, 0, 0, 0.2))
-	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
-	
-	# 4 Stepping Legs
-	var leg_col := Color(0.48, 0.30, 0.16)
-	draw_line(Vector2(-7, 0 + bob), Vector2(-7 + trot * 4.0, 10), leg_col, 2.2)
-	draw_line(Vector2(-3, 0 + bob), Vector2(-3 - trot * 4.0, 10), leg_col, 2.2)
-	draw_line(Vector2(5, 0 + bob), Vector2(5 + trot * 4.0, 10), leg_col, 2.2)
-	draw_line(Vector2(9, 0 + bob), Vector2(9 - trot * 4.0, 10), leg_col, 2.2)
-	
-	# Body (Chestnut with dappled white spots)
-	draw_rect(Rect2(-9, -7 + bob, 18, 10), Color(0.72, 0.46, 0.25))
-	draw_circle(Vector2(-3, -3 + bob), 1.0, Color(1, 1, 1, 0.8)) # Spots
-	draw_circle(Vector2(2, -4 + bob), 1.0, Color(1, 1, 1, 0.8))
-	draw_circle(Vector2(0, -1 + bob), 1.0, Color(1, 1, 1, 0.8))
-	
-	# Graceful Neck & Head
-	var neck_top := Vector2(13, -16 + bob)
-	draw_line(Vector2(8, -5 + bob), neck_top, Color(0.72, 0.46, 0.25), 4.0)
-	draw_circle(neck_top, 4.0, Color(0.72, 0.46, 0.25))
-	
-	# Branching Antlers
-	var antler_col := Color(0.40, 0.25, 0.12)
-	draw_line(neck_top + Vector2(-1, -3), neck_top + Vector2(-3, -12), antler_col, 2.0)
-	draw_line(neck_top + Vector2(1, -3), neck_top + Vector2(5, -12), antler_col, 2.0)
-	draw_line(neck_top + Vector2(-2, -7), neck_top + Vector2(-6, -9), antler_col, 1.5)
-	draw_line(neck_top + Vector2(3, -7), neck_top + Vector2(7, -9), antler_col, 1.5)
-
-func _draw_bird() -> void:
-	var flap: float = sin(anim_time * 22.0) * 4.5
-	var bob: float = sin(anim_time * 8.0) * 1.5
-	
-	# Shadow on ground
-	draw_circle(Vector2(0, 10), 3.5, Color(0, 0, 0, 0.15))
-	
-	# Plumage (Azure Bluebird)
-	draw_circle(Vector2(0, bob), 4.5, Color(0.22, 0.65, 0.98))
-	# Fluttering Wings (30 FPS)
-	draw_line(Vector2(-2, bob), Vector2(-7, bob - 4.0 + flap), Color(0.12, 0.45, 0.85), 2.5)
-	draw_line(Vector2(2, bob), Vector2(7, bob - 4.0 + flap), Color(0.12, 0.45, 0.85), 2.5)
-	# Golden Beak & Tail
-	draw_line(Vector2(3, bob), Vector2(7, bob + 1.0), Color(1.0, 0.75, 0.1), 2.0)
-	draw_line(Vector2(-4, bob), Vector2(-8, bob + 2.0), Color(0.15, 0.50, 0.90), 2.0)
-	draw_circle(Vector2(2, bob - 1.0), 1.0, Color(0, 0, 0))
-
 # ==============================================================================
 # 7. ENVIRONMENT & OBJECT PROPS (House, Tree, Rock, Flower, Ores, Items)
 # ==============================================================================

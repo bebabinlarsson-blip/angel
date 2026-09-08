@@ -14,6 +14,7 @@ const INK := Color("#f3e7ce")
 const OCEAN := Color("#244853")
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	clip_contents = true
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -54,12 +55,49 @@ func _center() -> Vector2:
 func center_on_player() -> void:
 	if is_instance_valid(GameManager.player):
 		map_offset = -GameManager.player.global_position
+		_clamp_offset()
 	queue_redraw()
 
 func fit_island() -> void:
 	map_zoom = 1.0
-	map_offset = Vector2.ZERO
+	if is_instance_valid(_terrain):
+		map_offset = -_terrain.bounds.get_center()
+	else:
+		map_offset = Vector2.ZERO
 	queue_redraw()
+
+func zoom_in(pivot: Vector2 = Vector2.INF) -> void:
+	_zoom_by(1.25, pivot)
+
+func zoom_out(pivot: Vector2 = Vector2.INF) -> void:
+	_zoom_by(1.0 / 1.25, pivot)
+
+func _zoom_by(factor: float, pivot: Vector2 = Vector2.INF) -> void:
+	if not is_big_map:
+		return
+	var old_zoom: float = map_zoom
+	var new_zoom: float = clampf(map_zoom * factor, 0.5, 6.0)
+	if is_equal_approx(old_zoom, new_zoom):
+		return
+	var screen_mid := Vector2((size.x - 210.0) * 0.5, size.y * 0.5 + 10.0)
+	var focus_screen: Vector2 = pivot if pivot != Vector2.INF else screen_mid
+	var old_scale: float = _map_scale()
+	var old_center: Vector2 = _center()
+	var world_p: Vector2 = (focus_screen - old_center) / maxf(old_scale, 0.0001)
+	map_zoom = new_zoom
+	var new_scale: float = _map_scale()
+	map_offset = (focus_screen - screen_mid) / maxf(new_scale, 0.0001) - world_p
+	_clamp_offset()
+	queue_redraw()
+
+func _clamp_offset() -> void:
+	if not is_big_map:
+		return
+	var limit: float = 3800.0
+	if is_instance_valid(_terrain) and _terrain.radius > 0.0:
+		limit = _terrain.radius * 1.5
+	map_offset.x = clampf(map_offset.x, -limit, limit)
+	map_offset.y = clampf(map_offset.y, -limit, limit)
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -69,15 +107,16 @@ func _on_gui_input(event: InputEvent) -> void:
 			else:
 				_dragging = event.pressed
 				grab_focus()
-		if is_big_map and event.pressed:
+		elif is_big_map and event.pressed:
 			if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-				map_zoom = clampf(map_zoom * 1.2, 0.7, 5.0)
+				zoom_in(event.position)
 			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-				map_zoom = clampf(map_zoom / 1.2, 0.7, 5.0)
+				zoom_out(event.position)
 		accept_event()
 	elif event is InputEventMouseMotion and _dragging:
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 			map_offset += event.relative / maxf(_map_scale(), 0.001)
+			_clamp_offset()
 		else:
 			_dragging = false
 	elif event is InputEventKey and event.pressed:
@@ -87,12 +126,13 @@ func _on_gui_input(event: InputEvent) -> void:
 			get_tree().root.find_child("HUD", true, false).set_map_open(true)
 		elif is_big_map:
 			match event.keycode:
-				KEY_LEFT: map_offset.x += 100.0 / map_zoom
-				KEY_RIGHT: map_offset.x -= 100.0 / map_zoom
-				KEY_UP: map_offset.y += 100.0 / map_zoom
-				KEY_DOWN: map_offset.y -= 100.0 / map_zoom
-				KEY_EQUAL, KEY_PLUS: map_zoom = minf(5.0, map_zoom * 1.2)
-				KEY_MINUS: map_zoom = maxf(0.7, map_zoom / 1.2)
+				KEY_LEFT: map_offset.x += 120.0 / map_zoom
+				KEY_RIGHT: map_offset.x -= 120.0 / map_zoom
+				KEY_UP: map_offset.y += 120.0 / map_zoom
+				KEY_DOWN: map_offset.y -= 120.0 / map_zoom
+				KEY_EQUAL, KEY_PLUS: zoom_in()
+				KEY_MINUS: zoom_out()
+			_clamp_offset()
 			accept_event()
 	queue_redraw()
 
@@ -101,6 +141,13 @@ func _label(pos: Vector2, text: String, font_size: int = 14, color: Color = INK)
 	draw_string(ThemeDB.fallback_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 func _draw() -> void:
+	if not is_instance_valid(_terrain):
+		_terrain = get_tree().get_first_node_in_group("island_world") as IslandWorld
+	if _stones.is_empty():
+		_stones = get_tree().get_nodes_in_group("waystones")
+	if _npcs.is_empty():
+		_npcs = get_tree().get_nodes_in_group("npcs")
+
 	# 1. Base ocean fill
 	draw_rect(Rect2(Vector2.ZERO, size), OCEAN)
 	
@@ -115,10 +162,10 @@ func _draw() -> void:
 	var map_rect := Rect2(center + _terrain.bounds.position * factor, _terrain.bounds.size * factor)
 	draw_texture_rect(_terrain.map_texture, map_rect, false)
 	
-	# 3. Subtle grid lines on Big Map
+	# 3. Subtle grid lines on Big Map (32 tiles / 1024 units per grid square)
 	if is_big_map:
-		var grid_step: float = 32.0 * 8.0 * factor
-		if grid_step > 16.0:
+		var grid_step: float = 32.0 * 32.0 * factor
+		if grid_step > 20.0:
 			var start_x: float = fposmod(map_rect.position.x, grid_step)
 			while start_x < size.x - 210.0:
 				if start_x > 0:
@@ -142,7 +189,7 @@ func _draw() -> void:
 		var d_in := PackedVector2Array([p + Vector2(0, -4), p + Vector2(3.5, 0), p + Vector2(0, 4), p + Vector2(-3.5, 0)])
 		draw_colored_polygon(d_out, Color("#101c24"))
 		draw_colored_polygon(d_in, col_gem)
-		if is_big_map:
+		if is_big_map and map_zoom >= 0.8:
 			_label(p + Vector2(10, 4), String(stone.display_name).replace(" Waystone", ""), 12, Color("#eef3f6"))
 
 	# 5. NPCs markers
@@ -251,14 +298,19 @@ func _draw() -> void:
 		# Bottom Bar
 		var b_y: float = size.y - 36.0
 		draw_rect(Rect2(0, b_y, size.x, 36), Color("#12202a"))
-		draw_line(Vector2(0, b_y), Vector2(size.x, b_y), Color("#9f824e"), 2.0)
-		var scale_paces: float = 300.0
-		var bar_px: float = scale_paces * factor
+		var paces_options: Array[float] = [100.0, 200.0, 500.0, 1000.0, 2000.0, 4000.0]
+		var chosen_paces: float = 500.0
+		for p_opt: float in paces_options:
+			var px: float = p_opt * factor
+			if px >= 35.0 and px <= 160.0:
+				chosen_paces = p_opt
+				break
+		var bar_px: float = chosen_paces * factor
 		if bar_px > 10.0 and bar_px < 220.0:
 			draw_line(Vector2(24, b_y + 18), Vector2(24 + bar_px, b_y + 18), Color("#ffe08a"), 2.0)
 			draw_line(Vector2(24, b_y + 12), Vector2(24, b_y + 24), Color("#ffe08a"), 2.0)
 			draw_line(Vector2(24 + bar_px, b_y + 12), Vector2(24 + bar_px, b_y + 24), Color("#ffe08a"), 2.0)
-			_label(Vector2(28 + bar_px, b_y + 22), "%d paces" % int(scale_paces), 12, Color("#ffe08a"))
+			_label(Vector2(28 + bar_px, b_y + 22), "%d paces" % int(chosen_paces), 12, Color("#ffe08a"))
 		_label(Vector2(size.x * 0.35, b_y + 22), "Drag / Arrows: Pan   |   Wheel / (+/-): Zoom   |   [Home]: Center   |   [M]: Close", 13, Color("#c3d4e0"))
 
 		# Outer Border

@@ -68,6 +68,7 @@ func _ready() -> void:
 		camera.drag_right_margin = 0.12
 		camera.drag_top_margin = 0.12
 		camera.drag_bottom_margin = 0.12
+		call_deferred("_setup_camera_limits")
 	
 	# Procedural renderer removed in favor of AnimatedSprite2D
 	
@@ -438,3 +439,14 @@ func load_save_data(data: Dictionary) -> void:
 	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
 	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
 	EventBus.player_money_changed.emit(stats.money)
+
+func _setup_camera_limits() -> void:
+	if not is_instance_valid(camera):
+		return
+	var island: IslandWorld = get_tree().get_first_node_in_group("island_world") as IslandWorld
+	if island and island.bounds.size != Vector2.ZERO:
+		var margin := 400.0
+		camera.limit_left = int(island.bounds.position.x - margin)
+		camera.limit_top = int(island.bounds.position.y - margin)
+		camera.limit_right = int(island.bounds.end.x + margin)
+		camera.limit_bottom = int(island.bounds.end.y + margin)

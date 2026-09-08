@@ -17,6 +17,7 @@ dest_files=["res://.godot/imported/house_red.png-2b2dd4bf4ade562b43bc36dd2b33588
 
 compress/mode=0
 compress/high_quality=false
+compress/high_quality_mode=0
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

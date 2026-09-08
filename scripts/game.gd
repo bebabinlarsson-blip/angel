@@ -1,6 +1,6 @@
 extends Node2D
 
-@onready var player: CharacterBody2D = get_node_or_null("Player")
+@onready var player: CharacterBody2D = get_node_or_null("World/Player") as CharacterBody2D
 @onready var quest_system: QuestSystem = get_node_or_null("QuestSystem")
 @onready var cooking_system: CookingSystem = get_node_or_null("CookingSystem")
 
@@ -10,7 +10,7 @@ func _ready() -> void:
 	GameManager.village_spawn_point = Vector2(0, 90)
 	_ensure_audio_manager()
 	
-	# Spawn island world elements if generator isn't present
+	# Initialize world map texture and collision bounds from authored scene layers
 	var world_node := get_node_or_null("World")
 	if world_node == null:
 		world_node = Node2D.new()

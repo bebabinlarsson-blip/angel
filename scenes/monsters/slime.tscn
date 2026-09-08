@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cli7g4q70qm60"]
 
-[ext_resource type="Script" path="res://scripts/monsters/slime.gd" id="1_0kd0r"]
-[ext_resource type="SpriteFrames" path="res://assets/sprites/slime_frames.tres" id="2_frames"]
+[ext_resource type="Script" uid="uid://b0f80aei7lmob" path="res://scripts/monsters/slime.gd" id="1_0kd0r"]
+[ext_resource type="SpriteFrames" uid="uid://np4jb07t4261" path="res://assets/sprites/slime_frames.tres" id="2_frames"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_3autf"]
 radius = 9.0

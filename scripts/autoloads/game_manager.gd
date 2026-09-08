@@ -107,6 +107,8 @@ func fast_travel_to(waystone_id: String) -> void:
 		if player:
 			player.global_position = data["position"] + Vector2(0, 44)
 			player.velocity = Vector2.ZERO
+			if is_instance_valid(player.camera):
+				player.camera.reset_smoothing()
 		EventBus.fast_travel_requested.emit(waystone_id)
 
 func get_time_string() -> String:

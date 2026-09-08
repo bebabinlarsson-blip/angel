@@ -8,8 +8,8 @@ var bridge: TileMapLayer
 var structures: TileMapLayer
 var decor: TileMapLayer
 var map_texture: ImageTexture
-var bounds := Rect2(-1100, -1100, 2200, 2200)
-var radius: float = 1050.0
+var bounds := Rect2(-3520, -3520, 7040, 7040)
+var radius: float = 3500.0
 var revision: int = 0
 var reserved: Array[Vector2] = []
 var land: Dictionary = {}
@@ -34,8 +34,8 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
 		bounds = Rect2(Vector2(used_rect.position) * 32.0, Vector2(used_rect.size) * 32.0)
 		radius = maxf(bounds.size.x, bounds.size.y) * 0.5
 	else:
-		bounds = Rect2(-1100, -1100, 2200, 2200)
-		radius = 1050.0
+		bounds = Rect2(-3520, -3520, 7040, 7040)
+		radius = 3500.0
 
 	reserved.clear()
 	var waystones := world.get_node_or_null("Waystones")
@@ -100,10 +100,10 @@ func is_clear(p: Vector2, clearance: float = 36.0) -> bool:
 
 func _refresh_map(water_layer: TileMapLayer = null, farm_layer: TileMapLayer = null) -> void:
 	var used_rect := Rect2i(Vector2i(bounds.position / 32.0), Vector2i(bounds.size / 32.0))
-	var dim_x: int = clampi(used_rect.size.x, 32, 256)
-	var dim_y: int = clampi(used_rect.size.y, 32, 256)
+	var dim_x: int = clampi(used_rect.size.x, 32, 1024)
+	var dim_y: int = clampi(used_rect.size.y, 32, 1024)
 	var img := Image.create(dim_x, dim_y, false, Image.FORMAT_RGBA8)
-	img.fill(Color("#182f3d")) # Deep Ocean background
+	img.fill(Color("#244853")) # Match MinimapDrawer ocean color
 	
 	var origin: Vector2i = used_rect.position
 	
@@ -120,8 +120,9 @@ func _refresh_map(water_layer: TileMapLayer = null, farm_layer: TileMapLayer = n
 			
 	# 2. Lake Water
 	if water_layer:
+		var cell_radius: float = radius / 32.0
 		for cell: Vector2i in water_layer.get_used_cells():
-			if cell.length() < 35.0 and not land.has(cell):
+			if cell.length() < cell_radius and not land.has(cell):
 				var pixel: Vector2i = cell - origin
 				if pixel.x >= 0 and pixel.y >= 0 and pixel.x < dim_x and pixel.y < dim_y:
 					img.set_pixelv(pixel, Color("#276b80"))

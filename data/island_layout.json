@@ -1,19 +1,16 @@
 {
   "island_settings": {
-    "scale_multiplier": 1.0,
-    "base_radius": 1050.0,
-    "beach_radius": 1150.0,
-    "water_rim_radius": 1200.0,
-    "ocean_boundary": 1500.0,
-    "village_radius": 350.0
+    "scale_multiplier": 3.0,
+    "base_radius": 3000.0,
+    "beach_radius": 3200.0,
+    "water_rim_radius": 3350.0,
+    "ocean_boundary": 3600.0,
+    "village_radius": 500.0
   },
   "density_settings": {
     "tree_count": 0,
     "rock_clusters": 0,
     "flower_count": 0,
-    "wildlife_rabbits": 6,
-    "wildlife_deer": 4,
-    "wildlife_birds": 6,
     "material_wood": 12,
     "material_herb": 12,
     "material_mushroom": 10,
@@ -29,39 +26,39 @@
       "x": 0.0,
       "y": 0.0
     },
-    "tree_ring_radius": 360.0,
+    "tree_ring_radius": 500.0,
     "tree_ring_count": 0,
     "houses": [
       {
         "id": "house_elder",
         "name": "Elder's House",
         "pos": {
-          "x": -350.0,
-          "y": -260.0
+          "x": -384.0,
+          "y": -128.0
+        }
+      },
+      {
+        "id": "house_chef",
+        "name": "Chef Maria's Bakery",
+        "pos": {
+          "x": 256.0,
+          "y": -128.0
+        }
+      },
+      {
+        "id": "house_smith",
+        "name": "Blacksmith Cottage",
+        "pos": {
+          "x": -384.0,
+          "y": 96.0
         }
       },
       {
         "id": "house_carpenter",
         "name": "Carpenter Workshop",
         "pos": {
-          "x": 350.0,
-          "y": -260.0
-        }
-      },
-      {
-        "id": "house_cook",
-        "name": "Tavern & Kitchen",
-        "pos": {
-          "x": -350.0,
-          "y": 280.0
-        }
-      },
-      {
-        "id": "house_miner",
-        "name": "Miner's Lodge",
-        "pos": {
-          "x": 350.0,
-          "y": 280.0
+          "x": 256.0,
+          "y": 96.0
         }
       }
     ],
@@ -70,8 +67,8 @@
         "id": "elder",
         "name": "Village Elder",
         "pos": {
-          "x": -140.0,
-          "y": -100.0
+          "x": -288.0,
+          "y": -32.0
         },
         "quest_id": "slay_slimes",
         "type": 9
@@ -80,8 +77,8 @@
         "id": "carpenter",
         "name": "Carpenter",
         "pos": {
-          "x": 260.0,
-          "y": -100.0
+          "x": 224.0,
+          "y": 128.0
         },
         "quest_id": "gather_wood",
         "type": 10
@@ -90,8 +87,8 @@
         "id": "cook",
         "name": "Chef Maria",
         "pos": {
-          "x": 100.0,
-          "y": 50.0
+          "x": 224.0,
+          "y": -32.0
         },
         "quest_id": "first_meal",
         "type": 11
@@ -100,8 +97,8 @@
         "id": "miner",
         "name": "Miner Torvald",
         "pos": {
-          "x": -60.0,
-          "y": -380.0
+          "x": -2048.0,
+          "y": -1856.0
         },
         "quest_id": "explore_cave",
         "type": 12
@@ -114,72 +111,95 @@
       "name": "Village Waystone",
       "pos": {
         "x": 0.0,
-        "y": -220.0
+        "y": 192.0
       },
       "unlocked": true
     },
     {
       "id": "cave",
-      "name": "Northern Cave Waystone",
+      "name": "Highland Waystone",
       "pos": {
-        "x": 0.0,
-        "y": -700.0
-      },
-      "unlocked": false
-    },
-    {
-      "id": "ruins",
-      "name": "Southern Ruins Waystone",
-      "pos": {
-        "x": -180.0,
-        "y": 680.0
-      },
-      "unlocked": false
-    },
-    {
-      "id": "east_forest",
-      "name": "Eastern Forest Waystone",
-      "pos": {
-        "x": 750.0,
-        "y": 40.0
+        "x": -1920.0,
+        "y": -1792.0
       },
       "unlocked": false
     },
     {
       "id": "west_cliffs",
-      "name": "Western Orchard Waystone",
+      "name": "Sunset Farm Waystone",
       "pos": {
-        "x": -750.0,
-        "y": 40.0
+        "x": -1536.0,
+        "y": 704.0
+      },
+      "unlocked": false
+    },
+    {
+      "id": "east_forest",
+      "name": "Whispering Woods Waystone",
+      "pos": {
+        "x": 1024.0,
+        "y": -1152.0
+      },
+      "unlocked": false
+    },
+    {
+      "id": "ruins",
+      "name": "Forgotten Citadel Waystone",
+      "pos": {
+        "x": 64.0,
+        "y": 1728.0
+      },
+      "unlocked": false
+    },
+    {
+      "id": "lake",
+      "name": "Great Lake Waystone",
+      "pos": {
+        "x": 1216.0,
+        "y": 448.0
       },
       "unlocked": false
     }
   ],
   "landmarks": {
-    "northern_mountain": {
+    "northwest_highlands": {
       "center": {
-        "x": 0.0,
-        "y": -700.0
+        "x": -2080.0,
+        "y": -2240.0
       },
-      "radius": 220.0,
+      "radius": 500.0,
       "cave_mouth": {
-        "x": 0.0,
-        "y": -680.0
+        "x": -2176.0,
+        "y": -2368.0
       }
     },
-    "ancient_ruins": {
+    "western_farmlands": {
       "center": {
-        "x": -180.0,
-        "y": 680.0
+        "x": -1664.0,
+        "y": 1024.0
       },
-      "radius": 160.0
+      "radius": 600.0
     },
-    "eastern_great_lake": {
+    "whispering_woods": {
       "center": {
-        "x": 670.0,
-        "y": 32.0
+        "x": 1984.0,
+        "y": -1760.0
       },
-      "radius": 190.0
+      "radius": 700.0
+    },
+    "serpentine_lake": {
+      "center": {
+        "x": 1536.0,
+        "y": 896.0
+      },
+      "radius": 600.0
+    },
+    "forgotten_citadel": {
+      "center": {
+        "x": 160.0,
+        "y": 2304.0
+      },
+      "radius": 600.0
     }
   }
 }

@@ -1,9 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://018uh6654owh"]
+[gd_scene format=3 uid="uid://018uh6654owh"]
 
-[ext_resource type="Script" path="res://scripts/ui/inventory_ui.gd" id="1_s6ek7"]
+[ext_resource type="Script" uid="uid://mvgj1h2p3m7g" path="res://scripts/ui/inventory_ui.gd" id="1_s6ek7"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
-bg_color = Color(0.08, 0.10, 0.16, 0.96)
+bg_color = Color(0.08, 0.1, 0.16, 0.96)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
@@ -28,7 +28,7 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
-[node name="InventoryUI" type="Control"]
+[node name="InventoryUI" type="Control" unique_id=1097648230]
 process_mode = 3
 visible = false
 layout_mode = 3
@@ -39,7 +39,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_s6ek7")
 
-[node name="Dimmer" type="ColorRect" parent="."]
+[node name="Dimmer" type="ColorRect" parent="." unique_id=2019547921]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -48,7 +48,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 0.6)
 
-[node name="CenterContainer" type="CenterContainer" parent="."]
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=2125363632]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -56,88 +56,88 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="PanelContainer" type="PanelContainer" parent="CenterContainer"]
+[node name="PanelContainer" type="PanelContainer" parent="CenterContainer" unique_id=1332055657]
 custom_minimum_size = Vector2(740, 520)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
 
-[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/PanelContainer"]
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/PanelContainer" unique_id=1654279905]
 layout_mode = 2
 theme_override_constants/margin_left = 20
 theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 20
 theme_override_constants/margin_bottom = 16
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer" unique_id=790955200]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Header" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+[node name="Header" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer" unique_id=1791940122]
 layout_mode = 2
 
-[node name="TitleLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header"]
+[node name="TitleLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header" unique_id=855703030]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.95, 0.85, 0.45, 1)
 theme_override_font_sizes/font_size = 20
 text = "INVENTORY & EQUIPMENT"
 
-[node name="MoneyLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header"]
+[node name="MoneyLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header" unique_id=807582286]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.85, 0.25, 1)
 theme_override_font_sizes/font_size = 16
 text = "0 Gold"
 
-[node name="CloseButton" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header"]
+[node name="CloseButton" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header" unique_id=1040125828]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 text = "✕"
 
-[node name="CategoryBar" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+[node name="CategoryBar" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer" unique_id=265049142]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="BtnAll" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar"]
+[node name="BtnAll" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar" unique_id=1073294729]
 custom_minimum_size = Vector2(65, 30)
 layout_mode = 2
 text = "All"
 
-[node name="BtnWeapons" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar"]
+[node name="BtnWeapons" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar" unique_id=1902644320]
 custom_minimum_size = Vector2(85, 30)
 layout_mode = 2
 text = "Weapons"
 
-[node name="BtnArmor" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar"]
+[node name="BtnArmor" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar" unique_id=1503826565]
 custom_minimum_size = Vector2(75, 30)
 layout_mode = 2
 text = "Armor"
 
-[node name="BtnDishes" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar"]
+[node name="BtnDishes" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar" unique_id=1729430473]
 custom_minimum_size = Vector2(75, 30)
 layout_mode = 2
 text = "Dishes"
 
-[node name="BtnPotions" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar"]
+[node name="BtnPotions" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar" unique_id=1087972512]
 custom_minimum_size = Vector2(75, 30)
 layout_mode = 2
 text = "Potions"
 
-[node name="BtnMaterials" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar"]
+[node name="BtnMaterials" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar" unique_id=614217580]
 custom_minimum_size = Vector2(85, 30)
 layout_mode = 2
 text = "Materials"
 
-[node name="BodySplit" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+[node name="BodySplit" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer" unique_id=1906037540]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 16
 
-[node name="ScrollContainer" type="ScrollContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit"]
+[node name="ScrollContainer" type="ScrollContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit" unique_id=1103627275]
 custom_minimum_size = Vector2(430, 360)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="GridContainer" type="GridContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ScrollContainer"]
+[node name="GridContainer" type="GridContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ScrollContainer" unique_id=1996976024]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -145,40 +145,40 @@ theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
 columns = 5
 
-[node name="ItemInfo" type="PanelContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit"]
+[node name="ItemInfo" type="PanelContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit" unique_id=384198917]
 custom_minimum_size = Vector2(250, 360)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_detail")
 
-[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo"]
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo" unique_id=1275375283]
 layout_mode = 2
 theme_override_constants/margin_left = 14
 theme_override_constants/margin_top = 14
 theme_override_constants/margin_right = 14
 theme_override_constants/margin_bottom = 14
 
-[node name="DetailVBox" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer"]
+[node name="DetailVBox" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer" unique_id=1934898086]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="ItemName" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox"]
+[node name="ItemName" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox" unique_id=1077066322]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.9, 0.4, 1)
 theme_override_font_sizes/font_size = 17
 text = "Select an Item"
 
-[node name="ItemType" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox"]
+[node name="ItemType" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox" unique_id=244081462]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.75, 0.9, 0.8)
 theme_override_font_sizes/font_size = 13
 text = "Category"
 
-[node name="ItemStats" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox"]
+[node name="ItemStats" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox" unique_id=417018318]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.9, 0.4, 1)
 theme_override_font_sizes/font_size = 14
 
-[node name="ItemDesc" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox"]
+[node name="ItemDesc" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox" unique_id=2097589626]
 custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
 size_flags_vertical = 3
@@ -187,11 +187,11 @@ theme_override_font_sizes/font_size = 13
 text = "Click any item to view its stats and actions."
 autowrap_mode = 2
 
-[node name="ActionButtons" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox"]
+[node name="ActionButtons" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox" unique_id=1278988608]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="UseButton" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox/ActionButtons"]
+[node name="UseButton" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox/ActionButtons" unique_id=975496050]
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 text = "Use / Equip"

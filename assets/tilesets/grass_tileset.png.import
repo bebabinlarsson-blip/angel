@@ -3,16 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b1e3oi8s422wx"
-valid=false
+path="res://.godot/imported/grass_tileset.png-85efd1d66eeaae21b2f9234b1f7a375b.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://assets/tilesets/grass_tileset.png"
+dest_files=["res://.godot/imported/grass_tileset.png-85efd1d66eeaae21b2f9234b1f7a375b.ctex"]
 
 [params]
 
 compress/mode=0
 compress/high_quality=false
+compress/high_quality_mode=0
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
