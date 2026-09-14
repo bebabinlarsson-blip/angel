@@ -32,6 +32,8 @@ func _ready() -> void:
 	
 	_create_settings_modal()
 	_create_controls_modal()
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	UITheme.style_recursive(self)
 	_play_entrance()
 
@@ -267,7 +269,16 @@ func _on_settings() -> void:
 		if card == null:
 			card = _find_card(settings_panel)
 		if card is Control:
+			_on_viewport_resized()
 			UIAnim.pop_in(card as Control)
+
+func _on_viewport_resized() -> void:
+	var settings_card := _find_card(settings_panel) if settings_panel else null
+	if settings_card is Control:
+		UITheme.fit_modal(settings_card as Control, Vector2(400.0, 360.0))
+	var controls_card := _find_card(controls_panel) if controls_panel else null
+	if controls_card is Control:
+		UITheme.fit_modal(controls_card as Control, Vector2(520.0, 480.0))
 
 func _find_card(node: Node) -> Control:
 	if node is PanelContainer:
