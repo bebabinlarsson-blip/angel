@@ -409,6 +409,10 @@ func _on_interaction_available(_interactable: Node) -> void:
 		label = "Collect " + _interactable.item_name
 	elif _interactable is CollectableItem:
 		label = "Collect " + _interactable.item_name
+	elif _interactable.is_in_group("interior_entrances"):
+		label = "Enter " + str(_interactable.get("display_name", "interior"))
+	elif _interactable.is_in_group("village_services"):
+		label = "Use " + str(_interactable.get("display_name", "village service"))
 	elif _interactable.is_in_group("supply_caches"):
 		label = "Open supply cache"
 
