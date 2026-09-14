@@ -58,7 +58,7 @@ func _physics_process(delta: float) -> void:
 			jump_lunge_timer = 0.0
 
 func _handle_jump(delta: float) -> void:
-	if current_state == State.DEAD:
+	if current_state in [State.DEAD, State.HURT, State.ATTACK]:
 		return
 	
 	jump_timer -= delta

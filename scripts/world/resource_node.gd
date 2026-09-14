@@ -1,21 +1,25 @@
 class_name ResourceNode
 extends Area2D
 
-## A lightweight, procedural material/collectible node used by WorldDirector.
-## It deliberately draws its own icon so the expanded world does not need a
-## separate scene or a new texture for every resource type.
+## Procedural ground material. It can be collected by walking close to it or
+## by pressing the normal interaction key, with a lightweight nearby prompt.
 
 @export var item_id: String = "wood"
 @export var item_name: String = "Wood"
 @export var quantity: int = 1
 @export var item_type: int = 0
 @export var respawn_time: float = 75.0
-@export var pickup_radius: float = 52.0
+@export var respawn_enabled: bool = true
+@export var pickup_radius: float = 64.0
+@export var pickup_hint_radius: float = 124.0
 
 var is_collected: bool = false
 var respawn_timer: float = 0.0
 var bob_time: float = 0.0
+var redraw_timer: float = 0.0
+var near_player: bool = false
 var collision: CollisionShape2D = null
+var pickup_label: Label = null
 
 func _ready() -> void:
 	add_to_group("resource_nodes")
@@ -26,25 +30,51 @@ func _ready() -> void:
 		collision = CollisionShape2D.new()
 		collision.name = "CollisionShape2D"
 		var shape := CircleShape2D.new()
-		shape.radius = 15.0
+		shape.radius = 18.0
 		collision.shape = shape
 		add_child(collision)
+
+	pickup_label = Label.new()
+	pickup_label.name = "PickupLabel"
+	pickup_label.custom_minimum_size = Vector2(144, 24)
+	pickup_label.position = Vector2(-72, -54)
+	pickup_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pickup_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pickup_label.visible = false
+	pickup_label.add_theme_color_override("font_color", Color("#f8e6a1"))
+	pickup_label.add_theme_color_override("font_outline_color", Color(0.02, 0.04, 0.06, 0.95))
+	pickup_label.add_theme_constant_override("outline_size", 4)
+	pickup_label.add_theme_font_size_override("font_size", 12)
+	add_child(pickup_label)
 	queue_redraw()
 
 func _process(delta: float) -> void:
 	if is_collected:
+		if not respawn_enabled:
+			return
 		respawn_timer -= delta
 		if respawn_timer <= 0.0:
 			_respawn()
 		return
+
 	var player := GameManager.player
+	var was_near := near_player
+	near_player = false
 	if player and is_instance_valid(player):
-		if global_position.distance_squared_to(player.global_position) <= pickup_radius * pickup_radius:
+		var distance_sq := global_position.distance_squared_to(player.global_position)
+		near_player = distance_sq <= pickup_hint_radius * pickup_hint_radius
+		if distance_sq <= pickup_radius * pickup_radius:
 			_give_to_player(player)
-			if is_collected:
-				return
+
+	if pickup_label:
+		pickup_label.visible = near_player and not is_collected
+		pickup_label.text = "%s  x%d" % [item_name, quantity]
+
 	bob_time += delta
-	queue_redraw()
+	redraw_timer -= delta
+	if redraw_timer <= 0.0 or was_near != near_player:
+		redraw_timer = 0.08
+		queue_redraw()
 
 func _on_body_entered(body: Node2D) -> void:
 	if body.has_method("get_save_data") and "inventory" in body:
@@ -68,21 +98,33 @@ func _give_to_player(player: CharacterBody2D) -> void:
 	if player.inventory.add_item(item_data):
 		VFX.pickup_sparkle(self)
 		is_collected = true
-		respawn_timer = respawn_time
+		near_player = false
+		if respawn_enabled:
+			respawn_timer = respawn_time
+		else:
+			call_deferred("queue_free")
 		set_deferred("monitoring", false)
 		if collision:
 			collision.set_deferred("disabled", true)
+		if pickup_label:
+			pickup_label.visible = false
 		EventBus.show_notification.emit("Collected %s x%d" % [item_name, quantity])
 
 func _respawn() -> void:
 	is_collected = false
+	near_player = false
 	set_deferred("monitoring", true)
 	if collision:
 		collision.set_deferred("disabled", false)
+	queue_redraw()
 
 func _draw() -> void:
 	if is_collected:
 		return
+	if near_player:
+		var pulse := (sin(bob_time * 5.0) + 1.0) * 0.5
+		draw_circle(Vector2(0, 5), 22.0 + pulse * 4.0, Color(0.98, 0.84, 0.35, 0.08))
+		draw_arc(Vector2(0, 5), 24.0 + pulse * 4.0, 0.0, TAU, 24, Color(1.0, 0.88, 0.45, 0.75), 2.0)
 	var bob := sin(bob_time * 2.4) * 1.5
 	draw_ellipse(Vector2(0, 10), Vector2(14, 5), Color(0.04, 0.10, 0.08, 0.28))
 	draw_set_transform(Vector2(0, bob))

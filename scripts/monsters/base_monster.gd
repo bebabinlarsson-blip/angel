@@ -1,6 +1,8 @@
 class_name BaseMonster
 extends CharacterBody2D
 
+const RESOURCE_SCRIPT = preload("res://scripts/world/resource_node.gd")
+
 @export var base_hp: float = 50.0
 @export var base_attack: float = 10.0
 @export var base_speed: float = 80.0
@@ -20,11 +22,14 @@ var scaled_speed: float
 
 var target: CharacterBody2D = null
 var attack_timer: float = 0.0
+var attack_windup: float = 0.0
+var attack_has_landed: bool = false
 var wander_timer: float = 0.0
 var wander_direction: Vector2 = Vector2.ZERO
 var knockback_velocity: Vector2 = Vector2.ZERO
 var hurt_timer: float = 0.0
 var facing_direction: String = "down"
+var lod_tick: float = 0.0
 
 @onready var sprite: AnimatedSprite2D = get_node_or_null("Sprite2D")
 @onready var collision_shape: CollisionShape2D = get_node_or_null("CollisionShape")
@@ -38,14 +43,12 @@ func _ready() -> void:
 	add_to_group("monsters")
 	_scale_to_player_level()
 	current_hp = base_hp
-	
-	# Procedural renderer removed in favor of AnimatedSprite2D
-	
+
 	if health_bar:
 		health_bar.max_value = base_hp
 		health_bar.value = current_hp
 		health_bar.visible = false
-	
+
 	wander_timer = randf_range(1.0, 4.0)
 
 func _scale_to_player_level() -> void:
@@ -60,56 +63,59 @@ func _scale_to_player_level() -> void:
 	coin_drop_max += player_level
 	exp_drop = int(float(exp_drop) * (1.0 + player_level * 0.08))
 
-var lod_tick: float = 0.0
-
 func _physics_process(delta: float) -> void:
 	if current_state == State.DEAD:
 		return
-	
-	# Distance LOD: if further than 1500px from player, sleep to eliminate off-screen physics collisions
+
 	if GameManager.player and is_instance_valid(GameManager.player):
 		var dist_sq: float = global_position.distance_squared_to(GameManager.player.global_position)
-		if dist_sq > 2250000.0: # 1500^2 pixels
+		if dist_sq > 2250000.0:
 			lod_tick += delta
 			if lod_tick >= 2.0:
 				lod_tick = 0.0
 				wander_timer = randf_range(2.0, 5.0)
 			return
-	
-	if global_position.length() < 480.0:
-		velocity = global_position.normalized() * scaled_speed
-		move_and_slide()
-		return
+
 	_update_timers(delta)
 	_update_ai(delta)
 	_apply_knockback(delta)
 	_update_animation()
+
 	var terrain := get_tree().get_first_node_in_group("island_world") as IslandWorld
-	if terrain and terrain.is_water(global_position + velocity.normalized() * 28.0):
+	if terrain and velocity.length_squared() > 1.0 and terrain.is_water(global_position + velocity.normalized() * 28.0):
 		velocity = Vector2.ZERO
 		wander_direction = -wander_direction
 	move_and_slide()
 
 func _update_timers(delta: float) -> void:
-	if attack_timer > 0:
-		attack_timer -= delta
-	if hurt_timer > 0:
-		hurt_timer -= delta
-		if hurt_timer <= 0 and current_state == State.HURT:
+	if attack_timer > 0.0:
+		attack_timer = maxf(0.0, attack_timer - delta)
+	if attack_windup > 0.0:
+		attack_windup = maxf(0.0, attack_windup - delta)
+		if attack_windup <= 0.0 and not attack_has_landed and current_state == State.ATTACK:
+			attack_has_landed = true
+			_perform_attack()
+	if hurt_timer > 0.0:
+		hurt_timer = maxf(0.0, hurt_timer - delta)
+		if hurt_timer <= 0.0 and current_state == State.HURT:
 			current_state = State.IDLE
 
 func _update_ai(delta: float) -> void:
 	if current_state == State.HURT:
 		return
-	
-	# Find player
+	if current_state == State.ATTACK:
+		if attack_timer > 0.0:
+			return
+		current_state = State.IDLE
+
 	target = GameManager.player
-	if target == null or target.current_state == target.State.DEAD or target.global_position.length() < 450.0:
+	if target == null or not is_instance_valid(target) or target.current_state == target.State.DEAD:
 		target = null
-	
+	if target and target.global_position.length() < 450.0:
+		target = null
+
 	if target:
 		var dist_to_target: float = global_position.distance_to(target.global_position)
-		
 		if dist_to_target <= attack_range:
 			_try_attack()
 		elif dist_to_target <= detection_range:
@@ -126,57 +132,61 @@ func _chase_target() -> void:
 
 func _wander(delta: float) -> void:
 	wander_timer -= delta
-	if wander_timer <= 0:
+	if wander_timer <= 0.0:
 		wander_timer = randf_range(2.0, 5.0)
 		if randf() > 0.4:
-			wander_direction = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
+			wander_direction = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)).normalized()
 			current_state = State.WANDER
 		else:
 			wander_direction = Vector2.ZERO
 			current_state = State.IDLE
-	
+
 	if wander_direction != Vector2.ZERO:
 		velocity = wander_direction * scaled_speed * 0.4
 	else:
 		velocity = Vector2.ZERO
 
 func _try_attack() -> void:
-	if attack_timer > 0:
+	if attack_timer > 0.0 or current_state == State.ATTACK:
 		return
 	current_state = State.ATTACK
 	attack_timer = attack_cooldown
+	attack_windup = 0.22
+	attack_has_landed = false
 	velocity = Vector2.ZERO
-	_perform_attack()
 
 func _perform_attack() -> void:
-	if target and target.has_method("take_damage"):
-		var knockback_dir: Vector2 = (target.global_position - global_position).normalized()
-		target.take_damage(scaled_attack, knockback_dir * 200.0)
+	if target and is_instance_valid(target) and target.has_method("take_damage"):
+		var distance_to_target := global_position.distance_to(target.global_position)
+		if distance_to_target <= attack_range * 1.35:
+			var knockback_dir: Vector2 = (target.global_position - global_position).normalized()
+			target.take_damage(scaled_attack, knockback_dir * 200.0)
 
 func take_damage(amount: float, knockback: Vector2 = Vector2.ZERO) -> void:
 	if current_state == State.DEAD:
 		return
-	
+
 	current_hp -= amount
 	knockback_velocity = knockback
+	attack_windup = 0.0
+	attack_has_landed = true
 	current_state = State.HURT
 	hurt_timer = 0.3
 	_spawn_damage_number(amount)
 	if sprite:
 		VFX.flash_hit(sprite)
-	
+
 	if health_bar:
 		health_bar.visible = true
-		health_bar.value = current_hp
-	
-	if current_hp <= 0:
+		health_bar.value = maxf(current_hp, 0.0)
+
+	if current_hp <= 0.0:
 		die()
 
 func _spawn_damage_number(amount: float) -> void:
 	var parent := get_parent()
 	if parent == null:
 		return
-	# Pool cap: avoid Label + Tween spam when multi-hit / many slimes.
 	var existing := get_tree().get_nodes_in_group("damage_numbers")
 	if existing.size() > 24:
 		var oldest: Node = existing[0]
@@ -196,11 +206,13 @@ func _spawn_damage_number(amount: float) -> void:
 	tween.chain().tween_callback(label.queue_free)
 
 func _apply_knockback(delta: float) -> void:
-	if knockback_velocity.length() > 5:
+	if knockback_velocity.length() > 5.0:
 		velocity = knockback_velocity
 		knockback_velocity = knockback_velocity.move_toward(Vector2.ZERO, 600.0 * delta)
 
 func die() -> void:
+	if current_state == State.DEAD:
+		return
 	current_state = State.DEAD
 	velocity = Vector2.ZERO
 	_drop_loot()
@@ -219,75 +231,90 @@ func _drop_loot() -> void:
 		GameManager.player.stats.add_money(coin_amount)
 		GameManager.player.stats.add_exp(exp_drop)
 		EventBus.show_notification.emit("+%d Gold, +%d EXP" % [coin_amount, exp_drop])
-		
-		# Occasional bonus material drop (35% chance)
-		if randf() < 0.35:
-			var items_pool := ["herb", "mushroom"]
-			var chosen: String = items_pool.pick_random()
-			var drop_data := {
-				"id": chosen,
-				"name": chosen.capitalize(),
-				"type": 0,
-				"quantity": 1,
-				"stackable": true,
-				"description": "Dropped by a defeated slime."
-			}
-			if GameManager.player.inventory:
-				GameManager.player.inventory.add_item(drop_data)
-				EventBus.show_notification.emit("+1 %s dropped!" % chosen.capitalize())
+
+	var drop_chance := 0.72 if str(get_meta("variant", "slime")) == "crystal" else 0.52
+	if randf() < drop_chance:
+		var variant := str(get_meta("variant", "slime"))
+		var chosen := "herb"
+		match variant:
+			"moss":
+				chosen = "mushroom"
+			"ember":
+				chosen = "coal"
+			"crystal":
+				chosen = "crystal"
+			_:
+				chosen = ["herb", "fiber", "stone"].pick_random()
+		_spawn_ground_drop(chosen)
+
+func _spawn_ground_drop(item_id: String) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var drop := RESOURCE_SCRIPT.new() as ResourceNode
+	if drop == null:
+		return
+	var names := {
+		"herb": "Herb",
+		"mushroom": "Mushroom",
+		"coal": "Coal",
+		"crystal": "Blue Crystal",
+		"fiber": "Fiber",
+		"stone": "Stone"
+	}
+	drop.item_id = item_id
+	drop.item_name = str(names.get(item_id, item_id.capitalize()))
+	drop.item_type = 0 if item_id not in ["crystal"] else 6
+	drop.quantity = 1
+	drop.respawn_enabled = false
+	drop.respawn_time = 0.0
+	drop.position = global_position + Vector2.RIGHT.rotated(randf_range(0.0, TAU)) * randf_range(20.0, 42.0)
+	parent.add_child(drop)
+	EventBus.show_notification.emit("%s dropped nearby." % drop.item_name)
 
 func _update_facing() -> void:
 	if velocity.length_squared() > 10.0:
 		if absf(velocity.x) > absf(velocity.y):
-			facing_direction = "right" if velocity.x > 0 else "left"
+			facing_direction = "right" if velocity.x > 0.0 else "left"
 		else:
-			facing_direction = "down" if velocity.y > 0 else "up"
+			facing_direction = "down" if velocity.y > 0.0 else "up"
 	elif target and is_instance_valid(target):
 		var to_target := target.global_position - global_position
 		if to_target.length_squared() > 10.0:
 			if absf(to_target.x) > absf(to_target.y):
-				facing_direction = "right" if to_target.x > 0 else "left"
+				facing_direction = "right" if to_target.x > 0.0 else "left"
 			else:
-				facing_direction = "down" if to_target.y > 0 else "up"
+				facing_direction = "down" if to_target.y > 0.0 else "up"
 
 func _update_animation() -> void:
 	if sprite == null or sprite.sprite_frames == null:
 		return
-	
+
 	_update_facing()
 	sprite.flip_h = false
-	
+
 	if current_state == State.HURT:
-		if sprite.sprite_frames.has_animation("hurt"):
-			if sprite.animation != "hurt":
-				sprite.play("hurt")
+		if sprite.sprite_frames.has_animation("hurt") and sprite.animation != "hurt":
+			sprite.play("hurt")
 	elif current_state == State.ATTACK:
-		var anim: String = "attack_" + facing_direction
-		if sprite.sprite_frames.has_animation(anim):
-			if sprite.animation != anim:
-				sprite.play(anim)
-		elif sprite.sprite_frames.has_animation("attack"):
-			if sprite.animation != "attack":
-				sprite.play("attack")
+		var anim := "attack_" + facing_direction
+		if sprite.sprite_frames.has_animation(anim) and sprite.animation != anim:
+			sprite.play(anim)
+		elif sprite.sprite_frames.has_animation("attack") and sprite.animation != "attack":
+			sprite.play("attack")
 	elif (current_state == State.CHASE or current_state == State.WANDER) and velocity.length_squared() > 10.0:
-		var anim: String = "move_" + facing_direction
-		if sprite.sprite_frames.has_animation(anim):
-			if sprite.animation != anim:
-				sprite.play(anim)
-		elif sprite.sprite_frames.has_animation("walk_" + facing_direction):
-			if sprite.animation != "walk_" + facing_direction:
-				sprite.play("walk_" + facing_direction)
-		elif sprite.sprite_frames.has_animation("move"):
-			if sprite.animation != "move":
-				sprite.play("move")
-		elif sprite.sprite_frames.has_animation("walk"):
-			if sprite.animation != "walk":
-				sprite.play("walk")
+		var move_anim := "move_" + facing_direction
+		if sprite.sprite_frames.has_animation(move_anim) and sprite.animation != move_anim:
+			sprite.play(move_anim)
+		elif sprite.sprite_frames.has_animation("walk_" + facing_direction) and sprite.animation != "walk_" + facing_direction:
+			sprite.play("walk_" + facing_direction)
+		elif sprite.sprite_frames.has_animation("move") and sprite.animation != "move":
+			sprite.play("move")
+		elif sprite.sprite_frames.has_animation("walk") and sprite.animation != "walk":
+			sprite.play("walk")
 	else:
-		var anim: String = "idle_" + facing_direction
-		if sprite.sprite_frames.has_animation(anim):
-			if sprite.animation != anim:
-				sprite.play(anim)
-		elif sprite.sprite_frames.has_animation("idle"):
-			if sprite.animation != "idle":
-				sprite.play("idle")
+		var idle_anim := "idle_" + facing_direction
+		if sprite.sprite_frames.has_animation(idle_anim) and sprite.animation != idle_anim:
+			sprite.play(idle_anim)
+		elif sprite.sprite_frames.has_animation("idle") and sprite.animation != "idle":
+			sprite.play("idle")
