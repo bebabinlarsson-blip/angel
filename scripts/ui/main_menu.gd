@@ -9,6 +9,7 @@ extends Control
 
 var settings_panel: Control = null
 var controls_panel: Control = null
+var _transitioning: bool = false
 
 func _ready() -> void:
 	_ensure_audio_manager()
@@ -207,6 +208,11 @@ func _create_controls_modal() -> void:
 	add_child(controls_panel)
 
 func _on_new_game() -> void:
+	if _transitioning:
+		return
+	_transitioning = true
+	_set_transition_buttons_disabled(true)
+	GameManager.player = null
 	GameManager.opened_caches.clear()
 	GameManager.unlocked_waystones.clear()
 	GameManager.game_time_hours = 8.0
@@ -214,9 +220,16 @@ func _on_new_game() -> void:
 	GameManager.set_state(GameManager.GameState.PLAYING)
 	var result := get_tree().change_scene_to_file("res://scenes/game.tscn")
 	if result != OK:
+		_transitioning = false
+		_set_transition_buttons_disabled(false)
 		push_error("Angel: could not start a new game (%s)." % error_string(result))
 
 func _on_continue() -> void:
+	if _transitioning:
+		return
+	_transitioning = true
+	_set_transition_buttons_disabled(true)
+	GameManager.player = null
 	GameManager.set_state(GameManager.GameState.PLAYING)
 	var result := get_tree().change_scene_to_file("res://scenes/game.tscn")
 	if result != OK:
@@ -229,6 +242,11 @@ func _on_continue() -> void:
 	await get_tree().process_frame
 	if SaveManager.load_game(0) == false:
 		EventBus.show_notification.emit("Could not load the saved game.")
+
+func _set_transition_buttons_disabled(disabled: bool) -> void:
+	for button: Button in [new_game_btn, continue_btn, controls_btn, settings_btn, quit_btn]:
+		if button:
+			button.disabled = disabled
 
 func _on_controls() -> void:
 	if controls_panel:
