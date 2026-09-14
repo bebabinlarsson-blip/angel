@@ -172,3 +172,9 @@ func load_save_data(data: Dictionary) -> void:
 				opened_caches.append(cache_id)
 	_last_emit_hour = -1
 	_last_emit_minute = -1
+	var restored_hour: int = int(game_time_hours)
+	var restored_minute: int = int((game_time_hours - restored_hour) * 60.0)
+	is_night = restored_hour >= 20 or restored_hour < 6
+	# Refresh HUD and day/night tint immediately after a continue load.
+	EventBus.time_changed.emit(restored_hour, restored_minute)
+	EventBus.day_night_changed.emit(is_night)
