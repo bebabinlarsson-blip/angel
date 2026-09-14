@@ -137,8 +137,7 @@ func interact(player: CharacterBody2D) -> void:
 		cooking_ui_layer.visible = true
 		_refresh_recipes(player)
 		# Pause combat while the player chooses a recipe.
-		get_tree().paused = true
-		GameManager.is_paused = true
+		GameManager.set_state(GameManager.GameState.PAUSED)
 		var panel := cooking_ui_layer.get_node_or_null("Root/Center/Panel")
 		# Fallback: animate the whole layer's first panel if path differs.
 		if panel == null:
@@ -233,9 +232,8 @@ func _on_cook(recipe_id: String, player: CharacterBody2D) -> void:
 func _close_cooking() -> void:
 	if cooking_ui_layer:
 		cooking_ui_layer.visible = false
-		if GameManager.current_state == GameManager.GameState.PLAYING and not _has_other_overlay():
-			get_tree().paused = false
-			GameManager.is_paused = false
+		if GameManager.current_state != GameManager.GameState.GAME_OVER and not _has_other_overlay():
+			GameManager.set_state(GameManager.GameState.PLAYING)
 
 func _hide_overlay(node_name: String) -> void:
 	var overlay := get_tree().root.find_child(node_name, true, false)
