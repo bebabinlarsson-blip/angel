@@ -27,7 +27,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 func _unhandled_input(event: InputEvent) -> void:
-	if current_state == GameState.MAIN_MENU:
+	if current_state == GameState.MAIN_MENU or current_state == GameState.GAME_OVER or current_state == GameState.LOADING:
 		return
 	if event.is_action_pressed("pause"):
 		EventBus.pause_toggled.emit()
