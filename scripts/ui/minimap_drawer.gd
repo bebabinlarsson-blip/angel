@@ -338,7 +338,7 @@ func _draw() -> void:
         draw_colored_polygon(d_out, Color("#101c24"))
         draw_colored_polygon(d_in, col_gem)
         if is_big_map and (map_zoom >= 1.8 or unlocked):
-            _label(p + Vector2(10, 4), String(stone.display_name).replace(" Waystone", ""), 12, Color("#eef3f6"))
+            _label(p + Vector2(10, 4), str(stone.get("display_name")).replace(" Waystone", ""), 12, Color("#eef3f6"))
 
     # 5. NPC markers
     for npc: Node in _npcs:
