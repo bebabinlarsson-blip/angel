@@ -13,7 +13,7 @@ var description: String = ""
 var service_layer: CanvasLayer = null
 var service_panel: PanelContainer = null
 var status_label: Label = null
-var player_ref: CharacterBody2D = null
+var player_ref: Player = null
 var last_fountain_use_ms: int = -10000
 
 func _ready() -> void:
@@ -37,7 +37,7 @@ func configure(new_id: String, new_name: String, new_type: String, new_descripti
 	description = new_description
 	queue_redraw()
 
-func interact(player: CharacterBody2D) -> void:
+func interact(player: Player) -> void:
 	if player == null or not is_instance_valid(player) or player.stats == null:
 		return
 	if service_type == "fountain":
@@ -45,7 +45,7 @@ func interact(player: CharacterBody2D) -> void:
 	else:
 		_open_service_ui(player)
 
-func _use_fountain(player: CharacterBody2D) -> void:
+func _use_fountain(player: Player) -> void:
 	var now := Time.get_ticks_msec()
 	if now - last_fountain_use_ms < 1500:
 		return
@@ -55,7 +55,7 @@ func _use_fountain(player: CharacterBody2D) -> void:
 	EventBus.player_stamina_changed.emit(player.stats.current_stamina, player.stats.get_max_stamina())
 	EventBus.show_notification.emit("The Village Fountain restores your strength.")
 
-func _open_service_ui(player: CharacterBody2D) -> void:
+func _open_service_ui(player: Player) -> void:
 	if service_layer != null and is_instance_valid(service_layer):
 		_close_service()
 		return
