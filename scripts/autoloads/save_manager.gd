@@ -63,7 +63,9 @@ func load_game(slot: int = 0) -> bool:
 	var game_manager_value: Variant = save_data.get("game_manager", {})
 	if game_manager_value is Dictionary:
 		GameManager.load_save_data(game_manager_value)
-	_load_player_save_data(save_data.get("player", {}))
+	var player_value: Variant = save_data.get("player", {})
+	if player_value is Dictionary:
+		_load_player_save_data(player_value)
 
 	var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
 	var quest_value: Variant = save_data.get("quests", {})
@@ -103,21 +105,25 @@ func get_save_info(slot: int = 0) -> Dictionary:
 	var json := JSON.new()
 	var result := json.parse(file.get_as_text())
 	file.close()
-	if result != OK:
+	if result != OK or not (json.data is Dictionary):
 		return {}
 	var data: Dictionary = json.data
+	var manager_value: Variant = data.get("game_manager", {})
+	var day: int = 1
+	if manager_value is Dictionary:
+		day = maxi(1, int((manager_value as Dictionary).get("day_count", 1)))
 	return {
-		"timestamp": data.get("timestamp", "Unknown"),
-		"day": data.get("game_manager", {}).get("day_count", 1),
+		"timestamp": str(data.get("timestamp", "Unknown")),
+		"day": day,
 	}
 
 func _get_player_save_data() -> Dictionary:
 	var player := GameManager.player
-	if player == null:
+	if player == null or not is_instance_valid(player):
 		return {}
 	return player.get_save_data()
 
 func _load_player_save_data(data: Dictionary) -> void:
 	var player := GameManager.player
-	if player:
+	if player != null and is_instance_valid(player):
 		player.load_save_data(data)
