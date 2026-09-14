@@ -201,3 +201,13 @@ func _draw_pew(pos: Vector2) -> void:
 	draw_rect(Rect2(pos - Vector2(62.0, 9.0), Vector2(124.0, 18.0)), Color("#d0a56e"), false, 2.0)
 	draw_line(pos + Vector2(-48.0, -11.0), pos + Vector2(-48.0, 11.0), Color("#d0a56e"), 3.0)
 	draw_line(pos + Vector2(48.0, -11.0), pos + Vector2(48.0, 11.0), Color("#d0a56e"), 3.0)
+
+func _draw_rug(pos: Vector2, color: Color) -> void:
+	var points := PackedVector2Array()
+	for index in range(32):
+		var angle: float = float(index) * TAU / 32.0
+		points.append(pos + Vector2(cos(angle) * 82.0, sin(angle) * 32.0))
+	draw_colored_polygon(points, color)
+	var outline := PackedVector2Array(points)
+	outline.append(points[0])
+	draw_polyline(outline, Color(0.10, 0.07, 0.10, 0.75), 3.0)
