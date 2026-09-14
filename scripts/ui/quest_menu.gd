@@ -50,8 +50,8 @@ func _toggle() -> void:
 		if card is Control:
 			UIAnim.pop_in(card as Control, 0.2)
 	else:
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
-		var inv := get_tree().root.find_child("InventoryUI", true, false)
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false) as Control
+		var inv := get_tree().root.find_child("InventoryUI", true, false) as Control
 		if (p_menu == null or not p_menu.visible) and (inv == null or not inv.visible):
 			GameManager.set_state(GameManager.GameState.PLAYING)
 
