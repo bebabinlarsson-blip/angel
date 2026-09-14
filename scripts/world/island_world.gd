@@ -138,6 +138,12 @@ func _update_village_ring() -> void:
         add_child(safe_ring)
     safe_ring.set("ring_center", village_center)
     safe_ring.set("ring_radius", village_radius)
+    var village_data: Dictionary = {}
+    # The ring is rebuilt from the same layout data as the map so its visual
+    # perimeter cannot drift away from the protected gameplay radius.
+    if config.has("village") and config["village"] is Dictionary:
+        village_data = config["village"]
+    safe_ring.set("tree_count", maxi(16, int(village_data.get("tree_ring_count", 32))))
     safe_ring.queue_redraw()
 
 func is_clear(p: Vector2, clearance: float = 36.0) -> bool:
