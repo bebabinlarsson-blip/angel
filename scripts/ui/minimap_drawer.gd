@@ -409,6 +409,22 @@ func _draw_quest_waypoint(center: Vector2, factor: float) -> void:
     if is_big_map or factor >= 0.04:
         _label(point + Vector2(13.0, 5.0), str(_quest_waypoint.get("name", "Quest objective")), 12 if is_big_map else 10, marker_color)
 
+func _draw_village_safe_ring(center: Vector2, factor: float) -> void:
+    if not is_instance_valid(_terrain):
+        return
+    var ring_radius: float = _terrain.village_radius * factor
+    if ring_radius < 3.0:
+        return
+    var ring_center: Vector2 = center + _terrain.village_center * factor
+    var view := _map_view_rect()
+    if not view.grow(ring_radius + 12.0).has_point(ring_center) and not view.has_point(ring_center):
+        return
+    draw_arc(ring_center, ring_radius, 0.0, TAU, 96, Color(0.85, 0.95, 0.45, 0.32), maxf(1.0, 3.0 if is_big_map else 2.0))
+    draw_arc(ring_center, maxf(1.0, ring_radius - 4.0), 0.0, TAU, 96, Color(0.45, 0.78, 0.42, 0.30), 1.0)
+    if is_big_map or factor >= 0.04:
+        _label(ring_center + Vector2(ring_radius + 8.0, 4.0), "Protected Village", 12 if is_big_map else 10, Color("#dff28b"))
+
+
 func _draw_named_locations(center: Vector2, factor: float) -> void:
     var view := _map_view_rect()
     for location: Dictionary in _locations:
@@ -479,6 +495,7 @@ func _draw() -> void:
     var map_rect := Rect2(center + display_bounds.position * factor, display_bounds.size * factor)
     draw_texture_rect(active_texture, map_rect, false)
     _draw_layer_details(center, factor)
+    _draw_village_safe_ring(center, factor)
     _draw_named_locations(center, factor)
     _draw_quest_waypoint(center, factor)
 
