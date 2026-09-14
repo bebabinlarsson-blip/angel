@@ -173,6 +173,7 @@ func _on_quest() -> void:
 	EventBus.quest_menu_toggled.emit()
 
 func _on_main_menu() -> void:
-	GameManager.set_state(GameManager.GameState.PLAYING)
-	get_tree().paused = false
-	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	var result := get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	if result != OK:
+		GameManager.set_state(GameManager.GameState.PAUSED)
+		EventBus.show_notification.emit("Could not return to the main menu.")
