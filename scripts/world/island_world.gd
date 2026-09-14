@@ -42,7 +42,7 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     var island_settings: Dictionary = config.get("island_settings", {})
     village_center = _point_from_data(village_data.get("center", {}), Vector2.ZERO)
     village_radius = maxf(160.0, float(village_data.get("tree_ring_radius", island_settings.get("village_radius", 500.0))))
-    _update_village_ring()
+    _update_village_ring(config)
 
     land.clear()
     if ground:
@@ -130,7 +130,7 @@ func clamp_to_village_boundary(p: Vector2, margin: float = VILLAGE_BOUNDARY_MARG
         return village_center
     return village_center + offset.normalized() * safe_radius
 
-func _update_village_ring() -> void:
+func _update_village_ring(config: Dictionary = {}) -> void:
     var safe_ring: Node2D = get_node_or_null("VillageSafeRing") as Node2D
     if safe_ring == null:
         safe_ring = VILLAGE_RING_SCRIPT.new() as Node2D
