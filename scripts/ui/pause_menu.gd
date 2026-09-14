@@ -123,10 +123,10 @@ func _toggle() -> void:
 		return
 	visible = not visible
 	if visible:
-		var inv := get_tree().root.find_child("InventoryUI", true, false)
+		var inv := get_tree().root.find_child("InventoryUI", true, false) as Control
 		if inv and inv.visible:
 			inv.visible = false
-		var q_menu := get_tree().root.find_child("QuestMenu", true, false)
+		var q_menu := get_tree().root.find_child("QuestMenu", true, false) as Control
 		if q_menu and q_menu.visible:
 			q_menu.visible = false
 
