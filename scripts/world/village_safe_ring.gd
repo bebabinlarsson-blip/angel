@@ -3,6 +3,7 @@ extends Node2D
 
 @export var ring_center: Vector2 = Vector2.ZERO
 @export var ring_radius: float = 500.0
+@export var tree_count: int = 32
 
 func _ready() -> void:
 	z_as_relative = false
@@ -17,8 +18,17 @@ func _draw() -> void:
 	draw_arc(ring_center, ring_radius, 0.0, TAU, 144, Color("#e2f28d"), 6.0)
 	draw_arc(ring_center, ring_radius - 11.0, 0.0, TAU, 144, Color(0.35, 0.66, 0.40, 0.62), 2.0)
 
-	for i in range(32):
-		var angle: float = float(i) * TAU / 32.0
+	var perimeter_count: int = maxi(16, tree_count)
+	for i in range(perimeter_count):
+		var angle: float = float(i) * TAU / float(perimeter_count)
+		var tree_position: Vector2 = ring_center + Vector2.RIGHT.rotated(angle) * (ring_radius + 18.0)
+		var tree_scale: float = 0.82 + float(i % 3) * 0.08
+		# A small evergreen silhouette makes the gameplay boundary readable even
+		# when the camera is zoomed out over the village.
+		draw_line(tree_position + Vector2(0.0, 12.0 * tree_scale), tree_position + Vector2(0.0, 28.0 * tree_scale), Color("#66452f"), 5.0 * tree_scale)
+		draw_circle(tree_position + Vector2(-7.0, 3.0) * tree_scale, 12.0 * tree_scale, Color("#2d633d"))
+		draw_circle(tree_position + Vector2(7.0, 1.0) * tree_scale, 12.0 * tree_scale, Color("#39794a"))
+		draw_circle(tree_position + Vector2(0.0, -7.0) * tree_scale, 13.0 * tree_scale, Color("#4d8b4e"))
 		var marker_position: Vector2 = ring_center + Vector2.RIGHT.rotated(angle) * (ring_radius + 3.0)
 		draw_circle(marker_position, 3.5, Color("#f7df78"))
 

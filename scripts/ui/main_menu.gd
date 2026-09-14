@@ -9,8 +9,10 @@ extends Control
 
 var settings_panel: Control = null
 var controls_panel: Control = null
+var _transitioning: bool = false
 
 func _ready() -> void:
+	GameManager.set_state(GameManager.GameState.MAIN_MENU)
 	_ensure_audio_manager()
 	if new_game_btn:
 		new_game_btn.pressed.connect(_on_new_game)
@@ -30,6 +32,8 @@ func _ready() -> void:
 	
 	_create_settings_modal()
 	_create_controls_modal()
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	UITheme.style_recursive(self)
 	_play_entrance()
 
@@ -175,7 +179,7 @@ func _create_controls_modal() -> void:
 		["Hold [Space] / Click", "Power Whirlwind Nova (Hold & Release)"],
 		["Mouse Cursor", "Aim Direction"],
 		["[F]", "Interact / Talk to NPCs / Campfire"],
-		["[I] or [Tab]", "Open Inventory & Equipment"],
+		["[E]", "Open Backpack Inventory & Equipment"],
 		["[Q]", "Open Quest Journal"],
 		["[M] or Click Map", "Toggle Big Map"],
 		["[Esc]", "Pause Menu & Save Game"]
@@ -207,41 +211,76 @@ func _create_controls_modal() -> void:
 	add_child(controls_panel)
 
 func _on_new_game() -> void:
+	if _transitioning:
+		return
+	_transitioning = true
+	_set_transition_buttons_disabled(true)
+	GameManager.player = null
+	SaveManager.cancel_pending_load()
 	GameManager.opened_caches.clear()
 	GameManager.unlocked_waystones.clear()
 	GameManager.game_time_hours = 8.0
 	GameManager.day_count = 1
-	GameManager.current_state = GameManager.GameState.PLAYING
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
+	GameManager.set_state(GameManager.GameState.LOADING)
+	var result := get_tree().change_scene_to_file("res://scenes/game.tscn")
+	if result != OK:
+		_transitioning = false
+		_set_transition_buttons_disabled(false)
+		GameManager.set_state(GameManager.GameState.MAIN_MENU)
+		push_error("Angel: could not start a new game (%s)." % error_string(result))
 
 func _on_continue() -> void:
-	GameManager.current_state = GameManager.GameState.PLAYING
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
-	# Was fixed 0.2s (racy on slow/web loads). Wait for the new scene + player.
-	for i in range(60):
-		await get_tree().process_frame
-		var p := get_tree().root.find_child("Player", true, false)
-		if p:
-			break
-	SaveManager.load_game(0)
+	if _transitioning:
+		return
+	_transitioning = true
+	_set_transition_buttons_disabled(true)
+	GameManager.player = null
+	SaveManager.request_load(0)
+	GameManager.set_state(GameManager.GameState.LOADING)
+	var result := get_tree().change_scene_to_file("res://scenes/game.tscn")
+	if result != OK:
+		SaveManager.cancel_pending_load()
+		_transitioning = false
+		_set_transition_buttons_disabled(false)
+		GameManager.set_state(GameManager.GameState.MAIN_MENU)
+		push_error("Angel: could not open the saved game (%s)." % error_string(result))
+
+func _set_transition_buttons_disabled(disabled: bool) -> void:
+	for button: Button in [new_game_btn, continue_btn, controls_btn, settings_btn, quit_btn]:
+		if button:
+			button.disabled = disabled
 
 func _on_controls() -> void:
 	if controls_panel:
+		if settings_panel:
+			settings_panel.visible = false
 		controls_panel.visible = true
 		var card := controls_panel.get_node_or_null("CenterContainer/PanelContainer")
 		if card == null:
 			card = _find_card(controls_panel)
 		if card is Control:
+			_on_viewport_resized()
 			UIAnim.pop_in(card as Control)
 
 func _on_settings() -> void:
 	if settings_panel:
+		if controls_panel:
+			controls_panel.visible = false
 		settings_panel.visible = true
 		var card := settings_panel.get_node_or_null("CenterContainer/PanelContainer")
 		if card == null:
 			card = _find_card(settings_panel)
 		if card is Control:
+			_on_viewport_resized()
 			UIAnim.pop_in(card as Control)
+
+func _on_viewport_resized() -> void:
+	var settings_card := _find_card(settings_panel) if settings_panel else null
+	if settings_card is Control:
+		UITheme.fit_modal(settings_card as Control, Vector2(400.0, 360.0))
+	var controls_card := _find_card(controls_panel) if controls_panel else null
+	if controls_card is Control:
+		UITheme.fit_modal(controls_card as Control, Vector2(520.0, 480.0))
 
 func _find_card(node: Node) -> Control:
 	if node is PanelContainer:
@@ -251,6 +290,16 @@ func _find_card(node: Node) -> Control:
 		if found:
 			return found
 	return null
+
+func _input(event: InputEvent) -> void:
+	if not event.is_action_pressed("ui_cancel"):
+		return
+	if controls_panel and controls_panel.visible:
+		controls_panel.visible = false
+		get_viewport().set_input_as_handled()
+	elif settings_panel and settings_panel.visible:
+		settings_panel.visible = false
+		get_viewport().set_input_as_handled()
 
 func _on_quit() -> void:
 	get_tree().quit()

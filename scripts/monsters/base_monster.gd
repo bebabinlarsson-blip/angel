@@ -16,7 +16,7 @@ var current_hp: float
 var scaled_attack: float
 var scaled_speed: float
 
-var target: CharacterBody2D = null
+var target: Player = null
 var terrain: IslandWorld = null
 var attack_timer: float = 0.0
 var attack_windup: float = 0.0
@@ -86,7 +86,9 @@ func _physics_process(delta: float) -> void:
 
     _update_timers(delta)
     _update_ai(delta)
+    _after_ai(delta)
     _apply_knockback(delta)
+    _before_move(delta)
     _update_animation()
 
     if not is_instance_valid(terrain):
@@ -96,6 +98,14 @@ func _physics_process(delta: float) -> void:
         wander_direction = -wander_direction
     move_and_slide()
     _enforce_village_boundary()
+
+# Extension hooks let specialized monsters add behavior around the
+# shared AI/movement pipeline without calling move_and_slide twice.
+func _after_ai(_delta: float) -> void:
+    pass
+
+func _before_move(_delta: float) -> void:
+    pass
 
 func _enforce_village_boundary() -> bool:
     if not is_instance_valid(terrain) or current_state == State.DEAD:
@@ -137,7 +147,9 @@ func _update_ai(delta: float) -> void:
         current_state = State.IDLE
 
     target = GameManager.player
-    if target == null or not is_instance_valid(target) or target.current_state == target.State.DEAD:
+    if target == null or not is_instance_valid(target):
+        target = null
+    elif target.has_method("is_dead") and bool(target.call("is_dead")):
         target = null
     if target:
         var player_in_village: bool = is_instance_valid(terrain) and terrain.is_inside_village_safe_zone(target.global_position)

@@ -55,6 +55,8 @@ func get_exp_required() -> int:
 	return int(total)
 
 func add_exp(amount: int) -> bool:
+	if amount <= 0:
+		return false
 	current_exp += amount
 	var leveled_up: bool = false
 	var required := get_exp_required()
@@ -185,10 +187,10 @@ func load_save_data(data: Dictionary) -> void:
 	money = maxi(0, int(data.get("money", 0)))
 
 	active_buff_name = str(data.get("active_buff_name", ""))
-	active_buff_remaining = maxf(0.0, float(data.get("active_buff_remaining", 0.0)))
-	buff_attack = float(data.get("buff_attack", 0.0))
-	buff_defense = float(data.get("buff_defense", 0.0))
-	buff_speed = float(data.get("buff_speed", 0.0))
-	buff_stamina_regen = float(data.get("buff_stamina_regen", 0.0))
-	if active_buff_remaining <= 0.0:
+	active_buff_remaining = clampf(float(data.get("active_buff_remaining", 0.0)), 0.0, 86400.0)
+	buff_attack = clampf(float(data.get("buff_attack", 0.0)), -100.0, 100.0)
+	buff_defense = clampf(float(data.get("buff_defense", 0.0)), -100.0, 100.0)
+	buff_speed = clampf(float(data.get("buff_speed", 0.0)), -0.75, 2.0)
+	buff_stamina_regen = clampf(float(data.get("buff_stamina_regen", 0.0)), -8.0, 100.0)
+	if active_buff_remaining <= 0.0 or active_buff_name.is_empty():
 		_clear_food_buff()

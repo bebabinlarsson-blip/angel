@@ -40,22 +40,21 @@ func _ready() -> void:
             "crystal": sprite.modulate = Color("#8bd9e8")
     jump_timer = randf_range(0.5, jump_interval)
 
-func _physics_process(delta: float) -> void:
-    # BaseMonster owns the distance check so slime jump logic does not repeat
-    # it for every spawned enemy.
-    super._physics_process(delta)
-    if is_far_lod:
-        return
-
+func _after_ai(delta: float) -> void:
+    # BaseMonster has already performed its distance LOD check and AI update.
+    # Starting the leap here keeps distant slimes dormant and lets the shared
+    # movement pipeline apply the lunge exactly once.
     _handle_jump(delta)
-    if jump_lunge_timer > 0.0 and current_state != State.DEAD and current_state != State.HURT:
-        var p := GameManager.player
-        if p and is_instance_valid(p) and global_position.distance_squared_to((p as Node2D).global_position) < 2250000.0:
-            jump_lunge_timer -= delta
-            velocity = jump_lunge_dir * jump_force
-            move_and_slide()
-        else:
-            jump_lunge_timer = 0.0
+
+func _before_move(delta: float) -> void:
+    if jump_lunge_timer <= 0.0 or current_state == State.DEAD or current_state == State.HURT:
+        return
+    var p := GameManager.player
+    if p and is_instance_valid(p) and global_position.distance_squared_to((p as Node2D).global_position) < 2250000.0:
+        jump_lunge_timer = maxf(0.0, jump_lunge_timer - delta)
+        velocity = jump_lunge_dir * jump_force
+    else:
+        jump_lunge_timer = 0.0
 
 func _handle_jump(delta: float) -> void:
     if current_state in [State.DEAD, State.HURT, State.ATTACK]:

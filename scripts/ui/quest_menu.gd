@@ -13,6 +13,8 @@ func _ready() -> void:
 	EventBus.quest_menu_toggled.connect(_toggle)
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	if close_btn:
 		close_btn.pressed.connect(func(): _toggle())
 	if dimmer:
@@ -22,30 +24,36 @@ func _ready() -> void:
 		)
 	UITheme.style_recursive(self)
 
+
+func _on_viewport_resized() -> void:
+	var card := get_node_or_null("CenterContainer/PanelContainer") as Control
+	if card:
+		UITheme.fit_modal(card, Vector2(1040.0, 640.0))
+
+
 func _toggle() -> void:
 	visible = !visible
 	if visible:
 		_hide_overlay("BigMap")
 		_hide_overlay("CookingUILayer")
-		var inv := get_tree().root.find_child("InventoryUI", true, false)
+		var inv := get_tree().root.find_child("InventoryUI", true, false) as Control
 		if inv and inv.visible:
 			inv.visible = false
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false) as Control
 		if p_menu and p_menu.visible:
 			p_menu.visible = false
 
 		_refresh()
-		get_tree().paused = true
-		GameManager.is_paused = true
+		_on_viewport_resized()
+		GameManager.set_state(GameManager.GameState.PAUSED)
 		var card := get_node_or_null("CenterContainer/PanelContainer")
 		if card is Control:
 			UIAnim.pop_in(card as Control, 0.2)
 	else:
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
-		var inv := get_tree().root.find_child("InventoryUI", true, false)
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false) as Control
+		var inv := get_tree().root.find_child("InventoryUI", true, false) as Control
 		if (p_menu == null or not p_menu.visible) and (inv == null or not inv.visible):
-			get_tree().paused = false
-			GameManager.is_paused = false
+			GameManager.set_state(GameManager.GameState.PLAYING)
 
 func _hide_overlay(node_name: String) -> void:
 	var overlay := get_tree().root.find_child(node_name, true, false)
@@ -55,10 +63,7 @@ func _hide_overlay(node_name: String) -> void:
 		(overlay as CanvasLayer).visible = false
 
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("quest") and visible:
-		_toggle()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("pause") and visible:
+	if (event.is_action_pressed("quest") or event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")) and visible:
 		_toggle()
 		get_viewport().set_input_as_handled()
 
@@ -160,16 +165,20 @@ func _show_quest_detail(quest: Dictionary) -> void:
 	var giver_name: String = _npc_display_name(npc_id)
 	var giver_job: String = _npc_job(npc_id)
 	var requirement: String = str(quest.get("objective", "No requirement recorded."))
-	var status_text: String = "Ready to complete!" if is_ready else "In progress"
-	if quest.get("completed", false):
-		status_text = "Completed"
+	var destination: String = _quest_destination(str(quest.get("id", "")))
+	var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
+	var is_done: bool = quest.get("completed", false)
+	if quest_system != null:
+		is_done = is_done or quest_system.completed_quests.has(str(quest.get("id", "")))
+	var status_text: String = "Completed" if is_done else ("Ready to complete!" if is_ready else "In progress")
 
-	var detail_text: String = "[font_size=18][b][color=#fde047]%s[/color][/b][/font_size]\n\n%s\n\n[color=#fbbf24]Quest giver:[/color] %s\n[color=#a5b4fc]Role:[/color] %s\n[color=#38bdf8]What you need:[/color] %s\n[color=#4ade80]Progress:[/color] %d / %d  (%s)\n\n[color=#fbbf24]Rewards:[/color] %d Gold, %d EXP" % [
+	var detail_text: String = "[font_size=18][b][color=#fde047]%s[/color][/b][/font_size]\n\n%s\n\n[color=#fbbf24]Quest giver:[/color] %s\n[color=#a5b4fc]Role:[/color] %s\n[color=#38bdf8]What you need:[/color] %s\n[color=#c4b5fd]Destination:[/color] %s\n[color=#4ade80]Progress:[/color] %d / %d  (%s)\n\n[color=#fbbf24]Rewards:[/color] %d Gold, %d EXP" % [
 		str(quest.get("title", "Unnamed Quest")),
 		str(quest.get("description", "")),
 		giver_name,
 		giver_job.capitalize(),
 		requirement,
+		destination,
 		current_count,
 		target_count,
 		status_text,
@@ -178,6 +187,17 @@ func _show_quest_detail(quest: Dictionary) -> void:
 	]
 	quest_detail.text = detail_text
 	_show_quest_portrait(npc_id, giver_job)
+
+func _quest_destination(quest_id: String) -> String:
+	if quest_id.is_empty():
+		return "No destination recorded."
+	var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
+	if quest_system == null:
+		return "Explore the island."
+	var waypoint: Dictionary = quest_system.get_quest_waypoint(quest_id)
+	if waypoint.is_empty():
+		return "Explore the island."
+	return str(waypoint.get("name", "Explore the island."))
 
 func _show_quest_portrait(npc_id: String, giver_job: String) -> void:
 	_clear_quest_portrait()
@@ -241,22 +261,3 @@ func _npc_job(npc_id: String) -> String:
 			return npc_id
 		_:
 			return "villager"
-	visible = !visible
-	if visible:
-		var inv := get_tree().root.find_child("InventoryUI", true, false)
-		if inv and inv.visible:
-			inv.visible = false
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
-		if p_menu and p_menu.visible:
-			p_menu.visible = false
-		
-		_refresh()
-		get_tree().paused = true
-		var card := get_node_or_null("CenterContainer/PanelContainer")
-		if card is Control:
-			UIAnim.pop_in(card as Control, 0.2)
-	else:
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
-		var inv := get_tree().root.find_child("InventoryUI", true, false)
-		if (p_menu == null or not p_menu.visible) and (inv == null or not inv.visible):
-			get_tree().paused = false

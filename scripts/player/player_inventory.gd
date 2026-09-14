@@ -64,6 +64,10 @@ func remove_item(item_id: String, quantity: int = 1) -> bool:
 		return false
 	if current_qty == quantity:
 		items.remove_at(index)
+		if str(equipped_weapon.get("id", "")) == item_id:
+			equipped_weapon = {}
+		if str(equipped_armor.get("id", "")) == item_id:
+			equipped_armor = {}
 	else:
 		items[index]["quantity"] = current_qty - quantity
 	EventBus.inventory_changed.emit()
@@ -89,7 +93,10 @@ func equip_weapon(item_data: Dictionary) -> void:
 	if item_data.is_empty():
 		equipped_weapon = {}
 	elif int(item_data.get("type", -1)) == ItemType.WEAPON:
-		equipped_weapon = item_data.duplicate(true)
+		var weapon_index: int = _find_item_index(str(item_data.get("id", "")))
+		if weapon_index < 0:
+			return
+		equipped_weapon = items[weapon_index].duplicate(true)
 	else:
 		return
 	EventBus.inventory_changed.emit()
@@ -98,7 +105,10 @@ func equip_armor(item_data: Dictionary) -> void:
 	if item_data.is_empty():
 		equipped_armor = {}
 	elif int(item_data.get("type", -1)) == ItemType.ARMOR:
-		equipped_armor = item_data.duplicate(true)
+		var armor_index: int = _find_item_index(str(item_data.get("id", "")))
+		if armor_index < 0:
+			return
+		equipped_armor = items[armor_index].duplicate(true)
 	else:
 		return
 	EventBus.inventory_changed.emit()
@@ -127,15 +137,23 @@ func load_save_data(data: Dictionary) -> void:
 		for raw_item in saved_items:
 			if not (raw_item is Dictionary):
 				continue
+			if items.size() >= max_slots:
+				break
 			var item: Dictionary = raw_item.duplicate(true)
 			var item_id: String = str(item.get("id", ""))
 			var quantity: int = int(item.get("quantity", 1))
-			if item_id.is_empty() or quantity <= 0:
+			var item_type: int = int(item.get("type", ItemType.MATERIAL))
+			if item_id.is_empty() or quantity <= 0 or item_type < ItemType.MATERIAL or item_type > ItemType.COLLECTABLE:
 				continue
 			item["id"] = item_id
 			item["quantity"] = quantity
+			item["type"] = item_type
 			item["stackable"] = bool(item.get("stackable", true))
-			items.append(item)
+			var existing_index: int = _find_item_index(item_id)
+			if item["stackable"] and existing_index >= 0:
+				items[existing_index]["quantity"] = int(items[existing_index].get("quantity", 1)) + quantity
+			else:
+				items.append(item)
 
 	equipped_weapon = _restore_equipped(data.get("equipped_weapon", {}), ItemType.WEAPON)
 	equipped_armor = _restore_equipped(data.get("equipped_armor", {}), ItemType.ARMOR)

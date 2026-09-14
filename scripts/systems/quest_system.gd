@@ -64,13 +64,81 @@ func _init_quests() -> void:
 func accept_quest(quest_id: String) -> bool:
 	if not all_quests.has(quest_id) or active_quests.has(quest_id) or completed_quests.has(quest_id):
 		return false
+	if not active_quests.is_empty():
+		EventBus.show_notification.emit("Finish your active quest before accepting another.")
+		return false
 	var quest_value: Variant = all_quests.get(quest_id, {})
 	if not (quest_value is Dictionary):
 		return false
 	active_quests[quest_id] = (quest_value as Dictionary).duplicate(true)
 	EventBus.quest_accepted.emit(quest_id)
+	EventBus.quest_updated.emit(quest_id)
 	EventBus.show_notification.emit("Quest accepted: " + str(active_quests[quest_id].get("title", "Quest")))
 	return true
+
+func get_active_quest_id() -> String:
+	if active_quests.is_empty():
+		return ""
+	var ids: Array = active_quests.keys()
+	return str(ids[0])
+
+func get_active_quest() -> Dictionary:
+	var quest_id := get_active_quest_id()
+	var quest_value: Variant = active_quests.get(quest_id, {})
+	if quest_value is Dictionary:
+		return (quest_value as Dictionary).duplicate(true)
+	return {}
+
+func get_quest_waypoint(quest_id: String, return_to_giver: bool = false) -> Dictionary:
+	if quest_id.is_empty() or not all_quests.has(quest_id):
+		return {}
+
+	var position: Vector2 = Vector2.ZERO
+	var label: String = "Quest objective"
+	var giver_position: Vector2 = Vector2.ZERO
+	var giver_name: String = "Quest giver"
+	match quest_id:
+		"slay_slimes":
+			position = Vector2(940.0, -300.0)
+			label = "Slime trail"
+			giver_position = Vector2(-288.0, -32.0)
+			giver_name = "Village Elder"
+		"gather_wood":
+			position = Vector2(-900.0, 260.0)
+			label = "Western woodland"
+			giver_position = Vector2(224.0, 128.0)
+			giver_name = "Carpenter"
+		"first_meal":
+			position = Vector2.ZERO
+			label = "Village campfire"
+			giver_position = Vector2(224.0, -32.0)
+			giver_name = "Chef Maria"
+		"explore_cave":
+			position = Vector2(-2176.0, -2368.0)
+			label = "Highland cave"
+			giver_position = Vector2(-144.0, -256.0)
+			giver_name = "Miner Torvald"
+		_:
+			return {}
+
+	var is_return: bool = return_to_giver
+	if is_return:
+		position = giver_position
+		label = "Return to " + giver_name
+	return {
+		"quest_id": quest_id,
+		"position": position,
+		"name": label,
+		"is_return": is_return,
+		"giver_name": giver_name
+	}
+
+func get_active_waypoint() -> Dictionary:
+	var quest_id := get_active_quest_id()
+	if quest_id.is_empty():
+		return {}
+	return get_quest_waypoint(quest_id, is_quest_complete(quest_id))
+
 func update_quest_progress(quest_type: String, target: String, amount: int = 1) -> void:
 	if amount <= 0:
 		return
@@ -135,17 +203,33 @@ func get_save_data() -> Dictionary:
 		"active": active_quests.duplicate(true),
 		"completed": completed_quests.duplicate(true),
 	}
-func _copy_quest_map(value: Variant) -> Dictionary:
+func _copy_quest_map(value: Variant, only_one: bool = false) -> Dictionary:
 	var result: Dictionary = {}
 	if not (value is Dictionary):
 		return result
 	var source: Dictionary = value
-	for quest_id in source:
-		var quest_value: Variant = source.get(quest_id, {})
-		if quest_value is Dictionary:
-			result[str(quest_id)] = (quest_value as Dictionary).duplicate(true)
+	for raw_quest_id in source.keys():
+		var quest_id := str(raw_quest_id)
+		if not all_quests.has(quest_id):
+			continue
+		if only_one and not result.is_empty():
+			break
+		var template_value: Variant = all_quests.get(quest_id, {})
+		var saved_value: Variant = source.get(raw_quest_id, {})
+		if not (template_value is Dictionary) or not (saved_value is Dictionary):
+			continue
+		# Rebuild from the current quest definition, then copy only progress.
+		# This rejects malformed save fields and keeps reward/objective data
+		# authoritative when the quest schema evolves.
+		var quest: Dictionary = (template_value as Dictionary).duplicate(true)
+		var saved_quest: Dictionary = saved_value
+		var target_count: int = maxi(1, int(quest.get("target_count", 1)))
+		quest["current_count"] = clampi(int(saved_quest.get("current_count", 0)), 0, target_count)
+		result[quest_id] = quest
 	return result
 
 func load_save_data(data: Dictionary) -> void:
-	active_quests = _copy_quest_map(data.get("active", {}))
+	active_quests = _copy_quest_map(data.get("active", {}), true)
 	completed_quests = _copy_quest_map(data.get("completed", {}))
+	for quest_id in completed_quests.keys():
+		active_quests.erase(quest_id)

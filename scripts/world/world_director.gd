@@ -36,9 +36,11 @@ var population_timer: float = 0.0
 var stream_timer: float = 0.0
 var initialized: bool = false
 var occupied_positions: Array[Vector2] = []
+var occupied_grid: Dictionary = {}
 var resource_records: Array[Dictionary] = []
 var enemy_records: Array[Dictionary] = []
 var authored_stream_records: Array[Dictionary] = []
+var _pending_save_data: Dictionary = {}
 
 const RESOURCE_CATALOG: Array[Dictionary] = [
     {"id": "wood", "name": "Wood", "weight": 20.0, "min": 1, "max": 3, "type": 0},
@@ -111,6 +113,8 @@ func _initialize() -> void:
     if terrain == null:
         return
 
+    occupied_positions.clear()
+    occupied_grid.clear()
     resource_parent = Node2D.new()
     resource_parent.name = "GeneratedResources"
     resource_parent.y_sort_enabled = true
@@ -140,7 +144,7 @@ func _initialize() -> void:
             continue
         var starter_record := _register_resource_record(starter_pos, _catalog_entry(resource_id))
         if starter_record.is_empty():
-            occupied_positions.erase(starter_pos)
+            _release_occupied_position(starter_pos)
 
     for i in range(starting_enemies):
         var enemy_pos := _find_position(900.0, 14500.0, 72.0)
@@ -159,6 +163,8 @@ func _initialize() -> void:
             _register_enemy_record(remote_enemy_pos)
 
     initialized = true
+    _apply_save_data(_pending_save_data)
+    _pending_save_data.clear()
     # Fill the local target on the first available frame, after the player and
     # camera have finished entering the scene.
     population_timer = respawn_interval
@@ -239,15 +245,28 @@ func _index_authored_stream_nodes() -> void:
                         "node": shape,
                         "disabled": shape.disabled
                     })
+            var protected_from_spawn: bool = false
+            if node is ResourceNode or node is CollectableItem or node is MiningRock or node is BaseMonster:
+                protected_from_spawn = terrain.is_inside_village_safe_zone(node.global_position, 0.0)
             var state: Dictionary = {
                 "node": node,
                 "visible": node.visible,
                 "process_mode": node.process_mode,
                 "collision_states": collision_states,
-                "active": true
+                "protected": protected_from_spawn,
+                "active": not protected_from_spawn
             }
             if node is Area2D:
                 state["monitoring"] = (node as Area2D).monitoring
+            if protected_from_spawn:
+                node.visible = false
+                node.process_mode = Node.PROCESS_MODE_DISABLED
+                for collision_state: Dictionary in collision_states:
+                    var protected_shape_value: Variant = collision_state.get("node", null)
+                    if protected_shape_value is CollisionShape2D and is_instance_valid(protected_shape_value):
+                        (protected_shape_value as CollisionShape2D).set_deferred("disabled", true)
+                if node is Area2D:
+                    (node as Area2D).set_deferred("monitoring", false)
             authored_stream_records.append(state)
 
 func _refresh_authored_stream(center: Vector2, load_radius_sq: float) -> void:
@@ -260,7 +279,8 @@ func _refresh_authored_stream(center: Vector2, load_radius_sq: float) -> void:
             continue
 
         var node: Node2D = node_value as Node2D
-        var should_be_active: bool = node.global_position.distance_squared_to(center) <= load_radius_sq
+        var protected_from_spawn: bool = bool(state.get("protected", false))
+        var should_be_active: bool = not protected_from_spawn and node.global_position.distance_squared_to(center) <= load_radius_sq
         var is_active: bool = bool(state.get("active", true))
         if should_be_active == is_active:
             index += 1
@@ -321,9 +341,14 @@ func _update_enemy_record(record: Dictionary, center: Vector2, load_radius_sq: f
         if node is BaseMonster:
             var monster: BaseMonster = node as BaseMonster
             if monster.current_state == BaseMonster.State.DEAD:
-                if not bool(record.get("defeated", false)):
-                    record["defeated"] = true
+                record["defeated"] = true
+                if float(record.get("respawn_at", 0.0)) <= now:
                     record["respawn_at"] = now + enemy_respawn_time
+                # A dying enemy is safe to unload once it is outside the
+                # streaming band; its defeated/respawn state remains in the
+                # compact record and avoids keeping a dead scene tree alive.
+                if pos.distance_squared_to(center) > unload_radius_sq:
+                    _unload_enemy_record(record, monster)
                 return
             record["hp"] = monster.current_hp
         if pos.distance_squared_to(center) > unload_radius_sq:
@@ -428,7 +453,7 @@ func _find_position(min_radius: float, max_radius: float, separation: float) -> 
         var radius := sqrt(rng.randf_range(min_radius * min_radius, max_radius * max_radius))
         var pos := Vector2.RIGHT.rotated(rng.randf_range(0.0, TAU)) * radius
         if _valid_position(pos, separation):
-            occupied_positions.append(pos)
+            _reserve_occupied_position(pos)
             return pos
     return Vector2.ZERO
 
@@ -436,18 +461,54 @@ func _find_position_near(center: Vector2, min_radius: float, max_radius: float, 
     for attempt in range(80):
         var pos := center + Vector2.RIGHT.rotated(rng.randf_range(0.0, TAU)) * rng.randf_range(min_radius, max_radius)
         if _valid_position(pos, separation):
-            occupied_positions.append(pos)
+            _reserve_occupied_position(pos)
             return pos
     return Vector2.ZERO
+
+const OCCUPANCY_CELL_SIZE: float = 128.0
+
+func _occupancy_key(pos: Vector2) -> Vector2i:
+    return Vector2i(
+        floori(pos.x / OCCUPANCY_CELL_SIZE),
+        floori(pos.y / OCCUPANCY_CELL_SIZE)
+    )
+
+func _reserve_occupied_position(pos: Vector2) -> void:
+    occupied_positions.append(pos)
+    var key := _occupancy_key(pos)
+    var bucket_value: Variant = occupied_grid.get(key, [])
+    var bucket: Array = bucket_value if bucket_value is Array else []
+    bucket.append(pos)
+    occupied_grid[key] = bucket
+
+func _release_occupied_position(pos: Vector2) -> void:
+    occupied_positions.erase(pos)
+    var key := _occupancy_key(pos)
+    var bucket_value: Variant = occupied_grid.get(key, [])
+    if not (bucket_value is Array):
+        return
+    var bucket: Array = bucket_value
+    bucket.erase(pos)
+    if bucket.is_empty():
+        occupied_grid.erase(key)
+    else:
+        occupied_grid[key] = bucket
 
 func _valid_position(pos: Vector2, separation: float) -> bool:
     if terrain == null or not terrain.is_inside_playable_area(pos) or terrain.is_inside_village_safe_zone(pos, 24.0) or not terrain.is_clear(pos, separation):
         return false
     if pos.length() < 600.0:
         return false
-    for other: Vector2 in occupied_positions:
-        if pos.distance_squared_to(other) < separation * separation:
-            return false
+    var cell := _occupancy_key(pos)
+    var cell_radius: int = ceili(separation / OCCUPANCY_CELL_SIZE)
+    for offset_y in range(-cell_radius, cell_radius + 1):
+        for offset_x in range(-cell_radius, cell_radius + 1):
+            var bucket_value: Variant = occupied_grid.get(cell + Vector2i(offset_x, offset_y), [])
+            if not (bucket_value is Array):
+                continue
+            for raw_other in bucket_value:
+                if raw_other is Vector2 and pos.distance_squared_to(raw_other) < separation * separation:
+                    return false
     return true
 
 func _register_resource_record(pos: Vector2, data: Dictionary) -> Dictionary:
@@ -547,7 +608,139 @@ func _unload_enemy_record(record: Dictionary, node: Node2D) -> void:
     if node is BaseMonster:
         record["hp"] = (node as BaseMonster).current_hp
     record["node"] = null
-    node.queue_free()
+    if is_instance_valid(node) and not node.is_queued_for_deletion():
+        node.queue_free()
+
+func get_save_data() -> Dictionary:
+    var now: float = float(Time.get_ticks_msec()) / 1000.0
+    var saved_resources: Array[Dictionary] = []
+    for index in range(resource_records.size()):
+        var record: Dictionary = resource_records[index]
+        var collected: bool = bool(record.get("collected", false))
+        var remaining: float = maxf(0.0, float(record.get("respawn_at", 0.0)) - now) if collected else 0.0
+        var node := _node_from_record(record)
+        if node is ResourceNode:
+            var resource: ResourceNode = node as ResourceNode
+            collected = resource.is_collected
+            remaining = maxf(0.0, resource.respawn_timer) if collected else 0.0
+            record["collected"] = collected
+        saved_resources.append({
+            "index": index,
+            "position": _save_position(_record_position(record)),
+            "quantity": maxi(1, int(record.get("quantity", 1))),
+            "collected": collected,
+            "respawn_remaining": remaining
+        })
+
+    var saved_enemies: Array[Dictionary] = []
+    for index in range(enemy_records.size()):
+        var record: Dictionary = enemy_records[index]
+        var defeated: bool = bool(record.get("defeated", false))
+        var remaining: float = maxf(0.0, float(record.get("respawn_at", 0.0)) - now) if defeated else 0.0
+        var hp: float = float(record.get("hp", -1.0))
+        var node := _node_from_record(record)
+        if node is BaseMonster:
+            var monster: BaseMonster = node as BaseMonster
+            hp = monster.current_hp
+            if monster.current_state == BaseMonster.State.DEAD:
+                defeated = true
+                # A save can happen in the short death-animation window before
+                # the normal stream tick records the respawn deadline.
+                if float(record.get("respawn_at", 0.0)) <= now:
+                    record["respawn_at"] = now + enemy_respawn_time
+                remaining = maxf(0.0, float(record.get("respawn_at", 0.0)) - now)
+        saved_enemies.append({
+            "index": index,
+            "position": _save_position(_record_position(record)),
+            "hp": hp,
+            "defeated": defeated,
+            "respawn_remaining": remaining
+        })
+
+    return {
+        "version": 1,
+        "resources": saved_resources,
+        "enemies": saved_enemies
+    }
+
+func _save_position(position: Vector2) -> Dictionary:
+    return {"x": position.x, "y": position.y}
+
+func _saved_position_matches(record: Dictionary, saved_value: Variant) -> bool:
+    if not (saved_value is Dictionary):
+        return true
+    var saved: Dictionary = saved_value
+    var saved_position := Vector2(float(saved.get("x", 0.0)), float(saved.get("y", 0.0)))
+    return _record_position(record).distance_squared_to(saved_position) <= 16.0
+
+func load_save_data(data: Dictionary) -> void:
+    if not initialized:
+        _pending_save_data = data.duplicate(true)
+        return
+    _apply_save_data(data)
+
+func _apply_save_data(data: Dictionary) -> void:
+    if data.is_empty():
+        return
+    var now: float = float(Time.get_ticks_msec()) / 1000.0
+    var resources_value: Variant = data.get("resources", [])
+    if resources_value is Array:
+        for raw_state in resources_value:
+            if not (raw_state is Dictionary):
+                continue
+            var saved_resource: Dictionary = raw_state
+            var index: int = int(saved_resource.get("index", -1))
+            if index < 0 or index >= resource_records.size():
+                continue
+            var record: Dictionary = resource_records[index]
+            if not _saved_position_matches(record, saved_resource.get("position", {})):
+                continue
+            record["quantity"] = maxi(1, int(saved_resource.get("quantity", record.get("quantity", 1))))
+            record["collected"] = bool(saved_resource.get("collected", false))
+            var remaining: float = maxf(0.0, float(saved_resource.get("respawn_remaining", 0.0)))
+            record["respawn_at"] = now + remaining if bool(record.get("collected", false)) else 0.0
+            var resource_node := _node_from_record(record)
+            if resource_node is ResourceNode:
+                var resource: ResourceNode = resource_node as ResourceNode
+                resource.is_collected = bool(record.get("collected", false))
+                resource.respawn_timer = remaining
+                resource.visible = not resource.is_collected
+                resource.set_deferred("monitoring", not resource.is_collected)
+                if resource.collision:
+                    resource.collision.set_deferred("disabled", resource.is_collected)
+
+    var enemies_value: Variant = data.get("enemies", [])
+    if enemies_value is Array:
+        for raw_state in enemies_value:
+            if not (raw_state is Dictionary):
+                continue
+            var saved_enemy: Dictionary = raw_state
+            var index: int = int(saved_enemy.get("index", -1))
+            if index < 0 or index >= enemy_records.size():
+                continue
+            var record: Dictionary = enemy_records[index]
+            if not _saved_position_matches(record, saved_enemy.get("position", {})):
+                continue
+            var defeated: bool = bool(saved_enemy.get("defeated", false))
+            var remaining: float = maxf(0.0, float(saved_enemy.get("respawn_remaining", 0.0)))
+            record["defeated"] = defeated
+            record["respawn_at"] = now + remaining if defeated else 0.0
+            var saved_hp: float = float(saved_enemy.get("hp", -1.0))
+            record["hp"] = saved_hp
+            var enemy_node := _node_from_record(record)
+            if not defeated and enemy_node is BaseMonster and saved_hp > 0.0:
+                var active_enemy: BaseMonster = enemy_node as BaseMonster
+                active_enemy.current_hp = clampf(saved_hp, 1.0, active_enemy.base_hp)
+                active_enemy.current_state = BaseMonster.State.IDLE
+                active_enemy.velocity = Vector2.ZERO
+                active_enemy.attack_timer = 0.0
+                active_enemy.attack_windup = 0.0
+                if active_enemy.health_bar:
+                    active_enemy.health_bar.value = active_enemy.current_hp
+            if defeated and enemy_node != null:
+                record["node"] = null
+                if not enemy_node.is_queued_for_deletion():
+                    enemy_node.queue_free()
 
 # Kept as compatibility wrappers for any scene or test that calls the old
 # internal spawn helpers.

@@ -48,8 +48,12 @@ var work_cycle_index: int = 0
 var village_center: Vector2 = Vector2.ZERO
 var village_radius: float = 500.0
 var _village_bounds_ready: bool = false
+var _paused_for_dialogue: bool = false
 
 func _ready() -> void:
+	# Dialogue is a real modal: keep its screen-space controls responsive while
+	# the gameplay tree is paused, and prevent the NPC from walking underneath it.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	add_to_group("npcs")
 	if job == "idle":
 		job = _job_from_npc_id()
@@ -64,6 +68,8 @@ func _ready() -> void:
 	_create_activity_label()
 	
 	_create_dialogue_ui()
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	
 	if has_node("InteractionLabel"):
 		interaction_label = get_node("InteractionLabel") as Label
@@ -77,6 +83,16 @@ func _ready() -> void:
 	worker_tool.z_index = 6
 	worker_tool.visible = false
 	add_child(worker_tool)
+
+func set_village_anchor(anchor: Vector2) -> void:
+	if not stays_in_village:
+		return
+	global_position = anchor
+	home_position = anchor
+	work_position = home_position + _default_work_offset()
+	schedule_destination = work_position
+	_village_bounds_ready = false
+	_configure_village_bounds()
 
 func _configure_village_bounds() -> void:
 	if not stays_in_village:
@@ -258,16 +274,27 @@ func _find_quest_system() -> QuestSystem:
 		return node
 	return null
 
+func _on_viewport_resized() -> void:
+	if dialogue_panel:
+		UITheme.fit_modal(dialogue_panel, Vector2(460.0, 220.0))
+
 func interact(_player: CharacterBody2D) -> void:
 	if is_dialogue_open:
 		_close_dialogue()
 		return
+	if _player == null or not is_instance_valid(_player):
+		return
 	
 	is_dialogue_open = true
 	_dialogue_player = _player
+	is_working = false
+	_paused_for_dialogue = GameManager.current_state == GameManager.GameState.PLAYING
+	if _paused_for_dialogue:
+		GameManager.set_state(GameManager.GameState.PAUSED)
 	interaction_count += 1
 	if dialogue_panel:
 		dialogue_panel.visible = true
+		_on_viewport_resized()
 		UIAnim.pop_in(dialogue_panel, 0.18)
 	
 	if quest_system == null:
@@ -276,10 +303,15 @@ func interact(_player: CharacterBody2D) -> void:
 	_update_dialogue()
 
 func _input(event: InputEvent) -> void:
-	if is_dialogue_open:
-		if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
-			_close_dialogue()
-			get_viewport().set_input_as_handled()
+	if not is_dialogue_open:
+		return
+	if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
+		_close_dialogue()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventKey or event is InputEventJoypadButton:
+		# Keep inventory/quest/attack hotkeys from reaching GameManager while
+		# the conversation modal is open. Mouse clicks remain available to UI.
+		get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
 	if stays_in_village and not _village_bounds_ready:
@@ -297,7 +329,11 @@ func _process(delta: float) -> void:
 		if (_dialogue_player as Node2D).global_position.distance_to(global_position) > 160.0:
 			_close_dialogue()
 	if not is_dialogue_open:
-		_run_daily_routine(delta)
+		if GameManager.current_state == GameManager.GameState.PLAYING and not get_tree().paused:
+			_run_daily_routine(delta)
+		else:
+			velocity = Vector2.ZERO
+			is_working = false
 	_update_facing()
 	_update_worker_animation()
 	_update_activity_label()
@@ -526,6 +562,10 @@ func _close_dialogue() -> void:
 	_dialogue_player = null
 	if dialogue_panel:
 		dialogue_panel.visible = false
+	if _paused_for_dialogue:
+		_paused_for_dialogue = false
+		if GameManager.current_state == GameManager.GameState.PAUSED:
+			GameManager.set_state(GameManager.GameState.PLAYING)
 
 func show_interaction_hint() -> void:
 	if interaction_label:

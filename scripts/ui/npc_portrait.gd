@@ -117,6 +117,14 @@ func _palette() -> Dictionary:
 			return {"skin": Color("#efb184"), "hair": Color("#6b4c38"), "clothes": Color("#5d9a6a"), "accent": Color("#c989cf")}
 		"builder":
 			return {"skin": Color("#ce8d68"), "hair": Color("#5b382b"), "clothes": Color("#b46e43"), "accent": Color("#e4ae4f")}
+		"gardener":
+			return {"skin": Color("#d9a073"), "hair": Color("#814c35"), "clothes": Color("#5d9a6a"), "accent": Color("#e5bd5d")}
+		"watch":
+			return {"skin": Color("#c88d73"), "hair": Color("#342e49"), "clothes": Color("#4969a5"), "accent": Color("#df6262")}
+		"trader":
+			return {"skin": Color("#e1a578"), "hair": Color("#673c58"), "clothes": Color("#9060a4"), "accent": Color("#e5c45f")}
+		"apothecary":
+			return {"skin": Color("#e8aa82"), "hair": Color("#4d6a49"), "clothes": Color("#56956d"), "accent": Color("#cb91d4")}
 		_:
 			return {"skin": Color("#e2a77d"), "hair": Color("#544039"), "clothes": Color("#5477a2"), "accent": Color("#e1ba5b")}
 

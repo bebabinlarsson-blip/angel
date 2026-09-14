@@ -28,21 +28,21 @@ const VILLAGE_BOUNDARY_MARGIN: float = 24.0
 
 func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     z_index = -200
-    ground = world.get_node_or_null("GroundLayer")
-    paths = world.get_node_or_null("PathLayer")
-    trees = world.get_node_or_null("TreeLayer")
-    bridge = world.get_node_or_null("BridgeLayer")
-    structures = world.get_node_or_null("StructuresLayer")
-    decor = world.get_node_or_null("DecorLayer")
-    water_layer = world.get_node_or_null("WaterLayer")
-    farm_layer = world.get_node_or_null("FarmLayer")
+    ground = world.get_node_or_null("GroundLayer") as TileMapLayer
+    paths = world.get_node_or_null("PathLayer") as TileMapLayer
+    trees = world.get_node_or_null("TreeLayer") as TileMapLayer
+    bridge = world.get_node_or_null("BridgeLayer") as TileMapLayer
+    structures = world.get_node_or_null("StructuresLayer") as TileMapLayer
+    decor = world.get_node_or_null("DecorLayer") as TileMapLayer
+    water_layer = world.get_node_or_null("WaterLayer") as TileMapLayer
+    farm_layer = world.get_node_or_null("FarmLayer") as TileMapLayer
     y_sort_enabled = true
 
     var village_data: Dictionary = config.get("village", {})
     var island_settings: Dictionary = config.get("island_settings", {})
     village_center = _point_from_data(village_data.get("center", {}), Vector2.ZERO)
     village_radius = maxf(160.0, float(village_data.get("tree_ring_radius", island_settings.get("village_radius", 500.0))))
-    _update_village_ring()
+    _update_village_ring(config)
 
     land.clear()
     if ground:
@@ -130,7 +130,7 @@ func clamp_to_village_boundary(p: Vector2, margin: float = VILLAGE_BOUNDARY_MARG
         return village_center
     return village_center + offset.normalized() * safe_radius
 
-func _update_village_ring() -> void:
+func _update_village_ring(config: Dictionary = {}) -> void:
     var safe_ring: Node2D = get_node_or_null("VillageSafeRing") as Node2D
     if safe_ring == null:
         safe_ring = VILLAGE_RING_SCRIPT.new() as Node2D
@@ -138,6 +138,12 @@ func _update_village_ring() -> void:
         add_child(safe_ring)
     safe_ring.set("ring_center", village_center)
     safe_ring.set("ring_radius", village_radius)
+    var village_data: Dictionary = {}
+    # The ring is rebuilt from the same layout data as the map so its visual
+    # perimeter cannot drift away from the protected gameplay radius.
+    if config.has("village") and config["village"] is Dictionary:
+        village_data = config["village"]
+    safe_ring.set("tree_count", maxi(16, int(village_data.get("tree_ring_count", 32))))
     safe_ring.queue_redraw()
 
 func is_clear(p: Vector2, clearance: float = 36.0) -> bool:
@@ -218,6 +224,32 @@ func _build_map_locations(config: Dictionary) -> void:
         var house_name := str(house.get("name", "Village House"))
         var house_pos := _point_from_data(house.get("pos", {}), village_center)
         _add_map_location(house_id, house_name, house_pos, "house", 1, 12.0)
+
+    var services_value: Variant = village_data.get("services", [])
+    if services_value is Array:
+        for raw_service in services_value:
+            if not (raw_service is Dictionary):
+                continue
+            var service: Dictionary = raw_service
+            var service_id := str(service.get("id", ""))
+            if service_id.is_empty():
+                continue
+            var service_pos := _point_from_data(service.get("pos", {}), village_center)
+            _add_map_location(service_id, str(service.get("name", "Village Service")), service_pos, "service", 2, 1.4)
+
+    var interiors_value: Variant = config.get("interiors", [])
+    if interiors_value is Array:
+        for raw_interior in interiors_value:
+            if not (raw_interior is Dictionary):
+                continue
+            var interior: Dictionary = raw_interior
+            var interior_id := str(interior.get("id", ""))
+            if interior_id.is_empty() or _has_map_location(interior_id):
+                continue
+            var interior_pos := _point_from_data(interior.get("pos", interior.get("position", {})), village_center)
+            var interior_kind := str(interior.get("kind", "house"))
+            var map_kind := "house" if interior_kind in ["house", "cook", "smith", "market"] else "landmark"
+            _add_map_location(interior_id, str(interior.get("name", "Interior")), interior_pos, map_kind, 2, 1.0)
 
     var landmark_names := {
         "northwest_highlands": "Northwest Highlands",

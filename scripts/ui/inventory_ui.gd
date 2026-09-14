@@ -57,6 +57,8 @@ func _ready() -> void:
 	if btn_collectibles:
 		btn_collectibles.pressed.connect(func(): _set_filter(6))
 	_create_detail_icon()
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	UITheme.style_recursive(self)
 
 func _create_detail_icon() -> void:
@@ -83,25 +85,24 @@ func _toggle() -> void:
 	if visible:
 		_hide_overlay("BigMap")
 		_hide_overlay("CookingUILayer")
-		var q_menu := get_tree().root.find_child("QuestMenu", true, false)
+		var q_menu := get_tree().root.find_child("QuestMenu", true, false) as Control
 		if q_menu and q_menu.visible:
 			q_menu.visible = false
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false) as Control
 		if p_menu and p_menu.visible:
 			p_menu.visible = false
 
 		_refresh()
-		get_tree().paused = true
-		GameManager.is_paused = true
+		_on_viewport_resized()
+		GameManager.set_state(GameManager.GameState.PAUSED)
 		var card := get_node_or_null("CenterContainer/PanelContainer")
 		if card is Control:
 			UIAnim.pop_in(card as Control, 0.2)
 	else:
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
-		var q_menu := get_tree().root.find_child("QuestMenu", true, false)
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false) as Control
+		var q_menu := get_tree().root.find_child("QuestMenu", true, false) as Control
 		if (p_menu == null or not p_menu.visible) and (q_menu == null or not q_menu.visible):
-			get_tree().paused = false
-			GameManager.is_paused = false
+			GameManager.set_state(GameManager.GameState.PLAYING)
 
 func _hide_overlay(node_name: String) -> void:
 	var overlay := get_tree().root.find_child(node_name, true, false)
@@ -110,8 +111,13 @@ func _hide_overlay(node_name: String) -> void:
 	elif overlay is CanvasLayer:
 		(overlay as CanvasLayer).visible = false
 
+func _on_viewport_resized() -> void:
+	var card := get_node_or_null("CenterContainer/PanelContainer")
+	if card is Control:
+		UITheme.fit_modal(card as Control, Vector2(820.0, 560.0))
+
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause") and visible:
+	if (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")) and visible:
 		_toggle()
 		get_viewport().set_input_as_handled()
 
@@ -176,7 +182,7 @@ func _refresh() -> void:
 		empty_slot.add_theme_stylebox_override("panel", style)
 		grid_container.add_child(empty_slot)
 
-func _update_category_counts(player: CharacterBody2D) -> void:
+func _update_category_counts(player: Player) -> void:
 	var counts := {}
 	for item: Dictionary in player.inventory.items:
 		var item_type := int(item.get("type", 0))
@@ -196,7 +202,7 @@ func _update_category_counts(player: CharacterBody2D) -> void:
 	if btn_collectibles:
 		btn_collectibles.text = "Relics (%d)" % int(counts.get(6, 0))
 
-func _is_equipped(player: CharacterBody2D, item: Dictionary, item_type: int) -> bool:
+func _is_equipped(player: Player, item: Dictionary, item_type: int) -> bool:
 	if item_type == 1:
 		return player.inventory.equipped_weapon.get("id", "") == item.get("id", "")
 	if item_type == 2:

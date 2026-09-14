@@ -1,19 +1,21 @@
 extends Node2D
 
 const VILLAGER_SCENE = preload("res://scenes/npcs/villager.tscn")
+const VILLAGE_SERVICE_SCRIPT = preload("res://scripts/world/village_service.gd")
+const INTERIOR_MANAGER_SCRIPT = preload("res://scripts/world/interior_manager.gd")
+const QUEST_WAYPOINT_SCRIPT = preload("res://scripts/world/quest_waypoint_marker.gd")
 
-@onready var player: CharacterBody2D = get_node_or_null("World/Player") as CharacterBody2D
-@onready var quest_system: QuestSystem = get_node_or_null("QuestSystem")
-@onready var cooking_system: CookingSystem = get_node_or_null("CookingSystem")
+@onready var player: Player = get_node_or_null("World/Player") as Player
+@onready var quest_system: QuestSystem = get_node_or_null("QuestSystem") as QuestSystem
+@onready var cooking_system: CookingSystem = get_node_or_null("CookingSystem") as CookingSystem
 
 func _ready() -> void:
-    get_tree().paused = false
     GameManager.set_state(GameManager.GameState.PLAYING)
     GameManager.village_spawn_point = Vector2(0, 90)
     _ensure_audio_manager()
 
     # Initialize world map texture and collision bounds from authored scene layers
-    var world_node := get_node_or_null("World")
+    var world_node: Node2D = get_node_or_null("World") as Node2D
     if world_node == null:
         world_node = Node2D.new()
         world_node.name = "World"
@@ -26,8 +28,13 @@ func _ready() -> void:
         terrain.add_to_group("island_world")
         world_node.add_child(terrain)
     _ensure_cooking_place(world_node)
-    terrain.rebuild(world_node, _load_layout_config())
+    var layout_config: Dictionary = _load_layout_config()
+    terrain.rebuild(world_node, layout_config)
+    _ensure_village_services(world_node, layout_config)
+    _ensure_interior_system(world_node, layout_config)
+    _ensure_quest_waypoint_marker(world_node)
     _spawn_additional_villagers(world_node)
+    _confine_village_npcs(world_node, layout_config)
     var director := world_node.get_node_or_null("WorldDirector") as WorldDirector
     if director == null:
         director = WorldDirector.new()
@@ -97,7 +104,16 @@ func _ready() -> void:
         EventBus.player_stamina_changed.emit(player.stats.current_stamina, player.stats.get_max_stamina())
         EventBus.player_money_changed.emit(player.stats.money)
         EventBus.show_notification.emit("Welcome to Angel! Walk near materials to collect them, press E for your backpack, and keep your sword ready.")
+    
+    # A continue request is consumed only after this scene owns the live player.
+    var pending_slot: int = SaveManager.consume_pending_load()
+    if pending_slot >= 0:
+        call_deferred("_load_pending_save", pending_slot)
 
+func _load_pending_save(slot: int) -> void:
+    if not SaveManager.load_game(slot):
+        EventBus.show_notification.emit("Could not load the saved game.")
+    
 func _ensure_cooking_place(world_node: Node2D) -> void:
     if world_node.get_node_or_null("Campfire") != null:
         return
@@ -106,6 +122,72 @@ func _ensure_cooking_place(world_node: Node2D) -> void:
     hearth.position = Vector2.ZERO
     world_node.add_child(hearth)
 
+
+func _ensure_village_services(world_node: Node2D, layout_config: Dictionary) -> void:
+    if world_node == null:
+        return
+    var services_parent := world_node.get_node_or_null("VillageServices") as Node2D
+    if services_parent == null:
+        services_parent = Node2D.new()
+        services_parent.name = "VillageServices"
+        services_parent.y_sort_enabled = true
+        world_node.add_child(services_parent)
+
+    var village_value: Variant = layout_config.get("village", {})
+    var village_data: Dictionary = village_value if village_value is Dictionary else {}
+    var services_value: Variant = village_data.get("services", [])
+    var service_definitions: Array[Dictionary] = []
+    if services_value is Array:
+        for raw_service in services_value:
+            if raw_service is Dictionary:
+                service_definitions.append(raw_service)
+    if service_definitions.is_empty():
+        service_definitions = [
+            {"id": "village_fountain", "name": "Village Fountain", "type": "fountain", "pos": {"x": -32.0, "y": -112.0}, "description": "Fresh spring water restores health and stamina."},
+            {"id": "market_stall", "name": "Sunrise Market", "type": "market", "pos": {"x": 112.0, "y": -192.0}, "description": "Trade spare materials for gold at the village market."},
+            {"id": "blacksmith_forge", "name": "Blacksmith Forge", "type": "blacksmith", "pos": {"x": -256.0, "y": 96.0}, "description": "A working forge where ore can be traded and swords maintained."}
+        ]
+
+    for definition: Dictionary in service_definitions:
+        var service_id := str(definition.get("id", ""))
+        if service_id.is_empty():
+            continue
+        var node_name := "Service_" + service_id.replace(" ", "_")
+        var service := services_parent.get_node_or_null(node_name) as Node
+        if service == null:
+            service = VILLAGE_SERVICE_SCRIPT.new() as Node
+            service.name = node_name
+            services_parent.add_child(service)
+        service.call(
+            "configure",
+            service_id,
+            str(definition.get("name", service_id.replace("_", " ").capitalize())),
+            str(definition.get("type", "market")),
+            str(definition.get("description", "A useful village service."))
+        )
+        var position_value: Variant = definition.get("pos", {})
+        if position_value is Dictionary:
+            var position_data: Dictionary = position_value
+            service.set("position", Vector2(float(position_data.get("x", 0.0)), float(position_data.get("y", 0.0))))
+
+func _ensure_interior_system(world_node: Node2D, layout_config: Dictionary) -> void:
+    if world_node == null:
+        return
+    var manager := get_node_or_null("InteriorManager") as Node
+    if manager == null:
+        manager = INTERIOR_MANAGER_SCRIPT.new() as Node
+        manager.name = "InteriorManager"
+        add_child(manager)
+    manager.call("configure", world_node, layout_config)
+
+func _ensure_quest_waypoint_marker(world_node: Node2D) -> void:
+    if world_node == null:
+        return
+    var marker := world_node.get_node_or_null("QuestWaypointMarker") as Node
+    if marker == null:
+        marker = QUEST_WAYPOINT_SCRIPT.new() as Node
+        marker.name = "QuestWaypointMarker"
+        world_node.add_child(marker)
 
 func _load_layout_config() -> Dictionary:
     var file := FileAccess.open("res://data/island_layout.json", FileAccess.READ)
@@ -153,13 +235,52 @@ func _spawn_additional_villagers(world_node: Node2D) -> void:
         npc.position = data["pos"]
         village.add_child(npc)
 
+func _confine_village_npcs(world_node: Node2D, layout_config: Dictionary) -> void:
+    var village := world_node.get_node_or_null("VillageNPCs") as Node2D
+    if village == null:
+        return
+    var anchors: Dictionary = {}
+    var village_value: Variant = layout_config.get("village", {})
+    if village_value is Dictionary:
+        var village_data: Dictionary = village_value
+        var npc_value: Variant = village_data.get("npcs", [])
+        if npc_value is Array:
+            for raw_npc in npc_value:
+                if not (raw_npc is Dictionary):
+                    continue
+                var npc_data: Dictionary = raw_npc
+                var pos_value: Variant = npc_data.get("pos", {})
+                if pos_value is Dictionary:
+                    var pos_data: Dictionary = pos_value
+                    anchors[str(npc_data.get("id", ""))] = Vector2(
+                        float(pos_data.get("x", 0.0)),
+                        float(pos_data.get("y", 0.0))
+                    )
+    for child in village.get_children():
+        if not (child is QuestNPC):
+            continue
+        var npc: QuestNPC = child as QuestNPC
+        npc.stays_in_village = true
+        var anchor_value: Variant = anchors.get(npc.npc_id, null)
+        if anchor_value is Vector2:
+            npc.set_village_anchor(anchor_value)
+        else:
+            npc.call("_configure_village_bounds")
+
 func _connect_once(sig: Signal, handler: Callable) -> void:
     if not sig.is_connected(handler):
         sig.connect(handler)
 
-func _on_monster_killed(_monster: Node, _position: Vector2) -> void:
-    if quest_system:
-        quest_system.update_quest_progress("kill", "slime", 1)
+func _on_monster_killed(monster: Node, _position: Vector2) -> void:
+    if quest_system == null:
+        return
+    # Generated enemies share the slime controller but carry a variant
+    # identity. Only actual slimes count toward the slime-specific quest.
+    var variant: String = "slime"
+    if monster != null and monster.has_meta("variant"):
+        variant = str(monster.get_meta("variant"))
+    if variant == "slime":
+        quest_system.update_quest_progress("kill", variant, 1)
 
 func _on_item_collected(item_data: Dictionary) -> void:
     if quest_system:

@@ -12,7 +12,7 @@ var time_scale: float = 60.0  # 1 real second = 1 game minute
 var is_night: bool = false
 
 # Player reference
-var player: CharacterBody2D = null
+var player: Player = null
 var village_spawn_point: Vector2 = Vector2(0, 0)
 
 # Waystones
@@ -27,7 +27,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 func _unhandled_input(event: InputEvent) -> void:
-	if current_state == GameState.MAIN_MENU:
+	if current_state == GameState.MAIN_MENU or current_state == GameState.GAME_OVER or current_state == GameState.LOADING:
 		return
 	if event.is_action_pressed("pause"):
 		EventBus.pause_toggled.emit()
@@ -69,14 +69,18 @@ func _update_time(delta: float) -> void:
 func set_state(new_state: GameState) -> void:
 	current_state = new_state
 	match new_state:
+		GameState.MAIN_MENU:
+			get_tree().paused = false
+			is_paused = false
 		GameState.PAUSED:
 			get_tree().paused = true
 			is_paused = true
 		GameState.PLAYING:
 			get_tree().paused = false
 			is_paused = false
-		GameState.GAME_OVER:
+		GameState.GAME_OVER, GameState.LOADING:
 			get_tree().paused = true
+			is_paused = true
 
 func pause_game() -> void:
 	if current_state == GameState.PLAYING:
@@ -91,25 +95,33 @@ func game_over() -> void:
 	EventBus.player_died.emit()
 
 func respawn_player() -> void:
-	if player:
+	if player != null and is_instance_valid(player):
 		player.global_position = village_spawn_point
 		player.respawn()
 	set_state(GameState.PLAYING)
 	EventBus.player_respawned.emit()
 
 func register_waystone(id: String, position: Vector2, display_name: String) -> void:
+	if id.is_empty():
+		return
 	unlocked_waystones[id] = {"position": position, "name": display_name}
 	EventBus.waystone_activated.emit(id)
 
 func fast_travel_to(waystone_id: String) -> void:
-	if waystone_id in unlocked_waystones:
-		var data: Dictionary = unlocked_waystones[waystone_id]
-		if player:
-			player.global_position = data["position"] + Vector2(0, 44)
-			player.velocity = Vector2.ZERO
-			if is_instance_valid(player.camera):
-				player.camera.reset_smoothing()
-		EventBus.fast_travel_requested.emit(waystone_id)
+	if not unlocked_waystones.has(waystone_id):
+		return
+	var data_value: Variant = unlocked_waystones.get(waystone_id, {})
+	if not (data_value is Dictionary):
+		return
+	var data: Dictionary = data_value
+	if player and is_instance_valid(player):
+		var destination_value: Variant = data.get("position", Vector2.ZERO)
+		var destination: Vector2 = destination_value if destination_value is Vector2 else Vector2.ZERO
+		player.global_position = destination + Vector2(0, 44)
+		player.velocity = Vector2.ZERO
+		if is_instance_valid(player.camera):
+			player.camera.reset_smoothing()
+	EventBus.fast_travel_requested.emit(waystone_id)
 
 func get_time_string() -> String:
 	var hour := int(game_time_hours)
@@ -125,15 +137,44 @@ func get_save_data() -> Dictionary:
 	}
 
 func load_save_data(data: Dictionary) -> void:
-	game_time_hours = data.get("game_time_hours", 8.0)
-	day_count = data.get("day_count", 1)
-	var saved: Variant = data.get("unlocked_waystones", [])
-	var ids: Array = saved.keys() if saved is Dictionary else saved
+	var saved_hours: float = float(data.get("game_time_hours", 8.0))
+	game_time_hours = fmod(maxf(saved_hours, 0.0), 24.0)
+	day_count = maxi(1, int(data.get("day_count", 1)))
+
+	var ids: Array[String] = []
+	var saved_waystones: Variant = data.get("unlocked_waystones", [])
+	if saved_waystones is Dictionary:
+		for key in (saved_waystones as Dictionary).keys():
+			var waystone_id := str(key)
+			if not waystone_id.is_empty() and not ids.has(waystone_id):
+				ids.append(waystone_id)
+	elif saved_waystones is Array:
+		for raw_id in saved_waystones:
+			var waystone_id := str(raw_id)
+			if not waystone_id.is_empty() and not ids.has(waystone_id):
+				ids.append(waystone_id)
+
 	unlocked_waystones.clear()
-	for stone: Node in get_tree().get_nodes_in_group("waystones"):
-		stone.is_unlocked = stone.waystone_id == "village" or stone.waystone_id in ids
+	for stone_value in get_tree().get_nodes_in_group("waystones"):
+		if not (stone_value is Waystone):
+			continue
+		var stone: Waystone = stone_value as Waystone
+		stone.is_unlocked = stone.waystone_id == "village" or ids.has(stone.waystone_id)
 		if stone.is_unlocked:
 			register_waystone(stone.waystone_id, stone.global_position, stone.display_name)
-	opened_caches = data.get("opened_caches", []).duplicate()
+
+	opened_caches.clear()
+	var saved_caches: Variant = data.get("opened_caches", [])
+	if saved_caches is Array:
+		for raw_cache_id in saved_caches:
+			var cache_id := str(raw_cache_id)
+			if not cache_id.is_empty() and not opened_caches.has(cache_id):
+				opened_caches.append(cache_id)
 	_last_emit_hour = -1
 	_last_emit_minute = -1
+	var restored_hour: int = int(game_time_hours)
+	var restored_minute: int = int((game_time_hours - restored_hour) * 60.0)
+	is_night = restored_hour >= 20 or restored_hour < 6
+	# Refresh HUD and day/night tint immediately after a continue load.
+	EventBus.time_changed.emit(restored_hour, restored_minute)
+	EventBus.day_night_changed.emit(is_night)

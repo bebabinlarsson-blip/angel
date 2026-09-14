@@ -28,6 +28,16 @@ func _ready() -> void:
 			sprite.modulate = Color(0.9, 1.0, 1.1)
 		add_child(sprite)
 	visual = sprite
+
+	# Minimal/test scenes may omit the authored collider. Keep the interaction
+	# contract intact by creating the same small footprint used by the scene.
+	if collision == null:
+		collision = CollisionShape2D.new()
+		collision.name = "CollisionShape2D"
+		var shape := CircleShape2D.new()
+		shape.radius = 22.0
+		collision.shape = shape
+		add_child(collision)
 	set_process(false)
 
 func _process(delta: float) -> void:
@@ -57,6 +67,27 @@ func interact(_player: CharacterBody2D) -> void:
 		EventBus.show_notification.emit("Mined " + ore_name + " rock!")
 
 func _deplete() -> void:
+	# Award the ore before hiding the node. If the bag is full, leave one hit
+	# remaining so the player can make room and try again without losing loot.
+	var player := GameManager.player
+	if player == null or not is_instance_valid(player) or player.inventory == null:
+		current_hits = maxi(0, max_hits - 1)
+		EventBus.show_notification.emit("Mining unavailable — no inventory found.")
+		return
+
+	var item_data := {
+		"id": ore_type,
+		"name": ore_name,
+		"type": 0, # MATERIAL
+		"quantity": ore_count,
+		"stackable": true,
+		"description": "Raw ore mined from rocks. Used in crafting and cooking."
+	}
+	if not player.inventory.can_add_item(item_data) or not player.inventory.add_item(item_data):
+		current_hits = maxi(0, max_hits - 1)
+		EventBus.show_notification.emit("Inventory full — make room for the ore.")
+		return
+
 	is_depleted = true
 	respawn_timer = respawn_time
 	set_process(true)
@@ -64,19 +95,7 @@ func _deplete() -> void:
 		visual.visible = false
 	if collision:
 		collision.set_deferred("disabled", true)
-	
-	# Give loot to player
-	if GameManager.player and GameManager.player.inventory:
-		var item_data := {
-			"id": ore_type,
-			"name": ore_name,
-			"type": 0, # MATERIAL
-			"quantity": ore_count,
-			"stackable": true,
-			"description": "Raw ore mined from rocks. Used in crafting and cooking."
-		}
-		GameManager.player.inventory.add_item(item_data)
-		EventBus.show_notification.emit("Obtained %s x%d!" % [ore_name, ore_count])
+	EventBus.show_notification.emit("Obtained %s x%d!" % [ore_name, ore_count])
 		
 
 

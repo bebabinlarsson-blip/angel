@@ -1,3 +1,4 @@
+class_name Player
 extends CharacterBody2D
 
 # Movement
@@ -205,7 +206,9 @@ func _update_state(delta: float) -> void:
 
 func _update_animation() -> void:
 	if sword_visual:
-		sword_visual.visible = not inventory.equipped_weapon.is_empty()
+		var has_weapon: bool = not inventory.equipped_weapon.is_empty()
+		sword_visual.visible = has_weapon
+		sword_visual.set_process(has_weapon)
 		sword_visual.swinging = current_state == State.ATTACKING
 		sword_visual.charged = is_charging or attack_is_charged
 		sword_visual.hit_confirmed = attack_hit_confirmed
@@ -402,6 +405,9 @@ func respawn() -> void:
 	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
 	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
 
+func is_dead() -> bool:
+	return current_state == State.DEAD
+
 func set_swimming(swimming: bool) -> void:
 	if is_swimming == swimming:
 		return
@@ -468,10 +474,16 @@ func get_save_data() -> Dictionary:
 
 func load_save_data(data: Dictionary) -> void:
 	stats.load_save_data(data)
-	if data.has("inventory"):
-		inventory.load_save_data(data["inventory"])
-	if data.has("position"):
-		global_position = Vector2(data["position"]["x"], data["position"]["y"])
+	var inventory_value: Variant = data.get("inventory", {})
+	if inventory_value is Dictionary:
+		inventory.load_save_data(inventory_value)
+	var position_value: Variant = data.get("position", {})
+	if position_value is Dictionary:
+		var saved_position: Dictionary = position_value
+		global_position = Vector2(
+			float(saved_position.get("x", global_position.x)),
+			float(saved_position.get("y", global_position.y))
+		)
 	var terrain := get_tree().get_first_node_in_group("island_world") as IslandWorld
 	if terrain:
 		global_position = terrain.clamp_to_playable_area(global_position)

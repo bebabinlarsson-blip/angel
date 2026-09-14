@@ -4,6 +4,21 @@ const SAVE_DIR := "user://saves/"
 const SAVE_FILE := "save_slot_%d.json"
 const MAX_SLOTS := 3
 
+# Scene transitions destroy the menu that requested a continue. Keep the
+# request in this autoload and let the new game scene consume it safely.
+var pending_load_slot: int = -1
+
+func request_load(slot: int = 0) -> void:
+	pending_load_slot = clampi(slot, 0, MAX_SLOTS - 1)
+
+func cancel_pending_load() -> void:
+	pending_load_slot = -1
+
+func consume_pending_load() -> int:
+	var slot: int = pending_load_slot
+	pending_load_slot = -1
+	return slot
+
 func _ready() -> void:
 	var err := DirAccess.make_dir_recursive_absolute(SAVE_DIR)
 	if err != OK:
@@ -20,6 +35,7 @@ func save_game(slot: int = 0) -> bool:
 		"game_manager": GameManager.get_save_data(),
 		"player": _get_player_save_data(),
 		"quests": quest_data,
+		"world": _get_world_save_data(),
 	}
 	
 	var path := SAVE_DIR + SAVE_FILE % slot
@@ -59,12 +75,22 @@ func load_game(slot: int = 0) -> bool:
 		push_error("Save file root is not a dictionary")
 		return false
 	var save_data: Dictionary = json.data
-	GameManager.load_save_data(save_data.get("game_manager", {}))
-	_load_player_save_data(save_data.get("player", {}))
-	
+	var game_manager_value: Variant = save_data.get("game_manager", {})
+	if game_manager_value is Dictionary:
+		GameManager.load_save_data(game_manager_value)
+	var player_value: Variant = save_data.get("player", {})
+	if player_value is Dictionary:
+		_load_player_save_data(player_value)
+
 	var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
-	if quest_system and save_data.has("quests"):
-		quest_system.load_save_data(save_data["quests"])
+	var quest_value: Variant = save_data.get("quests", {})
+	if quest_system and quest_value is Dictionary:
+		quest_system.load_save_data(quest_value)
+
+	var world_director := get_tree().root.find_child("WorldDirector", true, false) as WorldDirector
+	var world_value: Variant = save_data.get("world", {})
+	if world_director and world_value is Dictionary:
+		world_director.load_save_data(world_value)
 	
 	EventBus.game_loaded.emit()
 	EventBus.show_notification.emit("Game loaded!")
@@ -94,21 +120,34 @@ func get_save_info(slot: int = 0) -> Dictionary:
 	var json := JSON.new()
 	var result := json.parse(file.get_as_text())
 	file.close()
-	if result != OK:
+	if result != OK or not (json.data is Dictionary):
 		return {}
 	var data: Dictionary = json.data
+	var manager_value: Variant = data.get("game_manager", {})
+	var day: int = 1
+	if manager_value is Dictionary:
+		day = maxi(1, int((manager_value as Dictionary).get("day_count", 1)))
 	return {
-		"timestamp": data.get("timestamp", "Unknown"),
-		"day": data.get("game_manager", {}).get("day_count", 1),
+		"timestamp": str(data.get("timestamp", "Unknown")),
+		"day": day,
 	}
 
 func _get_player_save_data() -> Dictionary:
 	var player := GameManager.player
-	if player == null:
+	if player == null or not is_instance_valid(player):
 		return {}
 	return player.get_save_data()
 
 func _load_player_save_data(data: Dictionary) -> void:
 	var player := GameManager.player
-	if player:
+	if player != null and is_instance_valid(player):
 		player.load_save_data(data)
+func _get_world_save_data() -> Dictionary:
+	var director := get_tree().root.find_child("WorldDirector", true, false) as WorldDirector
+	if director == null or not is_instance_valid(director) or not director.has_method("get_save_data"):
+		return {}
+	var value: Variant = director.call("get_save_data")
+	if value is Dictionary:
+		return value
+	return {}
+

@@ -1,12 +1,12 @@
 {
   "island_settings": {
-    "scale_multiplier": 3.0,
-    "base_radius": 3000.0,
-    "beach_radius": 3200.0,
-    "water_rim_radius": 3350.0,
-    "ocean_boundary": 350000.0,
-    "expansion_multiplier": 100.0,
-    "village_radius": 500.0
+    "scale_multiplier": 3,
+    "base_radius": 3000,
+    "beach_radius": 3200,
+    "water_rim_radius": 3350,
+    "ocean_boundary": 350000,
+    "expansion_multiplier": 100,
+    "village_radius": 500
   },
   "density_settings": {
     "tree_count": 160,
@@ -29,46 +29,46 @@
   },
   "village": {
     "center": {
-      "x": 0.0,
-      "y": 0.0
+      "x": 0,
+      "y": 0
     },
     "campfire": {
-      "x": 0.0,
-      "y": 0.0
+      "x": 0,
+      "y": 0
     },
-    "tree_ring_radius": 500.0,
-    "tree_ring_count": 0,
+    "tree_ring_radius": 500,
+    "tree_ring_count": 32,
     "houses": [
       {
         "id": "house_elder",
         "name": "Elder's House",
         "pos": {
-          "x": -384.0,
-          "y": -128.0
+          "x": -384,
+          "y": -128
         }
       },
       {
         "id": "house_chef",
         "name": "Chef Maria's Bakery",
         "pos": {
-          "x": 256.0,
-          "y": -128.0
+          "x": 256,
+          "y": -128
         }
       },
       {
         "id": "house_smith",
         "name": "Blacksmith Cottage",
         "pos": {
-          "x": -384.0,
-          "y": 96.0
+          "x": -384,
+          "y": 96
         }
       },
       {
         "id": "house_carpenter",
         "name": "Carpenter Workshop",
         "pos": {
-          "x": 256.0,
-          "y": 96.0
+          "x": 256,
+          "y": 96
         }
       }
     ],
@@ -77,8 +77,8 @@
         "id": "elder",
         "name": "Village Elder",
         "pos": {
-          "x": -288.0,
-          "y": -32.0
+          "x": -288,
+          "y": -32
         },
         "quest_id": "slay_slimes",
         "type": 9
@@ -87,8 +87,8 @@
         "id": "carpenter",
         "name": "Carpenter",
         "pos": {
-          "x": 224.0,
-          "y": 128.0
+          "x": 224,
+          "y": 128
         },
         "quest_id": "gather_wood",
         "type": 10
@@ -97,8 +97,8 @@
         "id": "cook",
         "name": "Chef Maria",
         "pos": {
-          "x": 224.0,
-          "y": -32.0
+          "x": 224,
+          "y": -32
         },
         "quest_id": "first_meal",
         "type": 11
@@ -107,11 +107,43 @@
         "id": "miner",
         "name": "Miner Torvald",
         "pos": {
-          "x": -2048.0,
-          "y": -1856.0
+          "x": -144,
+          "y": -256
         },
         "quest_id": "explore_cave",
         "type": 12
+      }
+    ],
+    "services": [
+      {
+        "id": "village_fountain",
+        "name": "Village Fountain",
+        "type": "fountain",
+        "pos": {
+          "x": -32,
+          "y": -112
+        },
+        "description": "Fresh spring water restores health and stamina."
+      },
+      {
+        "id": "market_stall",
+        "name": "Sunrise Market",
+        "type": "market",
+        "pos": {
+          "x": 112,
+          "y": -192
+        },
+        "description": "Trade spare materials for gold at the village market."
+      },
+      {
+        "id": "blacksmith_forge",
+        "name": "Blacksmith Forge",
+        "type": "blacksmith",
+        "pos": {
+          "x": -256,
+          "y": 96
+        },
+        "description": "A working forge where ore can be traded and swords maintained."
       }
     ]
   },
@@ -120,8 +152,8 @@
       "id": "village",
       "name": "Village Waystone",
       "pos": {
-        "x": 0.0,
-        "y": 192.0
+        "x": 0,
+        "y": 192
       },
       "unlocked": true
     },
@@ -129,8 +161,8 @@
       "id": "cave",
       "name": "Highland Waystone",
       "pos": {
-        "x": -1920.0,
-        "y": -1792.0
+        "x": -1920,
+        "y": -1792
       },
       "unlocked": false
     },
@@ -138,8 +170,8 @@
       "id": "west_cliffs",
       "name": "Sunset Farm Waystone",
       "pos": {
-        "x": -1536.0,
-        "y": 704.0
+        "x": -1536,
+        "y": 704
       },
       "unlocked": false
     },
@@ -147,8 +179,8 @@
       "id": "east_forest",
       "name": "Whispering Woods Waystone",
       "pos": {
-        "x": 1024.0,
-        "y": -1152.0
+        "x": 1024,
+        "y": -1152
       },
       "unlocked": false
     },
@@ -156,8 +188,8 @@
       "id": "ruins",
       "name": "Forgotten Citadel Waystone",
       "pos": {
-        "x": 64.0,
-        "y": 1728.0
+        "x": 64,
+        "y": 1728
       },
       "unlocked": false
     },
@@ -165,8 +197,8 @@
       "id": "lake",
       "name": "Great Lake Waystone",
       "pos": {
-        "x": 1216.0,
-        "y": 448.0
+        "x": 1216,
+        "y": 448
       },
       "unlocked": false
     }
@@ -174,42 +206,104 @@
   "landmarks": {
     "northwest_highlands": {
       "center": {
-        "x": -2080.0,
-        "y": -2240.0
+        "x": -2080,
+        "y": -2240
       },
-      "radius": 500.0,
+      "radius": 500,
       "cave_mouth": {
-        "x": -2176.0,
-        "y": -2368.0
+        "x": -2176,
+        "y": -2368
       }
     },
     "western_farmlands": {
       "center": {
-        "x": -1664.0,
-        "y": 1024.0
+        "x": -1664,
+        "y": 1024
       },
-      "radius": 600.0
+      "radius": 600
     },
     "whispering_woods": {
       "center": {
-        "x": 1984.0,
-        "y": -1760.0
+        "x": 1984,
+        "y": -1760
       },
-      "radius": 700.0
+      "radius": 700
     },
     "serpentine_lake": {
       "center": {
-        "x": 1536.0,
-        "y": 896.0
+        "x": 1536,
+        "y": 896
       },
-      "radius": 600.0
+      "radius": 600
     },
     "forgotten_citadel": {
       "center": {
-        "x": 160.0,
-        "y": 2304.0
+        "x": 160,
+        "y": 2304
       },
-      "radius": 600.0
+      "radius": 600
     }
-  }
+  },
+  "interiors": [
+    {
+      "id": "elder_house",
+      "name": "Elder's House",
+      "kind": "house",
+      "pos": {
+        "x": -384,
+        "y": -128
+      },
+      "description": "A warm room of maps, stories and village records."
+    },
+    {
+      "id": "chef_house",
+      "name": "Chef Maria's Bakery",
+      "kind": "cook",
+      "pos": {
+        "x": 256,
+        "y": -128
+      },
+      "description": "Fresh bread, preserves and the best recipes on the island."
+    },
+    {
+      "id": "smith_cottage",
+      "name": "Blacksmith Cottage",
+      "kind": "smith",
+      "pos": {
+        "x": -384,
+        "y": 96
+      },
+      "description": "A forge where tools are sharpened and repaired."
+    },
+    {
+      "id": "carpenter_workshop",
+      "name": "Carpenter Workshop",
+      "kind": "market",
+      "pos": {
+        "x": 256,
+        "y": 96
+      },
+      "description": "A busy workshop full of timber, plans and spare parts."
+    },
+    {
+      "id": "highland_mine",
+      "name": "Highland Mine",
+      "kind": "mine",
+      "pos": {
+        "x": -2176,
+        "y": -2368
+      },
+      "description": "A harvestable mine with ore veins and old rail tracks."
+    },
+    {
+      "id": "abandoned_church",
+      "name": "Abandoned Church",
+      "kind": "church",
+      "pos": {
+        "x": 160,
+        "y": 2304
+      },
+      "description": "A silent sanctuary overlooking the southern ruins."
+    }
+  ]
 }

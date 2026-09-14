@@ -9,6 +9,7 @@ var cooking_ui_layer: CanvasLayer = null
 var recipe_list: VBoxContainer = null
 var close_btn: Button = null
 var cooking_system: CookingSystem = null
+var cooking_panel: PanelContainer = null
 var visual: CustomDraw2D = null
 
 func _ready() -> void:
@@ -22,18 +23,21 @@ func _ready() -> void:
 		collision.shape = shape
 		add_child(collision)
 
-	var sprite := AnimatedSprite2D.new()
-	sprite.name = "CampfireSprite"
-	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	sprite.sprite_frames = load("res://assets/sprites/world/campfire_frames.tres")
-	sprite.animation = "idle"
-	sprite.play("idle")
-	add_child(sprite)
+	if get_node_or_null("CampfireSprite") == null:
+		var sprite := AnimatedSprite2D.new()
+		sprite.name = "CampfireSprite"
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite.sprite_frames = load("res://assets/sprites/world/campfire_frames.tres")
+		sprite.animation = "idle"
+		sprite.play("idle")
+		add_child(sprite)
 	
 	if not has_node("Embers"):
 		VFX.campfire_embers(self)
 	
 	_create_cooking_ui()
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	
 	if has_node("InteractionLabel"):
 		interaction_label = get_node("InteractionLabel") as Label
@@ -115,11 +119,16 @@ func _create_cooking_ui() -> void:
 	margin.add_child(vbox)
 	panel.add_child(margin)
 	center.add_child(panel)
+	cooking_panel = panel
 	
 	add_child(cooking_ui_layer)
 	cooking_ui_layer.visible = false
 
-func interact(player: CharacterBody2D) -> void:
+func _on_viewport_resized() -> void:
+	if cooking_panel:
+		UITheme.fit_modal(cooking_panel, Vector2(520.0, 440.0))
+
+func interact(player: Player) -> void:
 	cooking_system = get_tree().root.find_child("CookingSystem", true, false) as CookingSystem
 	if cooking_system == null:
 		EventBus.show_notification.emit("No cooking system found!")
@@ -135,10 +144,10 @@ func interact(player: CharacterBody2D) -> void:
 		_hide_overlay("QuestMenu")
 		_hide_overlay("PauseMenu")
 		cooking_ui_layer.visible = true
+		_on_viewport_resized()
 		_refresh_recipes(player)
 		# Pause combat while the player chooses a recipe.
-		get_tree().paused = true
-		GameManager.is_paused = true
+		GameManager.set_state(GameManager.GameState.PAUSED)
 		var panel := cooking_ui_layer.get_node_or_null("Root/Center/Panel")
 		# Fallback: animate the whole layer's first panel if path differs.
 		if panel == null:
@@ -157,7 +166,7 @@ func _find_panel(node: Node) -> Control:
 			return found
 	return null
 
-func _refresh_recipes(player: CharacterBody2D) -> void:
+func _refresh_recipes(player: Player) -> void:
 	if recipe_list == null or cooking_system == null:
 		return
 	
@@ -176,7 +185,8 @@ func _refresh_recipes(player: CharacterBody2D) -> void:
 				ingredients_text += ", "
 			var has_qty: int = player.inventory.get_item_count(item_id)
 			var req_qty: int = recipe["ingredients"][item_id]
-			ingredients_text += "%s (%d/%d)" % [item_id, has_qty, req_qty]
+			var ingredient_name: String = item_id.replace("_", " ").capitalize()
+			ingredients_text += "%s (%d/%d)" % [ingredient_name, has_qty, req_qty]
 
 		var result_data: Dictionary = recipe.get("result", {})
 		var icon := ITEM_ICON_SCRIPT.new() as Control
@@ -224,7 +234,7 @@ func _recipe_effect_text(result: Dictionary) -> String:
 	return effect_text
 
 
-func _on_cook(recipe_id: String, player: CharacterBody2D) -> void:
+func _on_cook(recipe_id: String, player: Player) -> void:
 	if cooking_system:
 		cooking_system.cook(recipe_id, player.inventory)
 		_refresh_recipes(player)
@@ -232,9 +242,8 @@ func _on_cook(recipe_id: String, player: CharacterBody2D) -> void:
 func _close_cooking() -> void:
 	if cooking_ui_layer:
 		cooking_ui_layer.visible = false
-		if GameManager.current_state == GameManager.GameState.PLAYING and not _has_other_overlay():
-			get_tree().paused = false
-			GameManager.is_paused = false
+		if GameManager.current_state != GameManager.GameState.GAME_OVER and not _has_other_overlay():
+			GameManager.set_state(GameManager.GameState.PLAYING)
 
 func _hide_overlay(node_name: String) -> void:
 	var overlay := get_tree().root.find_child(node_name, true, false)
