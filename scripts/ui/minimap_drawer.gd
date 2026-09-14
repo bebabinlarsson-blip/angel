@@ -161,7 +161,10 @@ func _clamp_offset() -> void:
 func _open_big_map() -> void:
     var hud := get_tree().root.find_child("HUD", true, false)
     if hud and hud.has_method("set_map_open"):
-        hud.set_map_open(true)
+        # Defer the visibility/pause change until the GUI event has finished.
+        # This avoids re-entering the draw tree while the minimap is handling
+        # the click that opened it.
+        hud.call_deferred("set_map_open", true)
 
 func _on_gui_input(event: InputEvent) -> void:
     if event is InputEventMouseButton:
