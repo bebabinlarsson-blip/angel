@@ -164,14 +164,39 @@ func set_map_open(open: bool) -> void:
 	# map toggle harmless until its panel has been created.
 	if big_map == null:
 		return
-	big_map.visible = open
-	get_tree().paused = open
-	if interaction_hint:
-		interaction_hint.visible = false
-	if notification_label:
-		notification_label.visible = false
-	if open and is_instance_valid(big_draw_node):
-		big_draw_node.grab_focus()
+	if open:
+		# Keep one modal at a time. Hidden menus are not toggled through their
+		# public handlers here, so opening the map cannot accidentally unpause
+		# the world halfway through a transition.
+		_hide_overlay("InventoryUI")
+		_hide_overlay("QuestMenu")
+		_hide_overlay("PauseMenu")
+		big_map.visible = true
+		get_tree().paused = true
+		GameManager.is_paused = true
+		if interaction_hint:
+			interaction_hint.visible = false
+		if notification_label:
+			notification_label.visible = false
+		if is_instance_valid(big_draw_node):
+			big_draw_node.grab_focus()
+	else:
+		big_map.visible = false
+		if GameManager.current_state != GameManager.GameState.GAME_OVER and not _has_visible_overlay():
+			get_tree().paused = false
+			GameManager.is_paused = false
+
+func _hide_overlay(node_name: String) -> void:
+	var overlay := get_tree().root.find_child(node_name, true, false)
+	if overlay is Control:
+		(overlay as Control).visible = false
+
+func _has_visible_overlay() -> bool:
+	for node_name: String in ["InventoryUI", "QuestMenu", "PauseMenu"]:
+		var overlay := get_tree().root.find_child(node_name, true, false)
+		if overlay is Control and (overlay as Control).visible:
+			return true
+	return false
 
 func _input(event: InputEvent) -> void:
 	if big_map == null:

@@ -120,8 +120,18 @@ func _process(delta: float) -> void:
             queue_redraw()
 
 func _on_body_entered(body: Node2D) -> void:
-    if body.has_method("get_save_data") and "inventory" in body:
-        _give_to_player(body as CharacterBody2D)
+    var player := _player_from_body(body)
+    if player != null:
+        _give_to_player(player)
+
+func _player_from_body(body: Node) -> CharacterBody2D:
+    var player := body as CharacterBody2D
+    if player == null or not player.has_method("get_save_data"):
+        return null
+    var inventory_value: Variant = player.get("inventory")
+    if inventory_value is PlayerInventory:
+        return player
+    return null
 
 func interact(player: CharacterBody2D) -> void:
     if player and not is_collected:
