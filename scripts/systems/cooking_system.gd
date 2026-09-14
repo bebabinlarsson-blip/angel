@@ -159,6 +159,78 @@ func _init_recipes() -> void:
 				"quantity": 1,
 			},
 		},
+		"garden_soup": {
+			"id": "garden_soup",
+			"name": "Garden Soup",
+			"ingredients": {"tomato": 1, "carrot": 1, "herb": 1},
+			"result": {
+				"id": "garden_soup",
+				"name": "Garden Soup",
+				"type": 3, # DISH
+				"heal": 40.0,
+				"stamina_restore": 15.0,
+				"buff_name": "Steady Hands",
+				"buff_defense": 3.0,
+				"buff_duration": 60.0,
+				"description": "A fresh village soup that grants +3 defense for 60 seconds.",
+				"stackable": true,
+				"quantity": 1,
+			},
+		},
+		"fruit_punch": {
+			"id": "fruit_punch",
+			"name": "Fruit Punch",
+			"ingredients": {"apple": 1, "orange": 1, "berry": 1},
+			"result": {
+				"id": "fruit_punch",
+				"name": "Fruit Punch",
+				"type": 3, # DISH
+				"heal": 18.0,
+				"stamina_restore": 50.0,
+				"buff_name": "Bright Spirit",
+				"buff_stamina_regen": 8.0,
+				"buff_duration": 60.0,
+				"description": "Bright island fruit restores stamina and grants +8 stamina regeneration.",
+				"stackable": true,
+				"quantity": 1,
+			},
+		},
+		"root_roast": {
+			"id": "root_roast",
+			"name": "Root Roast",
+			"ingredients": {"carrot": 2, "wheat": 1, "mushroom": 1},
+			"result": {
+				"id": "root_roast",
+				"name": "Root Roast",
+				"type": 3, # DISH
+				"heal": 55.0,
+				"stamina_restore": 10.0,
+				"buff_name": "Rooted Resolve",
+				"buff_defense": 8.0,
+				"buff_duration": 75.0,
+				"description": "Roasted roots grant +8 defense for 75 seconds.",
+				"stackable": true,
+				"quantity": 1,
+			},
+		},
+		"lavender_tea": {
+			"id": "lavender_tea",
+			"name": "Lavender Tea",
+			"ingredients": {"lavender": 1, "mint": 1, "flower": 1},
+			"result": {
+				"id": "lavender_tea",
+				"name": "Lavender Tea",
+				"type": 3, # DISH
+				"heal": 12.0,
+				"stamina_restore": 35.0,
+				"buff_name": "Calm Focus",
+				"buff_attack": 4.0,
+				"buff_duration": 90.0,
+				"description": "Fragrant tea sharpens attacks by +4 for 90 seconds.",
+				"stackable": true,
+				"quantity": 1,
+			},
+		},
 	}
 
 func can_cook(recipe_id: String, inventory: PlayerInventory) -> bool:
