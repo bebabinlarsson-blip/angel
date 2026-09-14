@@ -128,7 +128,7 @@ func _on_viewport_resized() -> void:
 	if cooking_panel:
 		UITheme.fit_modal(cooking_panel, Vector2(520.0, 440.0))
 
-func interact(player: CharacterBody2D) -> void:
+func interact(player: Player) -> void:
 	cooking_system = get_tree().root.find_child("CookingSystem", true, false) as CookingSystem
 	if cooking_system == null:
 		EventBus.show_notification.emit("No cooking system found!")
@@ -166,7 +166,7 @@ func _find_panel(node: Node) -> Control:
 			return found
 	return null
 
-func _refresh_recipes(player: CharacterBody2D) -> void:
+func _refresh_recipes(player: Player) -> void:
 	if recipe_list == null or cooking_system == null:
 		return
 	
@@ -234,7 +234,7 @@ func _recipe_effect_text(result: Dictionary) -> String:
 	return effect_text
 
 
-func _on_cook(recipe_id: String, player: CharacterBody2D) -> void:
+func _on_cook(recipe_id: String, player: Player) -> void:
 	if cooking_system:
 		cooking_system.cook(recipe_id, player.inventory)
 		_refresh_recipes(player)
