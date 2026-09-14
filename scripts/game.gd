@@ -158,34 +158,34 @@ func _spawn_additional_villagers(world_node: Node2D) -> void:
 func _confine_village_npcs(world_node: Node2D, layout_config: Dictionary) -> void:
     var village := world_node.get_node_or_null("VillageNPCs") as Node2D
     if village == null:
-    	return
+        return
     var anchors: Dictionary = {}
     var village_value: Variant = layout_config.get("village", {})
     if village_value is Dictionary:
-    	var village_data: Dictionary = village_value
-    	var npc_value: Variant = village_data.get("npcs", [])
-    	if npc_value is Array:
-    		for raw_npc in npc_value:
-    			if not (raw_npc is Dictionary):
-    				continue
-    			var npc_data: Dictionary = raw_npc
-    			var pos_value: Variant = npc_data.get("pos", {})
-    			if pos_value is Dictionary:
-    				var pos_data: Dictionary = pos_value
-    				anchors[str(npc_data.get("id", ""))] = Vector2(
-    					float(pos_data.get("x", 0.0)),
-    					float(pos_data.get("y", 0.0))
-    				)
+        var village_data: Dictionary = village_value
+        var npc_value: Variant = village_data.get("npcs", [])
+        if npc_value is Array:
+            for raw_npc in npc_value:
+                if not (raw_npc is Dictionary):
+                    continue
+                var npc_data: Dictionary = raw_npc
+                var pos_value: Variant = npc_data.get("pos", {})
+                if pos_value is Dictionary:
+                    var pos_data: Dictionary = pos_value
+                    anchors[str(npc_data.get("id", ""))] = Vector2(
+                        float(pos_data.get("x", 0.0)),
+                        float(pos_data.get("y", 0.0))
+                    )
     for child in village.get_children():
-    	if not (child is QuestNPC):
-    		continue
-    	var npc: QuestNPC = child as QuestNPC
-    	npc.stays_in_village = true
-    	var anchor_value: Variant = anchors.get(npc.npc_id, null)
-    	if anchor_value is Vector2:
-    		npc.set_village_anchor(anchor_value)
-    	else:
-    		npc.call("_configure_village_bounds")
+        if not (child is QuestNPC):
+            continue
+        var npc: QuestNPC = child as QuestNPC
+        npc.stays_in_village = true
+        var anchor_value: Variant = anchors.get(npc.npc_id, null)
+        if anchor_value is Vector2:
+            npc.set_village_anchor(anchor_value)
+        else:
+            npc.call("_configure_village_bounds")
 
 func _connect_once(sig: Signal, handler: Callable) -> void:
     if not sig.is_connected(handler):
