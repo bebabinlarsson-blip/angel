@@ -678,6 +678,10 @@ func _apply_save_data(data: Dictionary) -> void:
             if not defeated and enemy_node is BaseMonster and saved_hp > 0.0:
                 var active_enemy: BaseMonster = enemy_node as BaseMonster
                 active_enemy.current_hp = clampf(saved_hp, 1.0, active_enemy.base_hp)
+                active_enemy.current_state = BaseMonster.State.IDLE
+                active_enemy.velocity = Vector2.ZERO
+                active_enemy.attack_timer = 0.0
+                active_enemy.attack_windup = 0.0
                 if active_enemy.health_bar:
                     active_enemy.health_bar.value = active_enemy.current_hp
             if defeated and enemy_node != null:
