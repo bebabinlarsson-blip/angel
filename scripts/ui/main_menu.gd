@@ -12,6 +12,7 @@ var controls_panel: Control = null
 var _transitioning: bool = false
 
 func _ready() -> void:
+	GameManager.set_state(GameManager.GameState.MAIN_MENU)
 	_ensure_audio_manager()
 	if new_game_btn:
 		new_game_btn.pressed.connect(_on_new_game)
@@ -233,6 +234,8 @@ func _on_continue() -> void:
 	GameManager.set_state(GameManager.GameState.PLAYING)
 	var result := get_tree().change_scene_to_file("res://scenes/game.tscn")
 	if result != OK:
+		_transitioning = false
+		_set_transition_buttons_disabled(false)
 		push_error("Angel: could not open the saved game (%s)." % error_string(result))
 		return
 	# Wait for SceneTree.scene_changed instead of finding any Player node
