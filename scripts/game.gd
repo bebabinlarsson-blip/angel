@@ -262,9 +262,16 @@ func _connect_once(sig: Signal, handler: Callable) -> void:
     if not sig.is_connected(handler):
         sig.connect(handler)
 
-func _on_monster_killed(_monster: Node, _position: Vector2) -> void:
-    if quest_system:
-        quest_system.update_quest_progress("kill", "slime", 1)
+func _on_monster_killed(monster: Node, _position: Vector2) -> void:
+    if quest_system == null:
+        return
+    # Generated enemies share the slime controller but carry a variant
+    # identity. Only actual slimes count toward the slime-specific quest.
+    var variant: String = "slime"
+    if monster != null and monster.has_meta("variant"):
+        variant = str(monster.get_meta("variant"))
+    if variant == "slime":
+        quest_system.update_quest_progress("kill", variant, 1)
 
 func _on_item_collected(item_data: Dictionary) -> void:
     if quest_system:
