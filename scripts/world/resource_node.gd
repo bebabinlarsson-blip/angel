@@ -10,6 +10,7 @@ extends Area2D
 @export var quantity: int = 1
 @export var item_type: int = 0
 @export var respawn_time: float = 75.0
+@export var pickup_radius: float = 52.0
 
 var is_collected: bool = false
 var respawn_timer: float = 0.0
@@ -36,6 +37,12 @@ func _process(delta: float) -> void:
 		if respawn_timer <= 0.0:
 			_respawn()
 		return
+	var player := GameManager.player
+	if player and is_instance_valid(player):
+		if global_position.distance_squared_to(player.global_position) <= pickup_radius * pickup_radius:
+			_give_to_player(player)
+			if is_collected:
+				return
 	bob_time += delta
 	queue_redraw()
 

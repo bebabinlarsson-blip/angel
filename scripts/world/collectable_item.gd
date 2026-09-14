@@ -6,6 +6,7 @@ extends Area2D
 @export var item_type: int = 0 # 0=MATERIAL
 @export var quantity: int = 1
 @export var respawn_time: float = 45.0
+@export var pickup_radius: float = 52.0
 
 var is_collected: bool = false
 var respawn_timer: float = 0.0
@@ -38,13 +39,17 @@ func _ready() -> void:
 				spr.texture = load("res://assets/sprites/items/item_herb.png")
 		add_child(spr)
 		visual = spr
-	set_process(false)
+	set_process(true)
 
 func _process(delta: float) -> void:
 	if is_collected:
 		respawn_timer -= delta
 		if respawn_timer <= 0:
 			_respawn()
+		return
+	var player := GameManager.player
+	if player and is_instance_valid(player) and global_position.distance_squared_to(player.global_position) <= pickup_radius * pickup_radius:
+		_give_to_player(player)
 
 func _on_body_entered(body: Node2D) -> void:
 	if is_collected:
@@ -59,6 +64,8 @@ func interact(player: CharacterBody2D) -> void:
 		_give_to_player(player)
 
 func _give_to_player(player: CharacterBody2D) -> void:
+	if player == null or player.inventory == null or is_collected:
+		return
 	var item_data := {
 		"id": item_id,
 		"name": item_name,
@@ -85,7 +92,7 @@ func _collect() -> void:
 
 func _respawn() -> void:
 	is_collected = false
-	set_process(false)
+	set_process(true)
 	if visual:
 		visual.visible = true
 	if collision:
