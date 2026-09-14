@@ -126,12 +126,12 @@ func _spawn_additional_villagers(world_node: Node2D) -> void:
     if village == null:
         return
     var villagers := [
-        {"id": "farmer", "name": "Anika the Farmer", "job": "farmer", "pos": Vector2(-448, 224), "greeting": "The fields feed everyone in Angel Village."},
-        {"id": "guard", "name": "Rook the Gatekeeper", "job": "guard", "pos": Vector2(448, 160), "greeting": "Keep your eyes open beyond the village markers."},
-        {"id": "merchant", "name": "Lio the Trader", "job": "merchant", "pos": Vector2(416, -96), "greeting": "I buy rare finds and sell stories from distant shores."},
-        {"id": "fisher", "name": "Mira the Fisher", "job": "fisher", "pos": Vector2(384, 416), "greeting": "The lake has been generous this morning."},
-        {"id": "herbalist", "name": "Elin the Herbalist", "job": "herbalist", "pos": Vector2(-416, 256), "greeting": "The island grows medicine for those who know where to look."},
-        {"id": "builder", "name": "Oskar the Builder", "job": "builder", "pos": Vector2(352, 224), "greeting": "There is always another roof, fence or bridge to repair."}
+        {"id": "farmer", "name": "Anika the Farmer", "job": "farmer", "pos": Vector2(-380, 160), "greeting": "The fields feed everyone in Angel Village."},
+        {"id": "guard", "name": "Rook the Gatekeeper", "job": "guard", "pos": Vector2(400, 80), "greeting": "Keep your eyes open beyond the village markers."},
+        {"id": "merchant", "name": "Lio the Trader", "job": "merchant", "pos": Vector2(360, -144), "greeting": "I buy rare finds and sell stories from distant shores."},
+        {"id": "fisher", "name": "Mira the Fisher", "job": "fisher", "pos": Vector2(320, 300), "greeting": "The lake has been generous this morning."},
+        {"id": "herbalist", "name": "Elin the Herbalist", "job": "herbalist", "pos": Vector2(-360, 240), "greeting": "The island grows medicine for those who know where to look."},
+        {"id": "builder", "name": "Oskar the Builder", "job": "builder", "pos": Vector2(320, 160), "greeting": "There is always another roof, fence or bridge to repair."}
     ]
     for data: Dictionary in villagers:
         var node_name := "NPC_" + str(data["id"]).capitalize()
@@ -144,6 +144,7 @@ func _spawn_additional_villagers(world_node: Node2D) -> void:
         npc.npc_id = str(data["id"])
         npc.npc_name = str(data["name"])
         npc.job = str(data["job"])
+        npc.stays_in_village = true
         npc.greeting_text = str(data["greeting"])
         npc.position = data["pos"]
         village.add_child(npc)

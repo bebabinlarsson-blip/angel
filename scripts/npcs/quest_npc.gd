@@ -1,6 +1,8 @@
 class_name QuestNPC
 extends StaticBody2D
 
+const NPC_PORTRAIT_SCRIPT = preload("res://scripts/ui/npc_portrait.gd")
+
 @export var npc_name: String = "Villager"
 @export var npc_id: String = "villager"
 @export var quest_id: String = ""
@@ -13,6 +15,8 @@ extends StaticBody2D
 @export var dialogue_lines: Array[String] = []
 @export var work_position: Vector2 = Vector2.ZERO
 @export var work_speed: float = 42.0
+@export var stays_in_village: bool = true
+@export var village_boundary_margin: float = 26.0
 
 var name_label: Label = null
 var dialogue_panel: PanelContainer = null
@@ -41,6 +45,9 @@ var interaction_count: int = 0
 var velocity: Vector2 = Vector2.ZERO
 var activity_label: Label = null
 var work_cycle_index: int = 0
+var village_center: Vector2 = Vector2.ZERO
+var village_radius: float = 500.0
+var _village_bounds_ready: bool = false
 
 func _ready() -> void:
 	add_to_group("npcs")
@@ -49,6 +56,7 @@ func _ready() -> void:
 	home_position = global_position
 	if work_position == Vector2.ZERO:
 		work_position = home_position + _default_work_offset()
+	call_deferred("_configure_village_bounds")
 	
 	if has_node("NameLabel"):
 		name_label = get_node("NameLabel") as Label
@@ -69,6 +77,31 @@ func _ready() -> void:
 	worker_tool.z_index = 6
 	worker_tool.visible = false
 	add_child(worker_tool)
+
+func _configure_village_bounds() -> void:
+	if not stays_in_village:
+		_village_bounds_ready = true
+		return
+	var terrain: IslandWorld = get_tree().get_first_node_in_group("island_world") as IslandWorld
+	if terrain != null:
+		village_center = terrain.village_center
+		village_radius = terrain.village_radius
+	global_position = _clamp_to_village(global_position)
+	home_position = _clamp_to_village(home_position)
+	work_position = _clamp_to_village(work_position)
+	schedule_destination = _clamp_to_village(schedule_destination)
+	_village_bounds_ready = true
+
+func _clamp_to_village(position: Vector2) -> Vector2:
+	if not stays_in_village:
+		return position
+	var offset: Vector2 = position - village_center
+	var allowed_radius: float = maxf(32.0, village_radius - village_boundary_margin)
+	if offset.length_squared() <= allowed_radius * allowed_radius:
+		return position
+	if offset.length_squared() <= 0.001:
+		return village_center
+	return village_center + offset.normalized() * allowed_radius
 
 func _job_from_npc_id() -> String:
 	match npc_id:
@@ -157,6 +190,23 @@ func _create_dialogue_ui() -> void:
 		portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		port_frame.add_child(portrait)
 		content_row.add_child(port_frame)
+	else:
+		var generated_frame := PanelContainer.new()
+		var generated_style := StyleBoxFlat.new()
+		generated_style.bg_color = Color(0.12, 0.15, 0.22, 1.0)
+		generated_style.border_color = Color(0.95, 0.75, 0.35, 0.8)
+		generated_style.set_border_width_all(2)
+		generated_style.set_corner_radius_all(6)
+		generated_frame.add_theme_stylebox_override("panel", generated_style)
+
+		var generated_portrait := NPC_PORTRAIT_SCRIPT.new() as Control
+		generated_portrait.set("npc_id", portrait_id)
+		generated_portrait.set("job", job)
+		generated_portrait.custom_minimum_size = Vector2(76, 76)
+		generated_portrait.size = Vector2(76, 76)
+		generated_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		generated_frame.add_child(generated_portrait)
+		content_row.add_child(generated_frame)
 
 	dialogue_label = RichTextLabel.new()
 	dialogue_label.name = "DialogueLabel"
@@ -232,6 +282,8 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
+	if stays_in_village and not _village_bounds_ready:
+		_configure_village_bounds()
 	if sprite == null:
 		sprite = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 		if sprite == null:
@@ -314,6 +366,12 @@ func _run_daily_routine(delta: float) -> void:
 		is_working = false
 		return
 
+	if stays_in_village:
+		global_position = _clamp_to_village(global_position)
+		home_position = _clamp_to_village(home_position)
+		work_position = _clamp_to_village(work_position)
+		schedule_destination = _clamp_to_village(schedule_destination)
+
 	var hour := GameManager.game_time_hours
 	var new_phase := "sleep" if hour < 6.0 or hour >= 22.0 else ("work" if hour >= 8.0 and hour < 17.0 else "social")
 	if new_phase != routine_phase:
@@ -322,13 +380,13 @@ func _run_daily_routine(delta: float) -> void:
 		work_cycle_index = 0
 		match routine_phase:
 			"sleep":
-				schedule_destination = home_position
+				schedule_destination = _clamp_to_village(home_position)
 				activity = "Sleeping"
 			"work":
-				schedule_destination = work_position
+				schedule_destination = _clamp_to_village(work_position)
 				activity = _job_activity()
 			"social":
-				schedule_destination = home_position.lerp(Vector2.ZERO, 0.72)
+				schedule_destination = _clamp_to_village(home_position.lerp(village_center, 0.72))
 				activity = "At the village square"
 
 	routine_clock += delta
@@ -336,7 +394,7 @@ func _run_daily_routine(delta: float) -> void:
 		var travel := (schedule_destination - global_position).normalized()
 		velocity = travel * work_speed
 		is_working = false
-		global_position += velocity * delta
+		global_position = _clamp_to_village(global_position + velocity * delta)
 		return
 
 	velocity = Vector2.ZERO
@@ -344,7 +402,7 @@ func _run_daily_routine(delta: float) -> void:
 	if is_working and routine_clock >= 4.5:
 		routine_clock = 0.0
 		work_cycle_index += 1
-		schedule_destination = work_position + _work_offset_for_cycle(work_cycle_index)
+		schedule_destination = _clamp_to_village(work_position + _work_offset_for_cycle(work_cycle_index))
 		is_working = false
 
 func _work_offset_for_cycle(cycle: int) -> Vector2:
