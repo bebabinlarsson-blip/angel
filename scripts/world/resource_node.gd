@@ -17,6 +17,7 @@ var is_collected: bool = false
 var respawn_timer: float = 0.0
 var bob_time: float = 0.0
 var redraw_timer: float = 0.0
+var proximity_timer: float = 0.0
 var near_player: bool = false
 var collision: CollisionShape2D = null
 var pickup_label: Label = null
@@ -34,19 +35,41 @@ func _ready() -> void:
         collision.shape = shape
         add_child(collision)
 
+    # Labels are created only while the player is close enough to read them.
+    # Keeping dormant resources as lightweight Area2Ds removes hundreds of
+    # idle Control nodes without changing the pickup experience.
+
+    queue_redraw()
+
+func _ensure_pickup_label() -> void:
+    if pickup_label != null:
+        return
     pickup_label = Label.new()
     pickup_label.name = "PickupLabel"
     pickup_label.custom_minimum_size = Vector2(144, 24)
     pickup_label.position = Vector2(-72, -54)
     pickup_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     pickup_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    pickup_label.visible = false
+    pickup_label.visible = true
     pickup_label.add_theme_color_override("font_color", Color("#f8e6a1"))
     pickup_label.add_theme_color_override("font_outline_color", Color(0.02, 0.04, 0.06, 0.95))
     pickup_label.add_theme_constant_override("outline_size", 4)
     pickup_label.add_theme_font_size_override("font_size", 12)
+    pickup_label.text = "%s  x%d" % [item_name, quantity]
     add_child(pickup_label)
-    queue_redraw()
+
+func _is_visible_to_camera() -> bool:
+    var camera := get_viewport().get_camera_2d()
+    if camera == null or not is_instance_valid(camera):
+        return true
+    var zoom := camera.zoom
+    var half_size := get_viewport_rect().size * 0.5
+    half_size = Vector2(
+        half_size.x / maxf(zoom.x, 0.01),
+        half_size.y / maxf(zoom.y, 0.01)
+    )
+    var camera_rect := Rect2(camera.global_position - half_size, half_size * 2.0)
+    return camera_rect.grow(160.0).has_point(global_position)
 
 func _process(delta: float) -> void:
     if is_collected:
@@ -57,24 +80,35 @@ func _process(delta: float) -> void:
             _respawn()
         return
 
-    var player := GameManager.player
-    var was_near := near_player
-    near_player = false
-    if player and is_instance_valid(player):
-        var distance_sq := global_position.distance_squared_to(player.global_position)
-        near_player = distance_sq <= pickup_hint_radius * pickup_hint_radius
-        if distance_sq <= pickup_radius * pickup_radius:
-            _give_to_player(player)
+    # Collision signals handle the instant pickup case. This slower fallback
+    # keeps auto-pickup reliable even if a physics frame is skipped.
+    proximity_timer -= delta
+    if proximity_timer <= 0.0:
+        proximity_timer = 0.08
+        var player := GameManager.player
+        var was_near := near_player
+        near_player = false
+        if player and is_instance_valid(player):
+            var distance_sq := global_position.distance_squared_to(player.global_position)
+            near_player = distance_sq <= pickup_hint_radius * pickup_hint_radius
+            if distance_sq <= pickup_radius * pickup_radius:
+                _give_to_player(player)
 
-    if pickup_label:
-        pickup_label.visible = near_player and not is_collected
-        pickup_label.text = "%s  x%d" % [item_name, quantity]
+        if near_player:
+            _ensure_pickup_label()
+        if pickup_label:
+            pickup_label.visible = near_player and not is_collected
+        if was_near != near_player:
+            queue_redraw()
 
-    bob_time += delta
-    redraw_timer -= delta
-    if redraw_timer <= 0.0 or was_near != near_player:
-        redraw_timer = 0.08
-        queue_redraw()
+    # Only animate and redraw nodes in/near the camera view. Off-screen
+    # resources remain fully available for pickup and respawn.
+    if near_player or _is_visible_to_camera():
+        bob_time += delta
+        redraw_timer -= delta
+        if redraw_timer <= 0.0:
+            redraw_timer = 0.04
+            queue_redraw()
 
 func _on_body_entered(body: Node2D) -> void:
     if body.has_method("get_save_data") and "inventory" in body:
