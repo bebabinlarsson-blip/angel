@@ -234,10 +234,9 @@ func _refresh_map(water: TileMapLayer = null, farm: TileMapLayer = null) -> void
     # never clipped by the old island-radius shortcut.
     if water:
         for cell: Vector2i in water.get_used_cells():
-            if not land.has(cell):
-                var pixel: Vector2i = _world_to_map_pixel(Vector2(cell) * 32.0 + Vector2(16.0, 16.0), dim_x, dim_y)
-                if pixel.x >= 0 and pixel.y >= 0 and pixel.x < dim_x and pixel.y < dim_y:
-                    img.set_pixelv(pixel, Color("#276b80"))
+            var pixel: Vector2i = _world_to_map_pixel(Vector2(cell) * 32.0 + Vector2(16.0, 16.0), dim_x, dim_y)
+            if pixel.x >= 0 and pixel.y >= 0 and pixel.x < dim_x and pixel.y < dim_y:
+                img.set_pixelv(pixel, Color("#276b80"))
 
     # 3. Farmland plots
     if farm:
