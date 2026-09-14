@@ -62,65 +62,90 @@ func _init_quests() -> void:
 	}
 
 func accept_quest(quest_id: String) -> bool:
-	if quest_id in all_quests and quest_id not in active_quests and quest_id not in completed_quests:
-		active_quests[quest_id] = all_quests[quest_id].duplicate(true)
-		EventBus.quest_accepted.emit(quest_id)
-		EventBus.show_notification.emit("Quest accepted: " + active_quests[quest_id]["title"])
-		return true
-	return false
-
+	if not all_quests.has(quest_id) or active_quests.has(quest_id) or completed_quests.has(quest_id):
+		return false
+	var quest_value: Variant = all_quests.get(quest_id, {})
+	if not (quest_value is Dictionary):
+		return false
+	active_quests[quest_id] = (quest_value as Dictionary).duplicate(true)
+	EventBus.quest_accepted.emit(quest_id)
+	EventBus.show_notification.emit("Quest accepted: " + str(active_quests[quest_id].get("title", "Quest")))
+	return true
 func update_quest_progress(quest_type: String, target: String, amount: int = 1) -> void:
+	if amount <= 0:
+		return
 	for quest_id in active_quests:
-		var quest: Dictionary = active_quests[quest_id]
-		if quest.get("type", "") != quest_type:
+		var quest_value: Variant = active_quests.get(quest_id, {})
+		if not (quest_value is Dictionary):
+			continue
+		var quest: Dictionary = quest_value
+		if str(quest.get("type", "")) != quest_type:
 			continue
 		var q_target: String = str(quest.get("target", ""))
-		# "any_dish" is only a wildcard for cook quests, not collect/kill.
 		var is_wildcard: bool = q_target == "any_dish" and quest_type == "cook"
-		if q_target == target or is_wildcard:
-			quest["current_count"] = mini(quest.get("current_count", 0) + amount, quest.get("target_count", 1))
-			EventBus.quest_updated.emit(quest_id)
-			
-			if quest["current_count"] >= quest["target_count"]:
-				EventBus.show_notification.emit("Quest ready to complete: " + quest["title"])
-
+		if q_target != target and not is_wildcard:
+			continue
+		var target_count: int = maxi(1, int(quest.get("target_count", 1)))
+		var old_count: int = clampi(int(quest.get("current_count", 0)), 0, target_count)
+		var new_count: int = mini(target_count, old_count + amount)
+		quest["current_count"] = new_count
+		EventBus.quest_updated.emit(str(quest_id))
+		if old_count < target_count and new_count >= target_count:
+			EventBus.show_notification.emit("Quest ready to complete: " + str(quest.get("title", "Quest")))
 func try_complete_quest(quest_id: String) -> bool:
-	if quest_id in active_quests:
-		var quest: Dictionary = active_quests[quest_id]
-		if quest["current_count"] >= quest["target_count"]:
-			# Give rewards
-			var rewards: Dictionary = quest.get("rewards", {})
-			if GameManager.player:
-				if rewards.has("money"):
-					GameManager.player.stats.add_money(rewards["money"])
-				if rewards.has("exp"):
-					GameManager.player.stats.add_exp(rewards["exp"])
-			
-			completed_quests[quest_id] = quest
-			active_quests.erase(quest_id)
-			EventBus.quest_completed.emit(quest_id)
-			EventBus.show_notification.emit("Quest completed: " + quest["title"])
-			return true
-	return false
+	if not active_quests.has(quest_id):
+		return false
+	var quest_value: Variant = active_quests.get(quest_id, {})
+	if not (quest_value is Dictionary):
+		return false
+	var quest: Dictionary = quest_value
+	var current_count: int = int(quest.get("current_count", 0))
+	var target_count: int = maxi(1, int(quest.get("target_count", 1)))
+	if current_count < target_count:
+		return false
 
+	var rewards_value: Variant = quest.get("rewards", {})
+	var rewards: Dictionary = rewards_value if rewards_value is Dictionary else {}
+	if GameManager.player and GameManager.player.stats:
+		if rewards.has("money"):
+			GameManager.player.stats.add_money(int(rewards.get("money", 0)))
+		if rewards.has("exp"):
+			GameManager.player.stats.add_exp(int(rewards.get("exp", 0)))
+
+	completed_quests[quest_id] = quest.duplicate(true)
+	active_quests.erase(quest_id)
+	EventBus.quest_completed.emit(quest_id)
+	EventBus.show_notification.emit("Quest completed: " + str(quest.get("title", "Quest")))
+	return true
 func is_quest_active(quest_id: String) -> bool:
-	return quest_id in active_quests
-
+	return active_quests.has(quest_id)
 func is_quest_complete(quest_id: String) -> bool:
-	if quest_id in active_quests:
-		var quest: Dictionary = active_quests[quest_id]
-		return quest["current_count"] >= quest["target_count"]
-	return false
-
+	if not active_quests.has(quest_id):
+		return false
+	var quest_value: Variant = active_quests.get(quest_id, {})
+	if not (quest_value is Dictionary):
+		return false
+	var quest: Dictionary = quest_value
+	return int(quest.get("current_count", 0)) >= maxi(1, int(quest.get("target_count", 1)))
 func is_quest_done(quest_id: String) -> bool:
 	return quest_id in completed_quests
 
 func get_save_data() -> Dictionary:
 	return {
-		"active": active_quests,
-		"completed": completed_quests,
+		"active": active_quests.duplicate(true),
+		"completed": completed_quests.duplicate(true),
 	}
+func _copy_quest_map(value: Variant) -> Dictionary:
+	var result: Dictionary = {}
+	if not (value is Dictionary):
+		return result
+	var source: Dictionary = value
+	for quest_id in source:
+		var quest_value: Variant = source.get(quest_id, {})
+		if quest_value is Dictionary:
+			result[str(quest_id)] = (quest_value as Dictionary).duplicate(true)
+	return result
 
 func load_save_data(data: Dictionary) -> void:
-	active_quests = data.get("active", {})
-	completed_quests = data.get("completed", {})
+	active_quests = _copy_quest_map(data.get("active", {}))
+	completed_quests = _copy_quest_map(data.get("completed", {}))

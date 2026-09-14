@@ -159,6 +159,78 @@ func _init_recipes() -> void:
 				"quantity": 1,
 			},
 		},
+		"garden_soup": {
+			"id": "garden_soup",
+			"name": "Garden Soup",
+			"ingredients": {"tomato": 1, "carrot": 1, "herb": 1},
+			"result": {
+				"id": "garden_soup",
+				"name": "Garden Soup",
+				"type": 3, # DISH
+				"heal": 40.0,
+				"stamina_restore": 15.0,
+				"buff_name": "Steady Hands",
+				"buff_defense": 3.0,
+				"buff_duration": 60.0,
+				"description": "A fresh village soup that grants +3 defense for 60 seconds.",
+				"stackable": true,
+				"quantity": 1,
+			},
+		},
+		"fruit_punch": {
+			"id": "fruit_punch",
+			"name": "Fruit Punch",
+			"ingredients": {"apple": 1, "orange": 1, "berry": 1},
+			"result": {
+				"id": "fruit_punch",
+				"name": "Fruit Punch",
+				"type": 3, # DISH
+				"heal": 18.0,
+				"stamina_restore": 50.0,
+				"buff_name": "Bright Spirit",
+				"buff_stamina_regen": 8.0,
+				"buff_duration": 60.0,
+				"description": "Bright island fruit restores stamina and grants +8 stamina regeneration.",
+				"stackable": true,
+				"quantity": 1,
+			},
+		},
+		"root_roast": {
+			"id": "root_roast",
+			"name": "Root Roast",
+			"ingredients": {"carrot": 2, "wheat": 1, "mushroom": 1},
+			"result": {
+				"id": "root_roast",
+				"name": "Root Roast",
+				"type": 3, # DISH
+				"heal": 55.0,
+				"stamina_restore": 10.0,
+				"buff_name": "Rooted Resolve",
+				"buff_defense": 8.0,
+				"buff_duration": 75.0,
+				"description": "Roasted roots grant +8 defense for 75 seconds.",
+				"stackable": true,
+				"quantity": 1,
+			},
+		},
+		"lavender_tea": {
+			"id": "lavender_tea",
+			"name": "Lavender Tea",
+			"ingredients": {"lavender": 1, "mint": 1, "flower": 1},
+			"result": {
+				"id": "lavender_tea",
+				"name": "Lavender Tea",
+				"type": 3, # DISH
+				"heal": 12.0,
+				"stamina_restore": 35.0,
+				"buff_name": "Calm Focus",
+				"buff_attack": 4.0,
+				"buff_duration": 90.0,
+				"description": "Fragrant tea sharpens attacks by +4 for 90 seconds.",
+				"stackable": true,
+				"quantity": 1,
+			},
+		},
 	}
 
 func can_cook(recipe_id: String, inventory: PlayerInventory) -> bool:
@@ -176,24 +248,53 @@ func cook(recipe_id: String, inventory: PlayerInventory) -> Dictionary:
 		return {}
 
 	var recipe: Dictionary = recipes[recipe_id]
-	var ingredients: Dictionary = recipe["ingredients"]
+	var result_value: Variant = recipe.get("result", {})
+	if not (result_value is Dictionary):
+		return {}
+	var result: Dictionary = (result_value as Dictionary).duplicate(true)
 
-	# Remove ingredients only after every required item has been verified.
-	for item_id in ingredients:
-		inventory.remove_item(item_id, ingredients[item_id])
+	# Check the result slot before consuming anything. This keeps cooking
+	# atomic when the bag is full and the dish is not already stackable.
+	if not inventory.can_add_item(result):
+		EventBus.show_notification.emit("Inventory full — make room before cooking.")
+		return {}
 
-	var result: Dictionary = recipe["result"].duplicate(true)
-	inventory.add_item(result)
+	EventBus.cooking_started.emit(recipe_id)
+	var removed_items: Array[Dictionary] = []
+	var ingredients: Dictionary = recipe.get("ingredients", {})
+	for raw_item_id in ingredients:
+		var item_id: String = str(raw_item_id)
+		var required: int = int(ingredients.get(raw_item_id, 0))
+		if required <= 0:
+			continue
+		if not inventory.remove_item(item_id, required):
+			# This should be unreachable after can_cook(), but preserve the
+			# player's materials if another system changed the bag this frame.
+			for rollback: Dictionary in removed_items:
+				inventory.add_item(rollback, false)
+			return {}
+		removed_items.append({
+			"id": item_id,
+			"name": item_id.replace("_", " ").capitalize(),
+			"type": 0,
+			"quantity": required,
+			"stackable": true
+		})
+
+	if not inventory.add_item(result, false):
+		for rollback: Dictionary in removed_items:
+			inventory.add_item(rollback, false)
+		EventBus.show_notification.emit("Cooking failed — your materials were returned.")
+		return {}
 
 	EventBus.cooking_finished.emit(result)
-	EventBus.show_notification.emit("Cooked: %s!" % result.get("name", "Dish"))
+	EventBus.show_notification.emit("Cooked: %s!" % str(result.get("name", "Dish")))
 
 	var quest_system_node := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
 	if quest_system_node:
-		quest_system_node.update_quest_progress("cook", result.get("id", ""), 1)
+		quest_system_node.update_quest_progress("cook", str(result.get("id", "")), 1)
 
 	return result
-
 func get_available_recipes(inventory: PlayerInventory) -> Array[Dictionary]:
 	var available: Array[Dictionary] = []
 	for recipe_id in recipes:

@@ -128,11 +128,17 @@ func interact(player: CharacterBody2D) -> void:
 	if cooking_ui_layer == null:
 		_create_cooking_ui()
 	
-	cooking_ui_layer.visible = !cooking_ui_layer.visible
-	if cooking_ui_layer.visible:
+	var opening: bool = not cooking_ui_layer.visible
+	if opening:
+		_hide_overlay("BigMap")
+		_hide_overlay("InventoryUI")
+		_hide_overlay("QuestMenu")
+		_hide_overlay("PauseMenu")
+		cooking_ui_layer.visible = true
 		_refresh_recipes(player)
-		# Was: world kept running while cooking (monsters hit you through menu).
+		# Pause combat while the player chooses a recipe.
 		get_tree().paused = true
+		GameManager.is_paused = true
 		var panel := cooking_ui_layer.get_node_or_null("Root/Center/Panel")
 		# Fallback: animate the whole layer's first panel if path differs.
 		if panel == null:
@@ -140,8 +146,7 @@ func interact(player: CharacterBody2D) -> void:
 		if panel is Control:
 			UIAnim.pop_in(panel as Control)
 	else:
-		if GameManager.current_state == GameManager.GameState.PLAYING:
-			get_tree().paused = false
+		_close_cooking()
 
 func _find_panel(node: Node) -> Control:
 	if node is PanelContainer:
@@ -227,8 +232,25 @@ func _on_cook(recipe_id: String, player: CharacterBody2D) -> void:
 func _close_cooking() -> void:
 	if cooking_ui_layer:
 		cooking_ui_layer.visible = false
-		if GameManager.current_state == GameManager.GameState.PLAYING:
+		if GameManager.current_state == GameManager.GameState.PLAYING and not _has_other_overlay():
 			get_tree().paused = false
+			GameManager.is_paused = false
+
+func _hide_overlay(node_name: String) -> void:
+	var overlay := get_tree().root.find_child(node_name, true, false)
+	if overlay is Control:
+		(overlay as Control).visible = false
+	elif overlay is CanvasLayer:
+		(overlay as CanvasLayer).visible = false
+
+func _has_other_overlay() -> bool:
+	for node_name: String in ["BigMap", "InventoryUI", "QuestMenu", "PauseMenu"]:
+		var overlay := get_tree().root.find_child(node_name, true, false)
+		if overlay is Control and (overlay as Control).visible:
+			return true
+		if overlay is CanvasLayer and (overlay as CanvasLayer).visible:
+			return true
+	return false
 
 func _input(event: InputEvent) -> void:
 	if cooking_ui_layer and cooking_ui_layer.visible:

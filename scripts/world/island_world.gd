@@ -256,17 +256,31 @@ func _build_map_texture(target_bounds: Rect2, include_outer_land: bool, water: T
     img.fill(Color("#244853")) # Ocean
 
     if include_outer_land:
-        # Paint the expanded procedural landmass first. The texture stays
-        # capped at 1024px, so the enlarged world remains inexpensive.
+        # Paint the expanded procedural landmass first. Draw one short strip
+        # per row instead of testing one million individual pixels; the
+        # authored layer stamps below still provide the detailed island view.
         for y in range(MAP_SIZE):
-            for x in range(MAP_SIZE):
-                var world_p := Vector2(
-                    (float(x) + 0.5) / float(MAP_SIZE) * target_bounds.size.x + target_bounds.position.x,
-                    (float(y) + 0.5) / float(MAP_SIZE) * target_bounds.size.y + target_bounds.position.y
-                )
-                if world_p.length_squared() <= expanded_radius * expanded_radius:
-                    var biome_wave := sin(world_p.x * 0.00008) + cos(world_p.y * 0.00006)
-                    img.set_pixel(x, y, Color("#6f954d") if biome_wave > -0.4 else Color("#648b4a"))
+            var world_y: float = (float(y) + 0.5) / float(MAP_SIZE) * target_bounds.size.y + target_bounds.position.y
+            var normalized_y: float = world_y / maxf(expanded_radius, 1.0)
+            if absf(normalized_y) > 1.0:
+                continue
+            var half_width: float = sqrt(maxf(0.0, 1.0 - normalized_y * normalized_y)) * expanded_radius
+            var world_left: float = -half_width
+            var world_right: float = half_width
+            var left_x: int = clampi(int(floorf((world_left - target_bounds.position.x) / maxf(target_bounds.size.x, 1.0) * float(MAP_SIZE))), 0, MAP_SIZE - 1)
+            var right_x: int = clampi(int(ceilf((world_right - target_bounds.position.x) / maxf(target_bounds.size.x, 1.0) * float(MAP_SIZE))), 0, MAP_SIZE - 1)
+            if right_x < left_x:
+                continue
+            var segment_width: int = maxi(1, int(ceilf(float(right_x - left_x + 1) / 4.0)))
+            for segment in range(4):
+                var segment_start: int = left_x + segment * segment_width
+                if segment_start > right_x:
+                    break
+                var segment_end: int = mini(right_x, segment_start + segment_width - 1)
+                var sample_x: float = (float(segment_start + segment_end) * 0.5 + 0.5) / float(MAP_SIZE) * target_bounds.size.x + target_bounds.position.x
+                var biome_wave: float = sin(sample_x * 0.00008) + cos(world_y * 0.00006)
+                var biome_color: Color = Color("#6f954d") if biome_wave > -0.4 else Color("#648b4a")
+                img.fill_rect(Rect2i(segment_start, y, segment_end - segment_start + 1, 1), biome_color)
 
     # A tile occupies several pixels in the authored projection, which keeps
     # individual trees, buildings and waterways visible at the default view.
@@ -285,7 +299,8 @@ func _build_map_texture(target_bounds: Rect2, include_outer_land: bool, water: T
             if coords.y >= 8 and coords.y <= 13 and coords.x <= 5:
                 color = Color("#5a5448")
         var world_p := Vector2(cell_pos) * 32.0 + Vector2(16.0, 16.0)
-        _paint_map_cell(img, _world_to_map_pixel(world_p, MAP_SIZE, MAP_SIZE, target_bounds), color, stamp_radius)
+        if target_bounds.grow(32.0).has_point(world_p):
+            _paint_map_cell(img, _world_to_map_pixel(world_p, MAP_SIZE, MAP_SIZE, target_bounds), color, stamp_radius)
 
     # 2. Decorative terrain, then the authored water, farms, paths and bridge.
     # Each layer is painted in the same order used by the world visual.
@@ -307,7 +322,8 @@ func _paint_map_layer(image: Image, layer: TileMapLayer, color: Color, target_bo
             continue
         var cell_pos: Vector2i = cell
         var world_p := Vector2(cell_pos) * 32.0 + Vector2(16.0, 16.0)
-        _paint_map_cell(image, _world_to_map_pixel(world_p, map_size, map_size, target_bounds), color, stamp_radius)
+        if target_bounds.grow(32.0).has_point(world_p):
+            _paint_map_cell(image, _world_to_map_pixel(world_p, map_size, map_size, target_bounds), color, stamp_radius)
 
 func _paint_map_cell(image: Image, pixel: Vector2i, color: Color, stamp_radius: int) -> void:
     for dy in range(-stamp_radius, stamp_radius + 1):

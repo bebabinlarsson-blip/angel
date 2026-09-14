@@ -131,7 +131,11 @@ func _spawn_additional_villagers(world_node: Node2D) -> void:
         {"id": "merchant", "name": "Lio the Trader", "job": "merchant", "pos": Vector2(360, -144), "greeting": "I buy rare finds and sell stories from distant shores."},
         {"id": "fisher", "name": "Mira the Fisher", "job": "fisher", "pos": Vector2(320, 300), "greeting": "The lake has been generous this morning."},
         {"id": "herbalist", "name": "Elin the Herbalist", "job": "herbalist", "pos": Vector2(-360, 240), "greeting": "The island grows medicine for those who know where to look."},
-        {"id": "builder", "name": "Oskar the Builder", "job": "builder", "pos": Vector2(320, 160), "greeting": "There is always another roof, fence or bridge to repair."}
+        {"id": "builder", "name": "Oskar the Builder", "job": "builder", "pos": Vector2(320, 160), "greeting": "There is always another roof, fence or bridge to repair."},
+        {"id": "gardener", "name": "Suri the Gardener", "job": "farmer", "pos": Vector2(-230, 300), "greeting": "Every seed is a promise that tomorrow can be better."},
+        {"id": "watch", "name": "Bram the Watch", "job": "guard", "pos": Vector2(-420, -40), "greeting": "The ring is safe, but the roads beyond it still need watching."},
+        {"id": "trader", "name": "Nia the Trader", "job": "merchant", "pos": Vector2(220, -260), "greeting": "A healthy village is built on fair trades and good timing."},
+        {"id": "apothecary", "name": "Tala the Apothecary", "job": "herbalist", "pos": Vector2(-240, -260), "greeting": "Bring me mint, lavender and flowers; I can turn them into calm."}
     ]
     for data: Dictionary in villagers:
         var node_name := "NPC_" + str(data["id"]).capitalize()

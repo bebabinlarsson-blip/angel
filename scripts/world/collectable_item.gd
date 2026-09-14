@@ -81,10 +81,18 @@ func _process(delta: float) -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if is_collected:
 		return
-	if body.has_method("get_save_data") and "inventory" in body:
-		var player := body as CharacterBody2D
-		if player and player.inventory:
-			_give_to_player(player)
+	var player := _player_from_body(body)
+	if player != null:
+		_give_to_player(player)
+
+func _player_from_body(body: Node) -> CharacterBody2D:
+	var player := body as CharacterBody2D
+	if player == null or not player.has_method("get_save_data"):
+		return null
+	var inventory_value: Variant = player.get("inventory")
+	if inventory_value is PlayerInventory:
+		return player
+	return null
 
 func interact(player: CharacterBody2D) -> void:
 	if not is_collected and player and player.inventory:

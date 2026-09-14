@@ -8,12 +8,12 @@ extends Node2D
 const RESOURCE_SCRIPT = preload("res://scripts/world/resource_node.gd")
 const SLIME_SCENE = preload("res://scenes/monsters/slime.tscn")
 
-@export var starting_resources: int = 110
-@export var starting_enemies: int = 42
-@export var max_resources: int = 260
-@export var max_enemies: int = 100
-@export var remote_resources: int = 30
-@export var remote_enemies: int = 16
+@export var starting_resources: int = 160
+@export var starting_enemies: int = 60
+@export var max_resources: int = 360
+@export var max_enemies: int = 140
+@export var remote_resources: int = 40
+@export var remote_enemies: int = 24
 @export var respawn_interval: float = 2.5
 @export var local_resource_target: int = 22
 @export var local_enemy_target: int = 10
@@ -22,9 +22,9 @@ const SLIME_SCENE = preload("res://scenes/monsters/slime.tscn")
 # Dynamic content is kept as compact records. Scene nodes exist only in the
 # camera neighborhood, which prevents the expanded island from creating a
 # frame-rate cost proportional to the full map size.
-@export var stream_load_radius: float = 1700.0
-@export var stream_unload_radius: float = 2350.0
-@export var stream_padding: float = 520.0
+@export var stream_load_radius: float = 720.0
+@export var stream_unload_radius: float = 1120.0
+@export var stream_padding: float = 260.0
 @export var stream_update_interval: float = 0.35
 @export var enemy_respawn_time: float = 45.0
 
@@ -38,6 +38,7 @@ var initialized: bool = false
 var occupied_positions: Array[Vector2] = []
 var resource_records: Array[Dictionary] = []
 var enemy_records: Array[Dictionary] = []
+var authored_stream_records: Array[Dictionary] = []
 
 const RESOURCE_CATALOG: Array[Dictionary] = [
     {"id": "wood", "name": "Wood", "weight": 20.0, "min": 1, "max": 3, "type": 0},
@@ -53,6 +54,14 @@ const RESOURCE_CATALOG: Array[Dictionary] = [
     {"id": "pear", "name": "Pear", "weight": 4.0, "min": 1, "max": 2, "type": 0},
     {"id": "banana", "name": "Banana", "weight": 3.0, "min": 1, "max": 2, "type": 0},
     {"id": "grapes", "name": "Grapes", "weight": 4.0, "min": 1, "max": 2, "type": 0},
+    {"id": "tomato", "name": "Tomato", "weight": 5.0, "min": 1, "max": 3, "type": 0},
+    {"id": "carrot", "name": "Carrot", "weight": 4.5, "min": 1, "max": 3, "type": 0},
+    {"id": "coconut", "name": "Coconut", "weight": 2.5, "min": 1, "max": 2, "type": 0},
+    {"id": "watermelon", "name": "Watermelon", "weight": 2.0, "min": 1, "max": 1, "type": 0},
+    {"id": "wheat", "name": "Wheat", "weight": 3.5, "min": 1, "max": 3, "type": 0},
+    {"id": "mint", "name": "Mint", "weight": 4.5, "min": 1, "max": 3, "type": 0},
+    {"id": "lavender", "name": "Lavender", "weight": 3.5, "min": 1, "max": 2, "type": 0},
+    {"id": "rose", "name": "Rose", "weight": 3.5, "min": 1, "max": 2, "type": 0},
     {"id": "reeds", "name": "River Reeds", "weight": 4.0, "min": 1, "max": 3, "type": 0},
     {"id": "berry", "name": "Wild Berries", "weight": 8.0, "min": 2, "max": 5, "type": 0},
     {"id": "iron_ore", "name": "Iron Ore", "weight": 5.0, "min": 1, "max": 2, "type": 0},
@@ -74,7 +83,15 @@ const GUARANTEED_STARTER_MATERIALS: Array[String] = [
     "orange",
     "pear",
     "banana",
-    "grapes"
+    "grapes",
+    "tomato",
+    "carrot",
+    "coconut",
+    "watermelon",
+    "wheat",
+    "mint",
+    "lavender",
+    "rose"
 ]
 
 func _catalog_entry(resource_id: String) -> Dictionary:
@@ -103,6 +120,7 @@ func _initialize() -> void:
     enemy_parent.name = "GeneratedEnemies"
     enemy_parent.y_sort_enabled = true
     add_child(enemy_parent)
+    _index_authored_stream_nodes()
 
     # Seed the complete procedural ecosystem as data only. The records are
     # cheap, preserve deterministic world locations, and are activated below
@@ -117,7 +135,7 @@ func _initialize() -> void:
     # reliably find herbs, fruit, flowers and plants instead of waiting for a
     # random catalog roll.
     for resource_id: String in GUARANTEED_STARTER_MATERIALS:
-        var starter_pos := _find_position_near(Vector2.ZERO, 680.0, 1200.0, 52.0)
+        var starter_pos := _find_position_near(Vector2.ZERO, 620.0, 900.0, 52.0)
         if starter_pos == Vector2.ZERO:
             continue
         var starter_record := _register_resource_record(starter_pos, _catalog_entry(resource_id))
@@ -192,6 +210,85 @@ func _maintain_stream(center: Vector2) -> void:
         _update_resource_record(record, center, load_radius_sq, unload_radius_sq, now)
     for record: Dictionary in enemy_records:
         _update_enemy_record(record, center, load_radius_sq, unload_radius_sq, now)
+    _refresh_authored_stream(center, load_radius_sq)
+
+func _index_authored_stream_nodes() -> void:
+    authored_stream_records.clear()
+    if not is_instance_valid(terrain):
+        return
+    var world_node: Node = terrain.get_parent()
+    if world_node == null:
+        return
+
+    # These nodes are authored in game.tscn rather than generated from
+    # records. Keep their map positions and gameplay intact, but do not spend
+    # physics/processing time on them while they are far outside the camera.
+    for container_name: String in ["Collectables", "Monsters", "MiningArea"]:
+        var container: Node = world_node.get_node_or_null(container_name)
+        if container == null:
+            continue
+        for child: Node in container.get_children():
+            if not (child is Node2D):
+                continue
+            var node: Node2D = child as Node2D
+            var collision_states: Array[Dictionary] = []
+            for node_child: Node in node.get_children():
+                if node_child is CollisionShape2D:
+                    var shape: CollisionShape2D = node_child as CollisionShape2D
+                    collision_states.append({
+                        "node": shape,
+                        "disabled": shape.disabled
+                    })
+            var state: Dictionary = {
+                "node": node,
+                "visible": node.visible,
+                "process_mode": node.process_mode,
+                "collision_states": collision_states,
+                "active": true
+            }
+            if node is Area2D:
+                state["monitoring"] = (node as Area2D).monitoring
+            authored_stream_records.append(state)
+
+func _refresh_authored_stream(center: Vector2, load_radius_sq: float) -> void:
+    var index: int = 0
+    while index < authored_stream_records.size():
+        var state: Dictionary = authored_stream_records[index]
+        var node_value: Variant = state.get("node", null)
+        if not (node_value is Node2D) or not is_instance_valid(node_value):
+            authored_stream_records.remove_at(index)
+            continue
+
+        var node: Node2D = node_value as Node2D
+        var should_be_active: bool = node.global_position.distance_squared_to(center) <= load_radius_sq
+        var is_active: bool = bool(state.get("active", true))
+        if should_be_active == is_active:
+            index += 1
+            continue
+
+        node.visible = should_be_active and bool(state.get("visible", true))
+        node.process_mode = int(state.get("process_mode", Node.PROCESS_MODE_INHERIT)) if should_be_active else Node.PROCESS_MODE_DISABLED
+
+        var collision_value: Variant = state.get("collision_states", [])
+        if collision_value is Array:
+            for raw_collision in collision_value:
+                if not (raw_collision is Dictionary):
+                    continue
+                var collision_state: Dictionary = raw_collision
+                var shape_value: Variant = collision_state.get("node", null)
+                if shape_value is CollisionShape2D and is_instance_valid(shape_value):
+                    var shape: CollisionShape2D = shape_value as CollisionShape2D
+                    var original_disabled: bool = bool(collision_state.get("disabled", false))
+                    shape.set_deferred("disabled", original_disabled if should_be_active else true)
+
+        if node is Area2D:
+            var area: Area2D = node as Area2D
+            var original_monitoring: bool = bool(state.get("monitoring", true))
+            area.set_deferred("monitoring", original_monitoring if should_be_active else false)
+
+        state["active"] = should_be_active
+        authored_stream_records[index] = state
+        index += 1
 
 func _update_resource_record(record: Dictionary, center: Vector2, load_radius_sq: float, unload_radius_sq: float, now: float) -> void:
     var node: Node2D = _node_from_record(record)
@@ -259,9 +356,10 @@ func _top_up_local_population(center: Vector2) -> void:
 
     var resource_need: int = maxi(0, local_resource_target - active_resources)
     var resource_budget: int = mini(6, maxi(0, max_resources - resource_records.size()))
-    var resource_max_distance: float = maxf(420.0, minf(1450.0, load_radius - 180.0))
+    var resource_min_distance: float = 620.0
+    var resource_max_distance: float = maxf(resource_min_distance + 80.0, minf(1450.0, load_radius - 40.0))
     for i in range(mini(resource_need, resource_budget)):
-        var new_resource_pos := _find_position_near(center, 320.0, resource_max_distance, 52.0)
+        var new_resource_pos := _find_position_near(center, resource_min_distance, resource_max_distance, 52.0)
         if new_resource_pos != Vector2.ZERO:
             var record := _register_resource_record(new_resource_pos, _pick_resource_at(new_resource_pos))
             if not record.is_empty():
@@ -269,9 +367,10 @@ func _top_up_local_population(center: Vector2) -> void:
 
     var enemy_need: int = maxi(0, local_enemy_target - active_enemies)
     var enemy_budget: int = mini(3, maxi(0, max_enemies - enemy_records.size()))
-    var enemy_max_distance: float = maxf(900.0, minf(1600.0, load_radius - 220.0))
+    var enemy_min_distance: float = 700.0
+    var enemy_max_distance: float = maxf(enemy_min_distance + 60.0, minf(1300.0, load_radius - 40.0))
     for i in range(mini(enemy_need, enemy_budget)):
-        var new_enemy_pos := _find_position_near(center, 700.0, enemy_max_distance, 82.0)
+        var new_enemy_pos := _find_position_near(center, enemy_min_distance, enemy_max_distance, 82.0)
         if new_enemy_pos != Vector2.ZERO:
             var record := _register_enemy_record(new_enemy_pos)
             if not record.is_empty():
@@ -314,13 +413,13 @@ func _resource_weight(entry: Dictionary, biome: String) -> float:
             if resource_id in ["stone", "iron_ore", "coal", "gold_ore", "crystal"]:
                 weight *= 2.4
         "grove":
-            if resource_id in ["wood", "herb", "fiber", "mushroom", "berry", "moon_petal", "apple", "orange", "pear", "banana", "grapes", "plant", "flower", "clover"]:
+            if resource_id in ["wood", "herb", "fiber", "mushroom", "berry", "moon_petal", "apple", "orange", "pear", "banana", "grapes", "tomato", "carrot", "coconut", "watermelon", "wheat", "mint", "lavender", "rose", "plant", "flower", "clover"]:
                 weight *= 2.0
         "shore":
-            if resource_id in ["stone", "berry", "sunstone", "reeds", "flower", "orange"]:
+            if resource_id in ["stone", "berry", "sunstone", "reeds", "flower", "orange", "coconut", "watermelon"]:
                 weight *= 1.8
         "meadow":
-            if resource_id in ["plant", "flower", "clover", "apple", "pear", "herb"]:
+            if resource_id in ["plant", "flower", "clover", "apple", "pear", "herb", "tomato", "carrot", "wheat", "mint", "lavender", "rose"]:
                 weight *= 1.45
     return weight
 

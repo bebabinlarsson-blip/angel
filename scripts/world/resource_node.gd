@@ -120,8 +120,18 @@ func _process(delta: float) -> void:
             queue_redraw()
 
 func _on_body_entered(body: Node2D) -> void:
-    if body.has_method("get_save_data") and "inventory" in body:
-        _give_to_player(body as CharacterBody2D)
+    var player := _player_from_body(body)
+    if player != null:
+        _give_to_player(player)
+
+func _player_from_body(body: Node) -> CharacterBody2D:
+    var player := body as CharacterBody2D
+    if player == null or not player.has_method("get_save_data"):
+        return null
+    var inventory_value: Variant = player.get("inventory")
+    if inventory_value is PlayerInventory:
+        return player
+    return null
 
 func interact(player: CharacterBody2D) -> void:
     if player and not is_collected:
@@ -186,21 +196,29 @@ func _draw() -> void:
                 rock_color = Color("#30363d")
             draw_colored_polygon(PackedVector2Array([Vector2(-13, 6), Vector2(-10, -7), Vector2(0, -13), Vector2(13, -5), Vector2(10, 7), Vector2(-3, 11)]), rock_color)
             draw_line(Vector2(-6, -3), Vector2(3, -7), Color(1, 1, 1, 0.35), 2.0)
-        "herb", "fiber", "moon_petal":
+        "herb", "fiber", "moon_petal", "mint", "lavender":
             draw_line(Vector2(0, 10), Vector2(0, -8), Color("#367243"), 3.0)
             for side in [-1.0, 1.0]:
                 draw_line(Vector2(0, 2), Vector2(side * 10, -4), Color("#61b75d"), 3.0)
                 draw_line(Vector2(0, -3), Vector2(side * 7, -10), Color("#8ad66b"), 3.0)
             if item_id == "moon_petal":
                 draw_circle(Vector2(0, -10), 5.0, Color("#b8a7ff"))
-        "plant", "reeds":
+            elif item_id == "lavender":
+                draw_circle(Vector2(0, -10), 5.0, Color("#a681d6"))
+            elif item_id == "mint":
+                draw_circle(Vector2(0, -10), 5.0, Color("#a2e48a"))
+        "plant", "reeds", "wheat":
             var stem_color := Color("#3c8752") if item_id == "plant" else Color("#5c9a61")
+            if item_id == "wheat":
+                stem_color = Color("#d0a94d")
             for x in [-8.0, -2.0, 5.0, 10.0]:
                 var lean: float = x * 0.35
                 draw_line(Vector2(x, 11), Vector2(x + lean, -12), stem_color, 3.0)
                 draw_line(Vector2(x + lean, -5), Vector2(x + lean + 7.0, -9), Color("#77bb69"), 2.0)
-        "flower", "clover":
+        "flower", "clover", "rose":
             var flower_color := Color("#f29aaf") if item_id == "flower" else Color("#d9d765")
+            if item_id == "rose":
+                flower_color = Color("#e74f67")
             draw_line(Vector2(0, 11), Vector2(0, -7), Color("#3b8248"), 3.0)
             var petal_center := Vector2(0, -9)
             for petal_offset in [Vector2(-5, 0), Vector2(5, 0), Vector2(0, -5), Vector2(0, 5)]:
@@ -224,6 +242,27 @@ func _draw() -> void:
             else:
                 draw_circle(Vector2(0, 0), 8.5, fruit_color)
             draw_circle(Vector2(-3, -3), 2.0, Color(1, 1, 1, 0.35))
+        "tomato", "coconut", "watermelon":
+            var garden_fruit_color := Color("#d84d49")
+            if item_id == "coconut":
+                garden_fruit_color = Color("#8d5e3d")
+            elif item_id == "watermelon":
+                garden_fruit_color = Color("#5cae61")
+            draw_circle(Vector2(0, 0), 10.0, garden_fruit_color)
+            if item_id == "watermelon":
+                draw_circle(Vector2(0, 0), 6.5, Color("#e86565"))
+                draw_arc(Vector2(0, 0), 8.0, 0.3, 2.8, 12, Color("#2d7548"), 1.5)
+            elif item_id == "tomato":
+                draw_line(Vector2(-4, -8), Vector2(0, -13), Color("#4e8e4e"), 2.0)
+                draw_line(Vector2(0, -13), Vector2(5, -8), Color("#4e8e4e"), 2.0)
+            else:
+                draw_circle(Vector2(-3, -3), 2.0, Color("#d5a471"))
+        "carrot":
+            draw_line(Vector2(0, -2), Vector2(0, -12), Color("#4f9b4c"), 2.0)
+            draw_line(Vector2(0, -8), Vector2(-5, -12), Color("#6db25d"), 2.0)
+            draw_line(Vector2(0, -8), Vector2(5, -12), Color("#6db25d"), 2.0)
+            draw_colored_polygon(PackedVector2Array([Vector2(-5, -2), Vector2(5, -2), Vector2(1, 10), Vector2(0, 13), Vector2(-1, 10)]), Color("#e88943"))
+            draw_line(Vector2(-2, 1), Vector2(2, 8), Color("#ffd08a"), 1.5)
         "grapes":
             draw_line(Vector2(0, 10), Vector2(0, -10), Color("#4f874a"), 3.0)
             draw_line(Vector2(0, -6), Vector2(8, -11), Color("#6daa51"), 3.0)
