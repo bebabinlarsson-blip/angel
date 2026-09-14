@@ -124,8 +124,8 @@ func _on_body_entered(body: Node2D) -> void:
     if player != null:
         _give_to_player(player)
 
-func _player_from_body(body: Node) -> CharacterBody2D:
-    var player := body as CharacterBody2D
+func _player_from_body(body: Node) -> Player:
+    var player := body as Player
     if player == null or not player.has_method("get_save_data"):
         return null
     var inventory_value: Variant = player.get("inventory")
@@ -133,11 +133,11 @@ func _player_from_body(body: Node) -> CharacterBody2D:
         return player
     return null
 
-func interact(player: CharacterBody2D) -> void:
+func interact(player: Player) -> void:
     if player and not is_collected:
         _give_to_player(player)
 
-func _give_to_player(player: CharacterBody2D) -> void:
+func _give_to_player(player: Player) -> void:
     if player == null or player.inventory == null or is_collected:
         return
     var item_data := {
