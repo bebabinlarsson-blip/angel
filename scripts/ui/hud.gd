@@ -171,6 +171,7 @@ func set_map_open(open: bool) -> void:
 		_hide_overlay("InventoryUI")
 		_hide_overlay("QuestMenu")
 		_hide_overlay("PauseMenu")
+		_hide_overlay("CookingUILayer")
 		big_map.visible = true
 		get_tree().paused = true
 		GameManager.is_paused = true
@@ -190,11 +191,15 @@ func _hide_overlay(node_name: String) -> void:
 	var overlay := get_tree().root.find_child(node_name, true, false)
 	if overlay is Control:
 		(overlay as Control).visible = false
+	elif overlay is CanvasLayer:
+		(overlay as CanvasLayer).visible = false
 
 func _has_visible_overlay() -> bool:
-	for node_name: String in ["InventoryUI", "QuestMenu", "PauseMenu"]:
+	for node_name: String in ["InventoryUI", "QuestMenu", "PauseMenu", "CookingUILayer"]:
 		var overlay := get_tree().root.find_child(node_name, true, false)
 		if overlay is Control and (overlay as Control).visible:
+			return true
+		if overlay is CanvasLayer and (overlay as CanvasLayer).visible:
 			return true
 	return false
 
