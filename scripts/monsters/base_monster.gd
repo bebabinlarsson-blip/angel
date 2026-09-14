@@ -86,7 +86,9 @@ func _physics_process(delta: float) -> void:
 
     _update_timers(delta)
     _update_ai(delta)
+    _after_ai(delta)
     _apply_knockback(delta)
+    _before_move(delta)
     _update_animation()
 
     if not is_instance_valid(terrain):
@@ -96,6 +98,14 @@ func _physics_process(delta: float) -> void:
         wander_direction = -wander_direction
     move_and_slide()
     _enforce_village_boundary()
+
+# Extension hooks let specialized monsters add behavior around the
+# shared AI/movement pipeline without calling move_and_slide twice.
+func _after_ai(_delta: float) -> void:
+    pass
+
+func _before_move(_delta: float) -> void:
+    pass
 
 func _enforce_village_boundary() -> bool:
     if not is_instance_valid(terrain) or current_state == State.DEAD:
