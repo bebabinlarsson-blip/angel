@@ -25,6 +25,8 @@ func _ready() -> void:
 func _toggle() -> void:
 	visible = !visible
 	if visible:
+		_hide_overlay("BigMap")
+		_hide_overlay("CookingUILayer")
 		var inv := get_tree().root.find_child("InventoryUI", true, false)
 		if inv and inv.visible:
 			inv.visible = false
@@ -44,6 +46,13 @@ func _toggle() -> void:
 		if (p_menu == null or not p_menu.visible) and (inv == null or not inv.visible):
 			get_tree().paused = false
 			GameManager.is_paused = false
+
+func _hide_overlay(node_name: String) -> void:
+	var overlay := get_tree().root.find_child(node_name, true, false)
+	if overlay is Control:
+		(overlay as Control).visible = false
+	elif overlay is CanvasLayer:
+		(overlay as CanvasLayer).visible = false
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("quest") and visible:
