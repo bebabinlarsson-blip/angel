@@ -78,7 +78,7 @@ func set_state(new_state: GameState) -> void:
 		GameState.PLAYING:
 			get_tree().paused = false
 			is_paused = false
-		GameState.GAME_OVER:
+		GameState.GAME_OVER, GameState.LOADING:
 			get_tree().paused = true
 			is_paused = true
 
