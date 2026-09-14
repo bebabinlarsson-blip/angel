@@ -10,6 +10,8 @@ var hit_confirmed: bool = false
 var pulse: float = 0.0
 
 func _process(delta: float) -> void:
+	if not visible:
+		return
 	pulse += delta
 	queue_redraw()
 
