@@ -92,7 +92,7 @@ func _collect() -> void:
 
 func _respawn() -> void:
 	is_collected = false
-	set_process(false)
+	set_process(true)
 	if visual:
 		visual.visible = true
 	if collision:
