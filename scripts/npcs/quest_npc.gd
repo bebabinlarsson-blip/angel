@@ -271,6 +271,7 @@ func interact(_player: CharacterBody2D) -> void:
 	
 	is_dialogue_open = true
 	_dialogue_player = _player
+	is_working = false
 	_paused_for_dialogue = GameManager.current_state == GameManager.GameState.PLAYING
 	if _paused_for_dialogue:
 		GameManager.set_state(GameManager.GameState.PAUSED)
@@ -311,7 +312,11 @@ func _process(delta: float) -> void:
 		if (_dialogue_player as Node2D).global_position.distance_to(global_position) > 160.0:
 			_close_dialogue()
 	if not is_dialogue_open:
-		_run_daily_routine(delta)
+		if GameManager.current_state == GameManager.GameState.PLAYING and not get_tree().paused:
+			_run_daily_routine(delta)
+		else:
+			velocity = Vector2.ZERO
+			is_working = false
 	_update_facing()
 	_update_worker_animation()
 	_update_activity_label()
