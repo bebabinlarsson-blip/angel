@@ -30,9 +30,7 @@ func interact(_player: CharacterBody2D) -> void:
 
 func _show_fast_travel_ui() -> void:
 	if fast_travel_layer and is_instance_valid(fast_travel_layer):
-		fast_travel_layer.queue_free()
-		fast_travel_layer = null
-		fast_travel_popup = null
+		_close_fast_travel()
 		return
 
 	# Screen-space modal centered on screen: the old world-space Panel
