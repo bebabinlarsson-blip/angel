@@ -292,5 +292,15 @@ func _find_card(node: Node) -> Control:
 			return found
 	return null
 
+func _input(event: InputEvent) -> void:
+	if not event.is_action_pressed("ui_cancel"):
+		return
+	if controls_panel and controls_panel.visible:
+		controls_panel.visible = false
+		get_viewport().set_input_as_handled()
+	elif settings_panel and settings_panel.visible:
+		settings_panel.visible = false
+		get_viewport().set_input_as_handled()
+
 func _on_quit() -> void:
 	get_tree().quit()
