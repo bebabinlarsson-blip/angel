@@ -591,6 +591,11 @@ func get_save_data() -> Dictionary:
             hp = monster.current_hp
             if monster.current_state == BaseMonster.State.DEAD:
                 defeated = true
+                # A save can happen in the short death-animation window before
+                # the normal stream tick records the respawn deadline.
+                if float(record.get("respawn_at", 0.0)) <= now:
+                    record["respawn_at"] = now + enemy_respawn_time
+                remaining = maxf(0.0, float(record.get("respawn_at", 0.0)) - now)
         saved_enemies.append({
             "index": index,
             "position": _save_position(_record_position(record)),
