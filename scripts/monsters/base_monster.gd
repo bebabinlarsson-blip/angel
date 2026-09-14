@@ -16,7 +16,7 @@ var current_hp: float
 var scaled_attack: float
 var scaled_speed: float
 
-var target: CharacterBody2D = null
+var target: Player = null
 var terrain: IslandWorld = null
 var attack_timer: float = 0.0
 var attack_windup: float = 0.0
