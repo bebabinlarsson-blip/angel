@@ -147,7 +147,9 @@ func _update_ai(delta: float) -> void:
         current_state = State.IDLE
 
     target = GameManager.player
-    if target == null or not is_instance_valid(target) or target.current_state == target.State.DEAD:
+    if target == null or not is_instance_valid(target):
+        target = null
+    elif target.has_method("is_dead") and bool(target.call("is_dead")):
         target = null
     if target:
         var player_in_village: bool = is_instance_valid(terrain) and terrain.is_inside_village_safe_zone(target.global_position)
