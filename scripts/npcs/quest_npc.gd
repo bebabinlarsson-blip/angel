@@ -449,7 +449,7 @@ func _job_activity() -> String:
 
 func _update_worker_animation() -> void:
 	if worker_tool:
-		worker_tool.active = is_working
+		worker_tool.set_active(is_working)
 	if name_label and not npc_name.is_empty():
 		name_label.text = npc_name + ("\n" + activity if is_working else "")
 
