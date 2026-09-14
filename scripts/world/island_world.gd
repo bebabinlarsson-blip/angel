@@ -28,14 +28,14 @@ const VILLAGE_BOUNDARY_MARGIN: float = 24.0
 
 func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     z_index = -200
-    ground = world.get_node_or_null("GroundLayer")
-    paths = world.get_node_or_null("PathLayer")
-    trees = world.get_node_or_null("TreeLayer")
-    bridge = world.get_node_or_null("BridgeLayer")
-    structures = world.get_node_or_null("StructuresLayer")
-    decor = world.get_node_or_null("DecorLayer")
-    water_layer = world.get_node_or_null("WaterLayer")
-    farm_layer = world.get_node_or_null("FarmLayer")
+    ground = world.get_node_or_null("GroundLayer") as TileMapLayer
+    paths = world.get_node_or_null("PathLayer") as TileMapLayer
+    trees = world.get_node_or_null("TreeLayer") as TileMapLayer
+    bridge = world.get_node_or_null("BridgeLayer") as TileMapLayer
+    structures = world.get_node_or_null("StructuresLayer") as TileMapLayer
+    decor = world.get_node_or_null("DecorLayer") as TileMapLayer
+    water_layer = world.get_node_or_null("WaterLayer") as TileMapLayer
+    farm_layer = world.get_node_or_null("FarmLayer") as TileMapLayer
     y_sort_enabled = true
 
     var village_data: Dictionary = config.get("village", {})
