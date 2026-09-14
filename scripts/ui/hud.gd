@@ -151,6 +151,8 @@ func set_map_open(open: bool) -> void:
 		big_draw_node.grab_focus()
 
 func _input(event: InputEvent) -> void:
+	if big_map == null:
+		return
 	if event.is_action_pressed("toggle_map") and (big_map.visible or not get_tree().paused):
 		set_map_open(not big_map.visible)
 		get_viewport().set_input_as_handled()
@@ -209,7 +211,8 @@ func _on_show_notification(text: String) -> void:
 		if _notif_tween and _notif_tween.is_valid():
 			_notif_tween.kill()
 		notification_label.text = text
-		notification_label.visible = not big_map.visible
+		var map_is_open: bool = big_map != null and big_map.visible
+		notification_label.visible = not map_is_open
 		notification_label.modulate.a = 0.0
 		notification_label.scale = Vector2(0.9, 0.9)
 		notification_label.pivot_offset = notification_label.size * 0.5
@@ -241,7 +244,7 @@ func _on_exp_gained(_amount: int, total: int, required: int) -> void:
 func _on_interaction_available(_interactable: Node) -> void:
 	if interaction_hint == null or _interactable == null:
 		return
-	interaction_hint.visible = not big_map.visible
+	interaction_hint.visible = big_map == null or not big_map.visible
 	var label := "Interact"
 	if _interactable is QuestNPC:
 		label = "Talk to " + _interactable.npc_name

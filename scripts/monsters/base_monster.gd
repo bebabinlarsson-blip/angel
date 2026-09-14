@@ -229,6 +229,10 @@ func die() -> void:
     current_state = State.DEAD
     velocity = Vector2.ZERO
     _drop_loot()
+    var stream_record: Variant = get_meta("stream_record", null)
+    if stream_record is Dictionary:
+        stream_record["defeated"] = true
+        stream_record["respawn_at"] = float(Time.get_ticks_msec()) / 1000.0 + float(get_meta("stream_respawn_seconds", 45.0))
     EventBus.monster_killed.emit(self, global_position)
     VFX.slime_pop(self)
     var tween := create_tween()
