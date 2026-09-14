@@ -78,14 +78,10 @@ func _physics_process(delta: float) -> void:
             wander_timer = randf_range(2.0, 5.0)
             return
 
-    # Keep hostile creatures outside the village ring so the settlement stays safe.
-    if global_position.length_squared() < 230400.0 and current_state not in [State.ATTACK, State.HURT]:
-        var escape_direction := global_position.normalized()
-        if escape_direction == Vector2.ZERO:
-            escape_direction = Vector2.UP
-        velocity = escape_direction * scaled_speed
+    if not is_instance_valid(terrain):
+        terrain = get_tree().get_first_node_in_group("island_world") as IslandWorld
+    if _enforce_village_boundary():
         _update_animation()
-        move_and_slide()
         return
 
     _update_timers(delta)
@@ -99,6 +95,25 @@ func _physics_process(delta: float) -> void:
         velocity = Vector2.ZERO
         wander_direction = -wander_direction
     move_and_slide()
+    _enforce_village_boundary()
+
+func _enforce_village_boundary() -> bool:
+    if not is_instance_valid(terrain) or current_state == State.DEAD:
+        return false
+    if not terrain.is_inside_village_safe_zone(global_position, 24.0):
+        return false
+
+    target = null
+    current_state = State.IDLE
+    attack_windup = 0.0
+    attack_has_landed = true
+    velocity = Vector2.ZERO
+    var escape_direction: Vector2 = global_position - terrain.village_center
+    if escape_direction.length_squared() <= 0.001:
+        escape_direction = Vector2.UP
+    var boundary_radius: float = maxf(32.0, terrain.village_radius + 32.0)
+    global_position = terrain.village_center + escape_direction.normalized() * boundary_radius
+    return true
 
 func _update_timers(delta: float) -> void:
     if attack_timer > 0.0:
@@ -124,8 +139,10 @@ func _update_ai(delta: float) -> void:
     target = GameManager.player
     if target == null or not is_instance_valid(target) or target.current_state == target.State.DEAD:
         target = null
-    if target and target.global_position.length() < 450.0:
-        target = null
+    if target:
+        var player_in_village: bool = is_instance_valid(terrain) and terrain.is_inside_village_safe_zone(target.global_position)
+        if player_in_village or (not is_instance_valid(terrain) and target.global_position.length() < 450.0):
+            target = null
 
     if target:
         var dist_to_target: float = global_position.distance_to(target.global_position)

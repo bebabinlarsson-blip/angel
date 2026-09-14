@@ -1,6 +1,8 @@
 class_name CookingPot
 extends StaticBody2D
 
+const ITEM_ICON_SCRIPT = preload("res://scripts/ui/item_icon.gd")
+
 var interaction_label: Label = null
 
 var cooking_ui_layer: CanvasLayer = null
@@ -172,6 +174,14 @@ func _refresh_recipes(player: CharacterBody2D) -> void:
 			ingredients_text += "%s (%d/%d)" % [item_id, has_qty, req_qty]
 
 		var result_data: Dictionary = recipe.get("result", {})
+		var icon := ITEM_ICON_SCRIPT.new() as Control
+		icon.name = "RecipeIcon"
+		icon.set("item_id", str(result_data.get("id", recipe.get("id", ""))))
+		icon.set("item_type", int(result_data.get("type", 3)))
+		icon.custom_minimum_size = Vector2(50.0, 50.0)
+		icon.size = Vector2(50.0, 50.0)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.add_child(icon)
 		label.text = "%s\n[%s]\n→ %s" % [
 			recipe.get("name", "???"),
 			ingredients_text,

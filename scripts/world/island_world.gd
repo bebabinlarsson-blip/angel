@@ -17,10 +17,14 @@ var authored_bounds := Rect2(-3520, -3520, 7040, 7040)
 var authored_radius: float = 3500.0
 var expanded_radius: float = 350000.0
 const EXPANSION_MULTIPLIER: float = 100.0
+const VILLAGE_RING_SCRIPT = preload("res://scripts/world/village_safe_ring.gd")
 var revision: int = 0
 var reserved: Array[Vector2] = []
 var land: Dictionary = {}
 var map_locations: Array[Dictionary] = []
+var village_center: Vector2 = Vector2.ZERO
+var village_radius: float = 500.0
+const VILLAGE_BOUNDARY_MARGIN: float = 24.0
 
 func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     z_index = -200
@@ -33,6 +37,12 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     water_layer = world.get_node_or_null("WaterLayer")
     farm_layer = world.get_node_or_null("FarmLayer")
     y_sort_enabled = true
+
+    var village_data: Dictionary = config.get("village", {})
+    var island_settings: Dictionary = config.get("island_settings", {})
+    village_center = _point_from_data(village_data.get("center", {}), Vector2.ZERO)
+    village_radius = maxf(160.0, float(village_data.get("tree_ring_radius", island_settings.get("village_radius", 500.0))))
+    _update_village_ring()
 
     land.clear()
     if ground:
@@ -72,7 +82,6 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
             if child is Node2D:
                 reserved.append(child.global_position)
 
-    var village_data: Dictionary = config.get("village", {})
     for house: Dictionary in village_data.get("houses", []):
         var pos_dict: Dictionary = house.get("pos", {})
         reserved.append(Vector2(float(pos_dict.get("x", 0.0)), float(pos_dict.get("y", 0.0))))
@@ -106,7 +115,34 @@ func clamp_to_playable_area(p: Vector2) -> Vector2:
         return p
     return p.normalized() * maxf(0.0, expanded_radius - 48.0)
 
+func is_inside_village_safe_zone(p: Vector2, margin: float = 0.0) -> bool:
+    # Positive margin expands the protected area, leaving a small buffer
+    # outside the visible ring for streamed content and hostile pathing.
+    var protected_radius: float = maxf(0.0, village_radius + margin)
+    return p.distance_squared_to(village_center) <= protected_radius * protected_radius
+
+func clamp_to_village_boundary(p: Vector2, margin: float = VILLAGE_BOUNDARY_MARGIN) -> Vector2:
+    var safe_radius: float = maxf(32.0, village_radius - margin)
+    var offset: Vector2 = p - village_center
+    if offset.length_squared() <= safe_radius * safe_radius:
+        return p
+    if offset.length_squared() <= 0.001:
+        return village_center
+    return village_center + offset.normalized() * safe_radius
+
+func _update_village_ring() -> void:
+    var safe_ring: Node2D = get_node_or_null("VillageSafeRing") as Node2D
+    if safe_ring == null:
+        safe_ring = VILLAGE_RING_SCRIPT.new() as Node2D
+        safe_ring.name = "VillageSafeRing"
+        add_child(safe_ring)
+    safe_ring.set("ring_center", village_center)
+    safe_ring.set("ring_radius", village_radius)
+    safe_ring.queue_redraw()
+
 func is_clear(p: Vector2, clearance: float = 36.0) -> bool:
+    if is_inside_village_safe_zone(p, VILLAGE_BOUNDARY_MARGIN):
+        return false
     if is_water(p):
         return false
     if not is_instance_valid(ground):

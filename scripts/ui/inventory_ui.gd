@@ -1,6 +1,8 @@
 class_name InventoryUI
 extends Control
 
+const ITEM_ICON_SCRIPT = preload("res://scripts/ui/item_icon.gd")
+
 @onready var grid_container: GridContainer = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ScrollContainer/GridContainer")
 @onready var item_name_label: Label = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox/ItemName")
 @onready var item_type_label: Label = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox/ItemType")
@@ -11,6 +13,7 @@ extends Control
 @onready var capacity_label: Label = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header/BagLabel")
 @onready var close_button: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header/CloseButton")
 @onready var dimmer: ColorRect = get_node_or_null("Dimmer")
+var detail_icon: Control = null
 
 @onready var btn_all: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar/BtnAll")
 @onready var btn_weapons: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar/BtnWeapons")
@@ -53,7 +56,21 @@ func _ready() -> void:
 		btn_materials.pressed.connect(func(): _set_filter(0))
 	if btn_collectibles:
 		btn_collectibles.pressed.connect(func(): _set_filter(6))
+	_create_detail_icon()
 	UITheme.style_recursive(self)
+
+func _create_detail_icon() -> void:
+	var detail_vbox := get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox") as VBoxContainer
+	if detail_vbox == null:
+		return
+	detail_icon = ITEM_ICON_SCRIPT.new() as Control
+	detail_icon.name = "SelectedItemIcon"
+	detail_icon.custom_minimum_size = Vector2(54.0, 54.0)
+	detail_icon.size = Vector2(54.0, 54.0)
+	detail_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	detail_vbox.add_child(detail_icon)
+	detail_vbox.move_child(detail_icon, 0)
+	detail_icon.visible = false
 
 func _set_filter(type: int) -> void:
 	filter_type = type
@@ -123,8 +140,18 @@ func _refresh() -> void:
 			name_str = "[E] " + name_str + "\nEquipped"
 		else:
 			name_str += "\nx%d" % qty
-		slot.text = name_str
-		slot.add_theme_font_size_override("font_size", 11)
+
+		var icon := ITEM_ICON_SCRIPT.new() as Control
+		icon.name = "ItemIcon"
+		icon.set("item_id", str(item.get("id", "")))
+		icon.set("item_type", item_type)
+		icon.custom_minimum_size = Vector2(42.0, 42.0)
+		icon.size = Vector2(42.0, 42.0)
+		icon.position = Vector2(18.0, 3.0)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(icon)
+		slot.text = "\n" + name_str
+		slot.add_theme_font_size_override("font_size", 10)
 		slot.pressed.connect(_on_item_selected.bind(item))
 		UITheme.style_button(slot)
 		grid_container.add_child(slot)
@@ -169,6 +196,11 @@ func _is_equipped(player: CharacterBody2D, item: Dictionary, item_type: int) -> 
 
 func _on_item_selected(item: Dictionary) -> void:
 	selected_item = item
+	if detail_icon:
+		detail_icon.set("item_id", str(item.get("id", "")))
+		detail_icon.set("item_type", int(item.get("type", 0)))
+		detail_icon.visible = true
+		detail_icon.queue_redraw()
 	if item_name_label:
 		item_name_label.text = str(item.get("name", "Unknown"))
 
@@ -226,6 +258,8 @@ func _clear_detail() -> void:
 		item_desc_label.text = "Click any item to view its stats and actions."
 	if use_button:
 		use_button.visible = false
+	if detail_icon:
+		detail_icon.visible = false
 
 func _on_use_pressed() -> void:
 	if selected_item.is_empty():

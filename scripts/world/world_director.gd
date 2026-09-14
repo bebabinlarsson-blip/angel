@@ -342,7 +342,7 @@ func _find_position_near(center: Vector2, min_radius: float, max_radius: float, 
     return Vector2.ZERO
 
 func _valid_position(pos: Vector2, separation: float) -> bool:
-    if terrain == null or not terrain.is_inside_playable_area(pos) or not terrain.is_clear(pos, separation):
+    if terrain == null or not terrain.is_inside_playable_area(pos) or terrain.is_inside_village_safe_zone(pos, 24.0) or not terrain.is_clear(pos, separation):
         return false
     if pos.length() < 600.0:
         return false
@@ -354,7 +354,7 @@ func _valid_position(pos: Vector2, separation: float) -> bool:
 func _register_resource_record(pos: Vector2, data: Dictionary) -> Dictionary:
     if resource_parent == null or pos == Vector2.ZERO:
         return {}
-    if terrain == null or not terrain.is_inside_playable_area(pos) or not terrain.is_clear(pos, 32.0):
+    if terrain == null or not terrain.is_inside_playable_area(pos) or terrain.is_inside_village_safe_zone(pos, 30.0) or not terrain.is_clear(pos, 32.0):
         return {}
     var min_quantity: int = int(data.get("min", 1))
     var max_quantity: int = int(data.get("max", min_quantity))
@@ -374,7 +374,7 @@ func _register_resource_record(pos: Vector2, data: Dictionary) -> Dictionary:
 func _register_enemy_record(pos: Vector2) -> Dictionary:
     if enemy_parent == null or pos == Vector2.ZERO:
         return {}
-    if terrain == null or not terrain.is_inside_playable_area(pos) or not terrain.is_clear(pos, 48.0):
+    if terrain == null or not terrain.is_inside_playable_area(pos) or terrain.is_inside_village_safe_zone(pos, 48.0) or not terrain.is_clear(pos, 48.0):
         return {}
     var variants: Array[String] = ["slime", "moss", "ember", "crystal"]
     var record: Dictionary = {
@@ -396,7 +396,7 @@ func _activate_resource_record(record: Dictionary) -> void:
         return
     var data: Dictionary = data_value
     var pos: Vector2 = _record_position(record)
-    if pos == Vector2.ZERO or terrain == null or not terrain.is_inside_playable_area(pos):
+    if pos == Vector2.ZERO or terrain == null or not terrain.is_inside_playable_area(pos) or terrain.is_inside_village_safe_zone(pos, 30.0):
         return
 
     var node: ResourceNode = RESOURCE_SCRIPT.new() as ResourceNode
@@ -416,7 +416,7 @@ func _activate_enemy_record(record: Dictionary) -> void:
     if enemy_parent == null or _node_from_record(record) != null:
         return
     var pos: Vector2 = _record_position(record)
-    if pos == Vector2.ZERO or terrain == null or not terrain.is_inside_playable_area(pos):
+    if pos == Vector2.ZERO or terrain == null or not terrain.is_inside_playable_area(pos) or terrain.is_inside_village_safe_zone(pos, 48.0):
         return
 
     var enemy := SLIME_SCENE.instantiate() as SlimeMonster

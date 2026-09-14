@@ -302,7 +302,7 @@ horizontal_alignment = 1
 
 [node name="NPC_Miner" type="StaticBody2D" parent="World/VillageNPCs" unique_id=791753747]
 y_sort_enabled = true
-position = Vector2(-1952, -2048)
+position = Vector2(-192, 176)
 script = ExtResource("4_pl11u")
 npc_name = "Miner Torvald"
 npc_id = "miner"

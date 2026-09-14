@@ -121,7 +121,7 @@ func _create_controls_hint() -> void:
 	controls_hint.position = Vector2(16, 214)
 	controls_hint.custom_minimum_size = Vector2(280, 58)
 	controls_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	controls_hint.text = "WASD  Move    E  Backpack\nF  Interact    LMB / Space  Sword\nShift  Dash    M  Map"
+	controls_hint.text = "WASD  Move    E  Backpack\nF  Interact    LMB / Space  Sword\nShift  Dash    Q  Quest Journal    M  Map"
 	controls_hint.add_theme_color_override("font_color", Color(0.82, 0.88, 0.92, 0.82))
 	controls_hint.add_theme_color_override("font_outline_color", Color(0.01, 0.03, 0.06, 0.90))
 	controls_hint.add_theme_constant_override("outline_size", 4)

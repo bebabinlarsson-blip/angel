@@ -176,7 +176,7 @@ func _create_controls_modal() -> void:
 		["Mouse Cursor", "Aim Direction"],
 		["[F]", "Interact / Talk to NPCs / Campfire"],
 		["[I] or [Tab]", "Open Inventory & Equipment"],
-		["[J]", "Open Quest Journal"],
+		["[Q]", "Open Quest Journal"],
 		["[M] or Click Map", "Toggle Big Map"],
 		["[Esc]", "Pause Menu & Save Game"]
 	]
