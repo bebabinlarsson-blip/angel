@@ -137,10 +137,16 @@ func _apply_theme() -> void:
 		(big_map as Panel).add_theme_stylebox_override("panel", UITheme.panel_style(UITheme.EDGE, Color(0.05, 0.07, 0.12, 0.85)))
 
 func set_map_open(open: bool) -> void:
+	# The HUD can receive an input event during a scene transition. Keep the
+	# map toggle harmless until its panel has been created.
+	if big_map == null:
+		return
 	big_map.visible = open
 	get_tree().paused = open
-	interaction_hint.visible = false
-	notification_label.visible = false
+	if interaction_hint:
+		interaction_hint.visible = false
+	if notification_label:
+		notification_label.visible = false
 	if open and is_instance_valid(big_draw_node):
 		big_draw_node.grab_focus()
 
