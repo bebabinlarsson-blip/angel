@@ -404,6 +404,9 @@ func respawn() -> void:
 	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
 	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
 
+func is_dead() -> bool:
+	return current_state == State.DEAD
+
 func set_swimming(swimming: bool) -> void:
 	if is_swimming == swimming:
 		return
