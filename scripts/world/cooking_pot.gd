@@ -9,6 +9,7 @@ var cooking_ui_layer: CanvasLayer = null
 var recipe_list: VBoxContainer = null
 var close_btn: Button = null
 var cooking_system: CookingSystem = null
+var cooking_panel: PanelContainer = null
 var visual: CustomDraw2D = null
 
 func _ready() -> void:
@@ -35,6 +36,8 @@ func _ready() -> void:
 		VFX.campfire_embers(self)
 	
 	_create_cooking_ui()
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	
 	if has_node("InteractionLabel"):
 		interaction_label = get_node("InteractionLabel") as Label
@@ -116,9 +119,14 @@ func _create_cooking_ui() -> void:
 	margin.add_child(vbox)
 	panel.add_child(margin)
 	center.add_child(panel)
+	cooking_panel = panel
 	
 	add_child(cooking_ui_layer)
 	cooking_ui_layer.visible = false
+
+func _on_viewport_resized() -> void:
+	if cooking_panel:
+		UITheme.fit_modal(cooking_panel, Vector2(520.0, 440.0))
 
 func interact(player: CharacterBody2D) -> void:
 	cooking_system = get_tree().root.find_child("CookingSystem", true, false) as CookingSystem
@@ -136,6 +144,7 @@ func interact(player: CharacterBody2D) -> void:
 		_hide_overlay("QuestMenu")
 		_hide_overlay("PauseMenu")
 		cooking_ui_layer.visible = true
+		_on_viewport_resized()
 		_refresh_recipes(player)
 		# Pause combat while the player chooses a recipe.
 		GameManager.set_state(GameManager.GameState.PAUSED)
