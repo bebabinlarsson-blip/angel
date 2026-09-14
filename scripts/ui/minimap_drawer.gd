@@ -30,6 +30,8 @@ var _layer_cache_revision: int = -1
 var _draw_dirty: bool = true
 var _focus_authored: bool = true
 var _view_initialized: bool = false
+var _quest_system: QuestSystem = null
+var _quest_waypoint: Dictionary = {}
 
 const LAYER_CHUNK_TILES: int = 16
 
@@ -41,6 +43,12 @@ const MAX_MAP_ZOOM: float = 96.0
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     clip_contents = true
+    if not EventBus.quest_accepted.is_connected(_on_quest_changed):
+        EventBus.quest_accepted.connect(_on_quest_changed)
+    if not EventBus.quest_completed.is_connected(_on_quest_changed):
+        EventBus.quest_completed.connect(_on_quest_changed)
+    if not EventBus.quest_updated.is_connected(_on_quest_changed):
+        EventBus.quest_updated.connect(_on_quest_changed)
     texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     mouse_filter = Control.MOUSE_FILTER_STOP
     focus_mode = Control.FOCUS_ALL
@@ -74,11 +82,27 @@ func _process(delta: float) -> void:
         _npcs = get_tree().get_nodes_in_group("npcs")
         _markers_initialized = true
         _marker_timer = 0.0
+        _refresh_quest_waypoint()
         _draw_dirty = true
     _refresh_layer_cache()
     if not is_big_map or _draw_dirty:
         _draw_dirty = false
         queue_redraw()
+
+func _on_quest_changed(_quest_id: String) -> void:
+	_refresh_quest_waypoint()
+	_draw_dirty = true
+	queue_redraw()
+
+func _refresh_quest_waypoint() -> void:
+	if not is_instance_valid(_quest_system):
+		_quest_system = get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
+	var next_waypoint: Dictionary = {}
+	if is_instance_valid(_quest_system):
+		next_waypoint = _quest_system.get_active_waypoint()
+	if next_waypoint != _quest_waypoint:
+		_quest_waypoint = next_waypoint
+		_draw_dirty = true
 
 func _refresh_layer_cache() -> void:
     if not is_instance_valid(_terrain):
@@ -354,6 +378,37 @@ func _draw_layer_details(center: Vector2, factor: float) -> void:
     _draw_layer_cells(_tree_index, center, factor, Color("#2f653b"), view)
     _draw_layer_cells(_structure_index, center, factor, Color("#c9a269"), view)
 
+func _draw_quest_waypoint(center: Vector2, factor: float) -> void:
+	if _quest_waypoint.is_empty():
+		return
+	var raw_position: Variant = _quest_waypoint.get("position", Vector2.ZERO)
+	if not (raw_position is Vector2):
+		return
+	var view := _map_view_rect()
+	var point: Vector2 = center + (raw_position as Vector2) * factor
+	if not view.grow(48.0).has_point(point):
+		return
+
+	var pulse: float = (sin(Time.get_ticks_msec() * 0.006) + 1.0) * 0.5
+	draw_circle(point, 13.0 + pulse * 3.0, Color(1.0, 0.75, 0.20, 0.16))
+	var diamond := PackedVector2Array([
+		point + Vector2(0.0, -10.0),
+		point + Vector2(9.0, 0.0),
+		point + Vector2(0.0, 10.0),
+		point + Vector2(-9.0, 0.0)
+	])
+	draw_colored_polygon(diamond, Color("#101c24"))
+	var inner := PackedVector2Array([
+		point + Vector2(0.0, -6.0),
+		point + Vector2(5.0, 0.0),
+		point + Vector2(0.0, 6.0),
+		point + Vector2(-5.0, 0.0)
+	])
+	var marker_color := Color("#f6c84f") if not bool(_quest_waypoint.get("is_return", false)) else Color("#86efac")
+	draw_colored_polygon(inner, marker_color)
+	if is_big_map or factor >= 0.04:
+		_label(point + Vector2(13.0, 5.0), str(_quest_waypoint.get("name", "Quest objective")), 12 if is_big_map else 10, marker_color)
+
 func _draw_named_locations(center: Vector2, factor: float) -> void:
     var view := _map_view_rect()
     for location: Dictionary in _locations:
@@ -425,6 +480,7 @@ func _draw() -> void:
     draw_texture_rect(active_texture, map_rect, false)
     _draw_layer_details(center, factor)
     _draw_named_locations(center, factor)
+    _draw_quest_waypoint(center, factor)
 
     # 3. Subtle grid lines on Big Map (32 tiles / 1024 units per grid square)
     if is_big_map:
@@ -521,6 +577,13 @@ func _draw() -> void:
         draw_circle(Vector2(leg_x + 28, ly - 4), 4.5, Color("#101c24"))
         draw_circle(Vector2(leg_x + 28, ly - 4), 3.0, Color("#ffcf48"))
         _label(Vector2(leg_x + 44, ly), "Villagers", 13, Color("#eef3f6"))
+        ly += 26.0
+
+        draw_colored_polygon(PackedVector2Array([
+            Vector2(leg_x + 28, ly - 10), Vector2(leg_x + 34, ly - 4),
+            Vector2(leg_x + 28, ly + 2), Vector2(leg_x + 22, ly - 4)
+        ]), Color("#f6c84f"))
+        _label(Vector2(leg_x + 44, ly), "Quest waypoint", 13, Color("#eef3f6"))
         ly += 26.0
 
         var d_u := PackedVector2Array([Vector2(leg_x + 28, ly - 10), Vector2(leg_x + 34, ly - 4), Vector2(leg_x + 28, ly + 2), Vector2(leg_x + 22, ly - 4)])
