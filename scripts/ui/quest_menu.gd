@@ -36,10 +36,10 @@ func _toggle() -> void:
 	if visible:
 		_hide_overlay("BigMap")
 		_hide_overlay("CookingUILayer")
-		var inv := get_tree().root.find_child("InventoryUI", true, false)
+		var inv := get_tree().root.find_child("InventoryUI", true, false) as Control
 		if inv and inv.visible:
 			inv.visible = false
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false) as Control
 		if p_menu and p_menu.visible:
 			p_menu.visible = false
 
