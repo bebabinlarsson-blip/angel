@@ -1,6 +1,8 @@
 extends Node2D
 
 const VILLAGER_SCENE = preload("res://scenes/npcs/villager.tscn")
+const VILLAGE_SERVICE_SCRIPT = preload("res://scripts/world/village_service.gd")
+const INTERIOR_MANAGER_SCRIPT = preload("res://scripts/world/interior_manager.gd")
 
 @onready var player: CharacterBody2D = get_node_or_null("World/Player") as CharacterBody2D
 @onready var quest_system: QuestSystem = get_node_or_null("QuestSystem")
@@ -28,6 +30,8 @@ func _ready() -> void:
     _ensure_cooking_place(world_node)
     var layout_config: Dictionary = _load_layout_config()
     terrain.rebuild(world_node, layout_config)
+    _ensure_village_services(world_node, layout_config)
+    _ensure_interior_system(world_node, layout_config)
     _spawn_additional_villagers(world_node)
     _confine_village_npcs(world_node, layout_config)
     var director := world_node.get_node_or_null("WorldDirector") as WorldDirector
@@ -108,6 +112,60 @@ func _ensure_cooking_place(world_node: Node2D) -> void:
     hearth.position = Vector2.ZERO
     world_node.add_child(hearth)
 
+
+func _ensure_village_services(world_node: Node2D, layout_config: Dictionary) -> void:
+    if world_node == null:
+        return
+    var services_parent := world_node.get_node_or_null("VillageServices") as Node2D
+    if services_parent == null:
+        services_parent = Node2D.new()
+        services_parent.name = "VillageServices"
+        services_parent.y_sort_enabled = true
+        world_node.add_child(services_parent)
+
+    var village_value: Variant = layout_config.get("village", {})
+    var village_data: Dictionary = village_value if village_value is Dictionary else {}
+    var services_value: Variant = village_data.get("services", [])
+    var service_definitions: Array[Dictionary] = []
+    if services_value is Array:
+        for raw_service in services_value:
+            if raw_service is Dictionary:
+                service_definitions.append(raw_service)
+    if service_definitions.is_empty():
+        service_definitions = [
+            {"id": "village_fountain", "name": "Village Fountain", "type": "fountain", "pos": {"x": -32.0, "y": -112.0}, "description": "Fresh spring water restores health and stamina."},
+            {"id": "market_stall", "name": "Sunrise Market", "type": "market", "pos": {"x": 112.0, "y": -192.0}, "description": "Trade spare materials for gold at the village market."},
+            {"id": "blacksmith_forge", "name": "Blacksmith Forge", "type": "blacksmith", "pos": {"x": -256.0, "y": 96.0}, "description": "A working forge where ore can be traded and swords maintained."}
+        ]
+
+    for definition: Dictionary in service_definitions:
+        var service_id := str(definition.get("id", ""))
+        if service_id.is_empty():
+            continue
+        var node_name := "Service_" + service_id.replace(" ", "_")
+        var service := services_parent.get_node_or_null(node_name) as Node
+        if service == null:
+            service = VILLAGE_SERVICE_SCRIPT.new() as Node
+            service.name = node_name
+            services_parent.add_child(service)
+        service.set("service_id", service_id)
+        service.set("display_name", str(definition.get("name", service_id.replace("_", " ").capitalize())))
+        service.set("service_type", str(definition.get("type", "market")))
+        service.set("description", str(definition.get("description", "A useful village service.")))
+        var position_value: Variant = definition.get("pos", {})
+        if position_value is Dictionary:
+            var position_data: Dictionary = position_value
+            service.set("position", Vector2(float(position_data.get("x", 0.0)), float(position_data.get("y", 0.0))))
+
+func _ensure_interior_system(world_node: Node2D, layout_config: Dictionary) -> void:
+    if world_node == null:
+        return
+    var manager := get_node_or_null("InteriorManager") as Node
+    if manager == null:
+        manager = INTERIOR_MANAGER_SCRIPT.new() as Node
+        manager.name = "InteriorManager"
+        add_child(manager)
+    manager.call("configure", world_node, layout_config)
 
 func _load_layout_config() -> Dictionary:
     var file := FileAccess.open("res://data/island_layout.json", FileAccess.READ)
