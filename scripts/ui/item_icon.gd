@@ -57,6 +57,22 @@ func _draw() -> void:
 				_draw_banana()
 			"grapes":
 				_draw_grapes()
+			"tomato":
+				_draw_fruit(Color("#d84d49"), "tomato")
+			"coconut":
+				_draw_fruit(Color("#8d5e3d"), "coconut")
+			"watermelon":
+				_draw_fruit(Color("#5cae61"), "watermelon")
+			"carrot":
+				_draw_carrot()
+			"wheat":
+				_draw_plant()
+			"mint":
+				_draw_herb()
+			"lavender":
+				_draw_flower(Color("#a681d6"))
+			"rose":
+				_draw_flower(Color("#e74f67"))
 			"mushroom":
 				_draw_mushroom()
 			"berry":
@@ -117,6 +133,16 @@ func _draw_plant() -> void:
 	draw_ellipse_leaf(Vector2(10.0, -2.0), 8.0, Color("#82d26f"))
 	draw_ellipse_leaf(Vector2(18.0, -18.0), 7.0, Color("#579d59"))
 
+func _draw_carrot() -> void:
+	draw_line(Vector2(0.0, -1.0), Vector2(0.0, -20.0), Color("#4f9b4c"), 4.0)
+	draw_line(Vector2(0.0, -13.0), Vector2(-8.0, -20.0), Color("#6db25d"), 3.0)
+	draw_line(Vector2(0.0, -13.0), Vector2(8.0, -20.0), Color("#6db25d"), 3.0)
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(-11.0, -2.0), Vector2(11.0, -2.0), Vector2(5.0, 20.0),
+		Vector2(0.0, 26.0), Vector2(-5.0, 20.0)
+	]), Color("#e88943"))
+	draw_line(Vector2(-4.0, 4.0), Vector2(4.0, 15.0), Color("#ffd08a"), 2.0)
+
 func _draw_flower(petal_color: Color) -> void:
 	draw_line(Vector2(0.0, 24.0), Vector2(0.0, -7.0), Color("#5aa556"), 3.0)
 	draw_ellipse_leaf(Vector2(-8.0, 10.0), 6.0, Color("#6dbd62"))
@@ -141,6 +167,9 @@ func _draw_fruit(fruit_color: Color, shape: String) -> void:
 		]), fruit_color)
 	else:
 		draw_circle(Vector2(0.0, 2.0), 18.0, fruit_color)
+	if shape == "watermelon":
+		draw_circle(Vector2(0.0, 2.0), 11.0, Color("#e86565"))
+		draw_arc(Vector2(0.0, 2.0), 15.0, 0.3, 2.8, 18, Color("#2d7548"), 2.0)
 	draw_line(Vector2(0.0, -17.0), Vector2(4.0, -26.0), Color("#6d4329"), 3.0)
 	draw_ellipse_leaf(Vector2(10.0, -23.0), 7.0, Color("#77bd5d"))
 	draw_circle(Vector2(-6.0, -4.0), 4.0, Color(1.0, 1.0, 1.0, 0.35))
@@ -187,6 +216,14 @@ func _draw_dish() -> void:
 			dish_color = Color("#b85a91")
 		"herb_salad", "foragers_salad":
 			dish_color = Color("#73c46c")
+		"garden_soup":
+			dish_color = Color("#d86b48")
+		"fruit_punch":
+			dish_color = Color("#e35b74")
+		"root_roast":
+			dish_color = Color("#b8794d")
+		"lavender_tea":
+			dish_color = Color("#ad83cf")
 		"mushroom_stew", "herbalist_broth":
 			dish_color = Color("#9d754f")
 	draw_arc(Vector2(0.0, 3.0), 22.0, 0.0, PI, 24, Color("#f1ddae"), 8.0)
