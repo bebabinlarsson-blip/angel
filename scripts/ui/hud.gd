@@ -289,7 +289,7 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_map") and (big_map.visible or not get_tree().paused):
 		set_map_open(not big_map.visible)
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_cancel") and big_map.visible:
+	elif (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")) and big_map.visible:
 		set_map_open(false)
 		get_viewport().set_input_as_handled()
 
