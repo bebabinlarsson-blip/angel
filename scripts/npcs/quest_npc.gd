@@ -48,8 +48,12 @@ var work_cycle_index: int = 0
 var village_center: Vector2 = Vector2.ZERO
 var village_radius: float = 500.0
 var _village_bounds_ready: bool = false
+var _paused_for_dialogue: bool = false
 
 func _ready() -> void:
+	# Dialogue is a real modal: keep its screen-space controls responsive while
+	# the gameplay tree is paused, and prevent the NPC from walking underneath it.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	add_to_group("npcs")
 	if job == "idle":
 		job = _job_from_npc_id()
@@ -262,9 +266,14 @@ func interact(_player: CharacterBody2D) -> void:
 	if is_dialogue_open:
 		_close_dialogue()
 		return
+	if _player == null or not is_instance_valid(_player):
+		return
 	
 	is_dialogue_open = true
 	_dialogue_player = _player
+	_paused_for_dialogue = GameManager.current_state == GameManager.GameState.PLAYING
+	if _paused_for_dialogue:
+		GameManager.set_state(GameManager.GameState.PAUSED)
 	interaction_count += 1
 	if dialogue_panel:
 		dialogue_panel.visible = true
@@ -276,10 +285,15 @@ func interact(_player: CharacterBody2D) -> void:
 	_update_dialogue()
 
 func _input(event: InputEvent) -> void:
-	if is_dialogue_open:
-		if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
-			_close_dialogue()
-			get_viewport().set_input_as_handled()
+	if not is_dialogue_open:
+		return
+	if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
+		_close_dialogue()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventKey or event is InputEventJoypadButton:
+		# Keep inventory/quest/attack hotkeys from reaching GameManager while
+		# the conversation modal is open. Mouse clicks remain available to UI.
+		get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
 	if stays_in_village and not _village_bounds_ready:
@@ -526,6 +540,10 @@ func _close_dialogue() -> void:
 	_dialogue_player = null
 	if dialogue_panel:
 		dialogue_panel.visible = false
+	if _paused_for_dialogue:
+		_paused_for_dialogue = false
+		if GameManager.current_state == GameManager.GameState.PAUSED:
+			GameManager.set_state(GameManager.GameState.PLAYING)
 
 func show_interaction_hint() -> void:
 	if interaction_label:
