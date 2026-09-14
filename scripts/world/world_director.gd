@@ -104,10 +104,12 @@ func _process(delta: float) -> void:
     population_timer = 0.0
 
     var player_pos: Vector2 = GameManager.player.global_position
-    var resource_count := get_tree().get_nodes_in_group("resource_nodes").size()
-    var enemy_count := get_tree().get_nodes_in_group("monsters").size()
-    var nearby_resources := _count_near("resource_nodes", player_pos, 3600.0)
-    var nearby_enemies := _count_near("monsters", player_pos, 4200.0)
+    var resource_nodes := get_tree().get_nodes_in_group("resource_nodes")
+    var monsters := get_tree().get_nodes_in_group("monsters")
+    var resource_count := resource_nodes.size()
+    var enemy_count := monsters.size()
+    var nearby_resources := _count_near_nodes(resource_nodes, player_pos, 3600.0)
+    var nearby_enemies := _count_near_nodes(monsters, player_pos, 4200.0)
 
     if resource_count < max_resources:
         var global_resource_budget := mini(6, max_resources - resource_count)
@@ -127,10 +129,10 @@ func _process(delta: float) -> void:
             if new_enemy_pos != Vector2.ZERO:
                 _spawn_enemy(new_enemy_pos)
 
-func _count_near(group_name: String, center: Vector2, radius: float) -> int:
+func _count_near_nodes(nodes: Array, center: Vector2, radius: float) -> int:
     var count := 0
     var radius_sq := radius * radius
-    for node: Node in get_tree().get_nodes_in_group(group_name):
+    for node in nodes:
         if node is Node2D and (node as Node2D).global_position.distance_squared_to(center) <= radius_sq:
             count += 1
     return count

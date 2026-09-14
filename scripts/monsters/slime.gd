@@ -41,13 +41,10 @@ func _ready() -> void:
     jump_timer = randf_range(0.5, jump_interval)
 
 func _physics_process(delta: float) -> void:
-    var far_from_player := false
-    if GameManager.player and is_instance_valid(GameManager.player):
-        far_from_player = global_position.distance_squared_to(GameManager.player.global_position) > 2250000.0
-
-    # LOD early-out lives in base; don't run jump animation work after it sleeps.
+    # BaseMonster owns the distance check so slime jump logic does not repeat
+    # it for every spawned enemy.
     super._physics_process(delta)
-    if far_from_player:
+    if is_far_lod:
         return
 
     _handle_jump(delta)

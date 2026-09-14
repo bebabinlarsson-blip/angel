@@ -8,6 +8,8 @@ var map_offset := Vector2.ZERO
 var map_zoom: float = 1.0
 var _dragging: bool = false
 var _timer: float = 0.0
+var _marker_timer: float = 0.0
+var _markers_initialized: bool = false
 var _terrain: IslandWorld
 var _stones: Array[Node] = []
 var _npcs: Array[Node] = []
@@ -40,13 +42,17 @@ func _process(delta: float) -> void:
     if not is_visible_in_tree():
         return
     _timer += delta
+    _marker_timer += delta
     if _timer < 0.08:
         return
     _timer = 0.0
     if not is_instance_valid(_terrain):
         _terrain = get_tree().get_first_node_in_group("island_world") as IslandWorld
-    _stones = get_tree().get_nodes_in_group("waystones")
-    _npcs = get_tree().get_nodes_in_group("npcs")
+    if not _markers_initialized or _marker_timer >= 0.5:
+        _stones = get_tree().get_nodes_in_group("waystones")
+        _npcs = get_tree().get_nodes_in_group("npcs")
+        _markers_initialized = true
+        _marker_timer = 0.0
     _refresh_layer_cache()
     queue_redraw()
 
@@ -55,7 +61,11 @@ func _refresh_layer_cache() -> void:
         return
     if _layer_cache_revision == _terrain.revision:
         return
-    _locations = _terrain.get_map_locations() if _terrain.has_method("get_map_locations") else []
+    _locations.clear()
+    if _terrain.has_method("get_map_locations"):
+        for location in _terrain.get_map_locations():
+            if location is Dictionary:
+                _locations.append(location)
     _water_cells = _layer_cells(_terrain.water_layer)
     _farm_cells = _layer_cells(_terrain.farm_layer)
     _path_cells = _layer_cells(_terrain.paths)
@@ -67,7 +77,11 @@ func _refresh_layer_cache() -> void:
 func _layer_cells(layer: TileMapLayer) -> Array:
     if layer == null or not is_instance_valid(layer):
         return []
-    return layer.get_used_cells()
+    var cells: Array = []
+    for cell in layer.get_used_cells():
+        if cell is Vector2i:
+            cells.append(cell)
+    return cells
 
 func _map_view_rect() -> Rect2:
     if is_big_map:
@@ -147,7 +161,10 @@ func _clamp_offset() -> void:
 func _open_big_map() -> void:
     var hud := get_tree().root.find_child("HUD", true, false)
     if hud and hud.has_method("set_map_open"):
-        hud.set_map_open(true)
+        # Defer the visibility/pause change until the GUI event has finished.
+        # This avoids re-entering the draw tree while the minimap is handling
+        # the click that opened it.
+        hud.call_deferred("set_map_open", true)
 
 func _on_gui_input(event: InputEvent) -> void:
     if event is InputEventMouseButton:
@@ -203,7 +220,10 @@ func _draw_layer_cells(cells: Array, center: Vector2, factor: float, color: Colo
     var half := Vector2.ONE * cell_px * 0.5
     var safe_view := view.grow(cell_px * 2.0)
     for cell in cells:
-        var world_pos := Vector2(cell) * 32.0 + Vector2(16.0, 16.0)
+        if not (cell is Vector2i):
+            continue
+        var cell_pos: Vector2i = cell
+        var world_pos := Vector2(float(cell_pos.x) * 32.0 + 16.0, float(cell_pos.y) * 32.0 + 16.0)
         var screen_pos := center + world_pos * factor
         if not safe_view.has_point(screen_pos):
             continue
@@ -225,7 +245,10 @@ func _draw_layer_details(center: Vector2, factor: float) -> void:
 func _draw_named_locations(center: Vector2, factor: float) -> void:
     var view := _map_view_rect()
     for location: Dictionary in _locations:
-        var world_pos: Vector2 = location.get("pos", Vector2.ZERO)
+        var raw_pos: Variant = location.get("pos", Vector2.ZERO)
+        if not (raw_pos is Vector2):
+            continue
+        var world_pos: Vector2 = raw_pos
         var p := center + world_pos * factor
         if not view.grow(32.0).has_point(p):
             continue
@@ -250,13 +273,9 @@ func _draw_named_locations(center: Vector2, factor: float) -> void:
                 draw_circle(p, 3.0, Color("#fff0a8"))
 
         var label_zoom := float(location.get("label_zoom", 1.4))
-        var show_label := false
-        if kind == "village":
-            show_label = true
-        elif is_big_map:
+        var show_label := kind == "village"
+        if is_big_map and kind != "village":
             show_label = map_zoom >= label_zoom
-        elif kind == "village":
-            show_label = true
         if not show_label:
             continue
         var label_pos := p + Vector2(16, 5)
@@ -265,12 +284,14 @@ func _draw_named_locations(center: Vector2, factor: float) -> void:
         _label(label_pos, str(location.get("name", "Unknown Place")), 13 if is_big_map else 10, Color("#ffe08a"))
 
 func _draw() -> void:
+    if size.x <= 0.0 or size.y <= 0.0:
+        return
     if not is_instance_valid(_terrain):
         _terrain = get_tree().get_first_node_in_group("island_world") as IslandWorld
-    if _stones.is_empty():
+    if not _markers_initialized:
         _stones = get_tree().get_nodes_in_group("waystones")
-    if _npcs.is_empty():
         _npcs = get_tree().get_nodes_in_group("npcs")
+        _markers_initialized = true
     _refresh_layer_cache()
 
     # 1. Base ocean fill
@@ -306,22 +327,23 @@ func _draw() -> void:
 
     # 4. Waystones markers
     for stone: Node in _stones:
-        if not is_instance_valid(stone):
+        if not is_instance_valid(stone) or not (stone is Node2D):
             continue
-        var p: Vector2 = center + stone.global_position * factor
-        var unlocked: bool = stone.is_unlocked
+        var stone_2d := stone as Node2D
+        var p: Vector2 = center + stone_2d.global_position * factor
+        var unlocked := bool(stone.get("is_unlocked"))
         var col_gem := Color("#4ef3e6") if unlocked else Color("#889299")
         var d_out := PackedVector2Array([p + Vector2(0, -7), p + Vector2(6, 0), p + Vector2(0, 7), p + Vector2(-6, 0)])
         var d_in := PackedVector2Array([p + Vector2(0, -4), p + Vector2(3.5, 0), p + Vector2(0, 4), p + Vector2(-3.5, 0)])
         draw_colored_polygon(d_out, Color("#101c24"))
         draw_colored_polygon(d_in, col_gem)
         if is_big_map and (map_zoom >= 1.8 or unlocked):
-            _label(p + Vector2(10, 4), String(stone.display_name).replace(" Waystone", ""), 12, Color("#eef3f6"))
+            _label(p + Vector2(10, 4), str(stone.get("display_name")).replace(" Waystone", ""), 12, Color("#eef3f6"))
 
     # 5. NPC markers
     for npc: Node in _npcs:
-        if is_instance_valid(npc) and (not is_big_map or map_zoom >= 1.6):
-            var p: Vector2 = center + npc.global_position * factor
+        if is_instance_valid(npc) and npc is Node2D and (not is_big_map or map_zoom >= 1.6):
+            var p: Vector2 = center + (npc as Node2D).global_position * factor
             draw_circle(p, 4.0, Color("#101c24"))
             draw_circle(p, 2.5, Color("#ffcf48"))
 
