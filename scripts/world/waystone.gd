@@ -10,8 +10,9 @@ var fast_travel_popup: PanelContainer = null
 
 func _ready() -> void:
 	add_to_group("waystones")
+	set_process(false)
 	
-	if is_unlocked or waystone_id in GameManager.unlocked_waystones:
+	if is_unlocked or GameManager.unlocked_waystones.has(waystone_id):
 		is_unlocked = true
 		GameManager.register_waystone(waystone_id, global_position, display_name)
 
@@ -37,6 +38,7 @@ func _show_fast_travel_ui() -> void:
 	fast_travel_layer.layer = 60
 	fast_travel_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(fast_travel_layer)
+	set_process(true)
 
 	var center := CenterContainer.new()
 	center.name = "Center"
@@ -102,10 +104,13 @@ func _close_fast_travel() -> void:
 		fast_travel_layer.queue_free()
 	fast_travel_layer = null
 	fast_travel_popup = null
+	set_process(false)
 
 func _process(_delta: float) -> void:
-	# Auto-close the popup if the player walks away (prevents orphaned UI).
-	if fast_travel_layer and is_instance_valid(fast_travel_layer):
-		var p := GameManager.player
-		if p and is_instance_valid(p) and (p as Node2D).global_position.distance_to(global_position) > 180.0:
-			_close_fast_travel()
+	# Auto-close the popup only while it exists; dormant waystones do not poll.
+	if fast_travel_layer == null or not is_instance_valid(fast_travel_layer):
+		set_process(false)
+		return
+	var p := GameManager.player
+	if p and is_instance_valid(p) and (p as Node2D).global_position.distance_to(global_position) > 180.0:
+		_close_fast_travel()
