@@ -17,6 +17,7 @@ var scaled_attack: float
 var scaled_speed: float
 
 var target: CharacterBody2D = null
+var terrain: IslandWorld = null
 var attack_timer: float = 0.0
 var attack_windup: float = 0.0
 var attack_has_landed: bool = false
@@ -26,6 +27,7 @@ var knockback_velocity: Vector2 = Vector2.ZERO
 var hurt_timer: float = 0.0
 var facing_direction: String = "down"
 var lod_tick: float = 0.0
+var is_far_lod: bool = false
 
 @onready var sprite: AnimatedSprite2D = get_node_or_null("Sprite2D")
 @onready var collision_shape: CollisionShape2D = get_node_or_null("CollisionShape")
@@ -37,6 +39,7 @@ var visual_renderer: CustomDraw2D = null
 
 func _ready() -> void:
     add_to_group("monsters")
+    terrain = get_tree().get_first_node_in_group("island_world") as IslandWorld
     _scale_to_player_level()
     current_hp = base_hp
 
@@ -61,13 +64,18 @@ func _physics_process(delta: float) -> void:
     if current_state == State.DEAD:
         return
 
+    is_far_lod = false
     if GameManager.player and is_instance_valid(GameManager.player):
         var dist_sq: float = global_position.distance_squared_to(GameManager.player.global_position)
         if dist_sq > 2250000.0:
+            # Distant enemies remain spawned and keep their identity, but do
+            # not spend a full physics tick while they are off-screen.
+            is_far_lod = true
             lod_tick += delta
-            if lod_tick >= 2.0:
-                lod_tick = 0.0
-                wander_timer = randf_range(2.0, 5.0)
+            if lod_tick < 0.2:
+                return
+            lod_tick = 0.0
+            wander_timer = randf_range(2.0, 5.0)
             return
 
     # Keep hostile creatures outside the village ring so the settlement stays safe.
@@ -85,7 +93,8 @@ func _physics_process(delta: float) -> void:
     _apply_knockback(delta)
     _update_animation()
 
-    var terrain := get_tree().get_first_node_in_group("island_world") as IslandWorld
+    if not is_instance_valid(terrain):
+        terrain = get_tree().get_first_node_in_group("island_world") as IslandWorld
     if terrain and velocity.length_squared() > 1.0 and terrain.is_water(global_position + velocity.normalized() * 28.0):
         velocity = Vector2.ZERO
         wander_direction = -wander_direction
