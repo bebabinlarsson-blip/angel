@@ -95,7 +95,7 @@ func game_over() -> void:
 	EventBus.player_died.emit()
 
 func respawn_player() -> void:
-	if player:
+	if player != null and is_instance_valid(player):
 		player.global_position = village_spawn_point
 		player.respawn()
 	set_state(GameState.PLAYING)
