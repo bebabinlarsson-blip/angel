@@ -22,9 +22,9 @@ const SLIME_SCENE = preload("res://scenes/monsters/slime.tscn")
 # Dynamic content is kept as compact records. Scene nodes exist only in the
 # camera neighborhood, which prevents the expanded island from creating a
 # frame-rate cost proportional to the full map size.
-@export var stream_load_radius: float = 1700.0
-@export var stream_unload_radius: float = 2350.0
-@export var stream_padding: float = 520.0
+@export var stream_load_radius: float = 720.0
+@export var stream_unload_radius: float = 1120.0
+@export var stream_padding: float = 260.0
 @export var stream_update_interval: float = 0.35
 @export var enemy_respawn_time: float = 45.0
 
@@ -135,7 +135,7 @@ func _initialize() -> void:
     # reliably find herbs, fruit, flowers and plants instead of waiting for a
     # random catalog roll.
     for resource_id: String in GUARANTEED_STARTER_MATERIALS:
-        var starter_pos := _find_position_near(Vector2.ZERO, 680.0, 1200.0, 52.0)
+        var starter_pos := _find_position_near(Vector2.ZERO, 620.0, 900.0, 52.0)
         if starter_pos == Vector2.ZERO:
             continue
         var starter_record := _register_resource_record(starter_pos, _catalog_entry(resource_id))
@@ -356,9 +356,10 @@ func _top_up_local_population(center: Vector2) -> void:
 
     var resource_need: int = maxi(0, local_resource_target - active_resources)
     var resource_budget: int = mini(6, maxi(0, max_resources - resource_records.size()))
-    var resource_max_distance: float = maxf(420.0, minf(1450.0, load_radius - 180.0))
+    var resource_min_distance: float = 620.0
+    var resource_max_distance: float = maxf(resource_min_distance + 80.0, minf(1450.0, load_radius - 40.0))
     for i in range(mini(resource_need, resource_budget)):
-        var new_resource_pos := _find_position_near(center, 320.0, resource_max_distance, 52.0)
+        var new_resource_pos := _find_position_near(center, resource_min_distance, resource_max_distance, 52.0)
         if new_resource_pos != Vector2.ZERO:
             var record := _register_resource_record(new_resource_pos, _pick_resource_at(new_resource_pos))
             if not record.is_empty():
@@ -366,9 +367,10 @@ func _top_up_local_population(center: Vector2) -> void:
 
     var enemy_need: int = maxi(0, local_enemy_target - active_enemies)
     var enemy_budget: int = mini(3, maxi(0, max_enemies - enemy_records.size()))
-    var enemy_max_distance: float = maxf(900.0, minf(1600.0, load_radius - 220.0))
+    var enemy_min_distance: float = 700.0
+    var enemy_max_distance: float = maxf(enemy_min_distance + 60.0, minf(1300.0, load_radius - 40.0))
     for i in range(mini(enemy_need, enemy_budget)):
-        var new_enemy_pos := _find_position_near(center, 700.0, enemy_max_distance, 82.0)
+        var new_enemy_pos := _find_position_near(center, enemy_min_distance, enemy_max_distance, 82.0)
         if new_enemy_pos != Vector2.ZERO:
             var record := _register_enemy_record(new_enemy_pos)
             if not record.is_empty():
