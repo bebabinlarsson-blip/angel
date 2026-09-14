@@ -159,9 +159,11 @@ func _show_quest_detail(quest: Dictionary) -> void:
 	var giver_job: String = _npc_job(npc_id)
 	var requirement: String = str(quest.get("objective", "No requirement recorded."))
 	var destination: String = _quest_destination(str(quest.get("id", "")))
-	var status_text: String = "Ready to complete!" if is_ready else "In progress"
-	if quest.get("completed", false):
-		status_text = "Completed"
+	var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
+	var is_done: bool = quest.get("completed", false)
+	if quest_system != null:
+		is_done = is_done or quest_system.completed_quests.has(str(quest.get("id", "")))
+	var status_text: String = "Completed" if is_done else ("Ready to complete!" if is_ready else "In progress")
 
 	var detail_text: String = "[font_size=18][b][color=#fde047]%s[/color][/b][/font_size]\n\n%s\n\n[color=#fbbf24]Quest giver:[/color] %s\n[color=#a5b4fc]Role:[/color] %s\n[color=#38bdf8]What you need:[/color] %s\n[color=#c4b5fd]Destination:[/color] %s\n[color=#4ade80]Progress:[/color] %d / %d  (%s)\n\n[color=#fbbf24]Rewards:[/color] %d Gold, %d EXP" % [
 		str(quest.get("title", "Unnamed Quest")),
