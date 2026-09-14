@@ -182,7 +182,7 @@ func _refresh() -> void:
 		empty_slot.add_theme_stylebox_override("panel", style)
 		grid_container.add_child(empty_slot)
 
-func _update_category_counts(player: CharacterBody2D) -> void:
+func _update_category_counts(player: Player) -> void:
 	var counts := {}
 	for item: Dictionary in player.inventory.items:
 		var item_type := int(item.get("type", 0))
@@ -202,7 +202,7 @@ func _update_category_counts(player: CharacterBody2D) -> void:
 	if btn_collectibles:
 		btn_collectibles.text = "Relics (%d)" % int(counts.get(6, 0))
 
-func _is_equipped(player: CharacterBody2D, item: Dictionary, item_type: int) -> bool:
+func _is_equipped(player: Player, item: Dictionary, item_type: int) -> bool:
 	if item_type == 1:
 		return player.inventory.equipped_weapon.get("id", "") == item.get("id", "")
 	if item_type == 2:
