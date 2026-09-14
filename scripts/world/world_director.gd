@@ -245,15 +245,28 @@ func _index_authored_stream_nodes() -> void:
                         "node": shape,
                         "disabled": shape.disabled
                     })
+            var protected_from_spawn: bool = false
+            if node is ResourceNode or node is CollectableItem or node is MiningRock:
+                protected_from_spawn = terrain.is_inside_village_safe_zone(node.global_position, 0.0)
             var state: Dictionary = {
                 "node": node,
                 "visible": node.visible,
                 "process_mode": node.process_mode,
                 "collision_states": collision_states,
-                "active": true
+                "protected": protected_from_spawn,
+                "active": not protected_from_spawn
             }
             if node is Area2D:
                 state["monitoring"] = (node as Area2D).monitoring
+            if protected_from_spawn:
+                node.visible = false
+                node.process_mode = Node.PROCESS_MODE_DISABLED
+                for collision_state: Dictionary in collision_states:
+                    var protected_shape_value: Variant = collision_state.get("node", null)
+                    if protected_shape_value is CollisionShape2D and is_instance_valid(protected_shape_value):
+                        (protected_shape_value as CollisionShape2D).set_deferred("disabled", true)
+                if node is Area2D:
+                    (node as Area2D).set_deferred("monitoring", false)
             authored_stream_records.append(state)
 
 func _refresh_authored_stream(center: Vector2, load_radius_sq: float) -> void:
@@ -266,7 +279,8 @@ func _refresh_authored_stream(center: Vector2, load_radius_sq: float) -> void:
             continue
 
         var node: Node2D = node_value as Node2D
-        var should_be_active: bool = node.global_position.distance_squared_to(center) <= load_radius_sq
+        var protected_from_spawn: bool = bool(state.get("protected", false))
+        var should_be_active: bool = not protected_from_spawn and node.global_position.distance_squared_to(center) <= load_radius_sq
         var is_active: bool = bool(state.get("active", true))
         if should_be_active == is_active:
             index += 1
