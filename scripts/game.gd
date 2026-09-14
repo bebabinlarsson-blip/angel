@@ -3,6 +3,7 @@ extends Node2D
 const VILLAGER_SCENE = preload("res://scenes/npcs/villager.tscn")
 const VILLAGE_SERVICE_SCRIPT = preload("res://scripts/world/village_service.gd")
 const INTERIOR_MANAGER_SCRIPT = preload("res://scripts/world/interior_manager.gd")
+const QUEST_WAYPOINT_SCRIPT = preload("res://scripts/world/quest_waypoint_marker.gd")
 
 @onready var player: CharacterBody2D = get_node_or_null("World/Player") as CharacterBody2D
 @onready var quest_system: QuestSystem = get_node_or_null("QuestSystem")
@@ -32,6 +33,7 @@ func _ready() -> void:
     terrain.rebuild(world_node, layout_config)
     _ensure_village_services(world_node, layout_config)
     _ensure_interior_system(world_node, layout_config)
+    _ensure_quest_waypoint_marker(world_node)
     _spawn_additional_villagers(world_node)
     _confine_village_npcs(world_node, layout_config)
     var director := world_node.get_node_or_null("WorldDirector") as WorldDirector
@@ -166,6 +168,15 @@ func _ensure_interior_system(world_node: Node2D, layout_config: Dictionary) -> v
         manager.name = "InteriorManager"
         add_child(manager)
     manager.call("configure", world_node, layout_config)
+
+func _ensure_quest_waypoint_marker(world_node: Node2D) -> void:
+    if world_node == null:
+        return
+    var marker := world_node.get_node_or_null("QuestWaypointMarker") as Node
+    if marker == null:
+        marker = QUEST_WAYPOINT_SCRIPT.new() as Node
+        marker.name = "QuestWaypointMarker"
+        world_node.add_child(marker)
 
 func _load_layout_config() -> Dictionary:
     var file := FileAccess.open("res://data/island_layout.json", FileAccess.READ)
