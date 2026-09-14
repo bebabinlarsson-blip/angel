@@ -37,7 +37,7 @@
       "y": 0.0
     },
     "tree_ring_radius": 500.0,
-    "tree_ring_count": 0,
+    "tree_ring_count": 32,
     "houses": [
       {
         "id": "house_elder",
