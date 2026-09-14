@@ -54,6 +54,14 @@ const RESOURCE_CATALOG: Array[Dictionary] = [
     {"id": "pear", "name": "Pear", "weight": 4.0, "min": 1, "max": 2, "type": 0},
     {"id": "banana", "name": "Banana", "weight": 3.0, "min": 1, "max": 2, "type": 0},
     {"id": "grapes", "name": "Grapes", "weight": 4.0, "min": 1, "max": 2, "type": 0},
+    {"id": "tomato", "name": "Tomato", "weight": 5.0, "min": 1, "max": 3, "type": 0},
+    {"id": "carrot", "name": "Carrot", "weight": 4.5, "min": 1, "max": 3, "type": 0},
+    {"id": "coconut", "name": "Coconut", "weight": 2.5, "min": 1, "max": 2, "type": 0},
+    {"id": "watermelon", "name": "Watermelon", "weight": 2.0, "min": 1, "max": 1, "type": 0},
+    {"id": "wheat", "name": "Wheat", "weight": 3.5, "min": 1, "max": 3, "type": 0},
+    {"id": "mint", "name": "Mint", "weight": 4.5, "min": 1, "max": 3, "type": 0},
+    {"id": "lavender", "name": "Lavender", "weight": 3.5, "min": 1, "max": 2, "type": 0},
+    {"id": "rose", "name": "Rose", "weight": 3.5, "min": 1, "max": 2, "type": 0},
     {"id": "reeds", "name": "River Reeds", "weight": 4.0, "min": 1, "max": 3, "type": 0},
     {"id": "berry", "name": "Wild Berries", "weight": 8.0, "min": 2, "max": 5, "type": 0},
     {"id": "iron_ore", "name": "Iron Ore", "weight": 5.0, "min": 1, "max": 2, "type": 0},
@@ -75,7 +83,15 @@ const GUARANTEED_STARTER_MATERIALS: Array[String] = [
     "orange",
     "pear",
     "banana",
-    "grapes"
+    "grapes",
+    "tomato",
+    "carrot",
+    "coconut",
+    "watermelon",
+    "wheat",
+    "mint",
+    "lavender",
+    "rose"
 ]
 
 func _catalog_entry(resource_id: String) -> Dictionary:
@@ -395,13 +411,13 @@ func _resource_weight(entry: Dictionary, biome: String) -> float:
             if resource_id in ["stone", "iron_ore", "coal", "gold_ore", "crystal"]:
                 weight *= 2.4
         "grove":
-            if resource_id in ["wood", "herb", "fiber", "mushroom", "berry", "moon_petal", "apple", "orange", "pear", "banana", "grapes", "plant", "flower", "clover"]:
+            if resource_id in ["wood", "herb", "fiber", "mushroom", "berry", "moon_petal", "apple", "orange", "pear", "banana", "grapes", "tomato", "carrot", "coconut", "watermelon", "wheat", "mint", "lavender", "rose", "plant", "flower", "clover"]:
                 weight *= 2.0
         "shore":
-            if resource_id in ["stone", "berry", "sunstone", "reeds", "flower", "orange"]:
+            if resource_id in ["stone", "berry", "sunstone", "reeds", "flower", "orange", "coconut", "watermelon"]:
                 weight *= 1.8
         "meadow":
-            if resource_id in ["plant", "flower", "clover", "apple", "pear", "herb"]:
+            if resource_id in ["plant", "flower", "clover", "apple", "pear", "herb", "tomato", "carrot", "wheat", "mint", "lavender", "rose"]:
                 weight *= 1.45
     return weight
 
