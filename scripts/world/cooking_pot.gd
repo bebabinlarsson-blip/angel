@@ -10,6 +10,16 @@ var cooking_system: CookingSystem = null
 var visual: CustomDraw2D = null
 
 func _ready() -> void:
+	# The authored game scene already has this collider, but create one for
+	# minimal/test scenes too so the village hearth is always interactable.
+	if get_node_or_null("CollisionShape2D") == null:
+		var collision := CollisionShape2D.new()
+		collision.name = "CollisionShape2D"
+		var shape := CircleShape2D.new()
+		shape.radius = 28.0
+		collision.shape = shape
+		add_child(collision)
+
 	var sprite := AnimatedSprite2D.new()
 	sprite.name = "CampfireSprite"
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -110,7 +120,7 @@ func _create_cooking_ui() -> void:
 func interact(player: CharacterBody2D) -> void:
 	cooking_system = get_tree().root.find_child("CookingSystem", true, false) as CookingSystem
 	if cooking_system == null:
-		EventBus.show_notification.emit("NXcooking system found!")
+		EventBus.show_notification.emit("No cooking system found!")
 		return
 	
 	if cooking_ui_layer == null:

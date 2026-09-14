@@ -25,6 +25,7 @@ func _ready() -> void:
         terrain.name = "IslandWorld"
         terrain.add_to_group("island_world")
         world_node.add_child(terrain)
+    _ensure_cooking_place(world_node)
     terrain.rebuild(world_node, _load_layout_config())
     _spawn_additional_villagers(world_node)
     var director := world_node.get_node_or_null("WorldDirector") as WorldDirector
@@ -96,6 +97,15 @@ func _ready() -> void:
         EventBus.player_stamina_changed.emit(player.stats.current_stamina, player.stats.get_max_stamina())
         EventBus.player_money_changed.emit(player.stats.money)
         EventBus.show_notification.emit("Welcome to Angel! Walk near materials to collect them, press E for your backpack, and keep your sword ready.")
+
+func _ensure_cooking_place(world_node: Node2D) -> void:
+    if world_node.get_node_or_null("Campfire") != null:
+        return
+    var hearth := CookingPot.new()
+    hearth.name = "Campfire"
+    hearth.position = Vector2.ZERO
+    world_node.add_child(hearth)
+
 
 func _load_layout_config() -> Dictionary:
     var file := FileAccess.open("res://data/island_layout.json", FileAccess.READ)

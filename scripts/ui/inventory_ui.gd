@@ -186,6 +186,16 @@ func _on_item_selected(item: Dictionary) -> void:
 		stats_text += "Heal: +%d HP\n" % int(item["heal"])
 	if item.has("stamina_restore"):
 		stats_text += "Stamina: +%d\n" % int(item["stamina_restore"])
+	if item.has("buff_attack"):
+		stats_text += "Food attack: +%d\n" % int(item["buff_attack"])
+	if item.has("buff_defense"):
+		stats_text += "Food defense: +%d\n" % int(item["buff_defense"])
+	if item.has("buff_speed"):
+		stats_text += "Food speed: +%d%%\n" % int(float(item["buff_speed"]) * 100.0)
+	if item.has("buff_stamina_regen"):
+		stats_text += "Food stamina regen: +%d\n" % int(item["buff_stamina_regen"])
+	if item.has("buff_duration"):
+		stats_text += "Buff duration: %ds\n" % int(item["buff_duration"])
 	if stats_text.is_empty():
 		stats_text = "Quantity in Bag: %d" % int(item.get("quantity", 1))
 	if item_stats_label:
@@ -234,6 +244,7 @@ func _on_use_pressed() -> void:
 			player.stats.current_stamina = minf(player.stats.get_max_stamina(), player.stats.current_stamina + stamina_amount)
 			EventBus.player_stamina_changed.emit(player.stats.current_stamina, player.stats.get_max_stamina())
 		var used_item := selected_item.duplicate()
+		player.stats.apply_food_buff(used_item)
 		player.inventory.remove_item(item_id, 1)
 		EventBus.item_used.emit(used_item)
 		EventBus.show_notification.emit("Consumed " + str(used_item.get("name", "")))

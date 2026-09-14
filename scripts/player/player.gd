@@ -158,6 +158,7 @@ func _handle_input() -> void:
 			nearby_interactable.interact(self)
 
 func _update_timers(delta: float) -> void:
+	stats.update_buffs(delta)
 	if attack_timer > 0:
 		attack_timer -= delta
 	if dash_timer > 0:
@@ -185,7 +186,7 @@ func _update_timers(delta: float) -> void:
 func _update_state(delta: float) -> void:
 	match current_state:
 		State.DASHING:
-			velocity = dash_direction * DASH_SPEED
+			velocity = dash_direction * DASH_SPEED * stats.get_speed_multiplier()
 		State.ATTACKING:
 			velocity = velocity.move_toward(Vector2.ZERO, 600 * delta)
 			if attack_timer <= 0:
@@ -195,7 +196,7 @@ func _update_state(delta: float) -> void:
 		_:
 			if direction != Vector2.ZERO:
 				var speed: float = SWIM_SPEED if is_swimming else WALK_SPEED
-				velocity = direction.normalized() * speed
+				velocity = direction.normalized() * speed * stats.get_speed_multiplier()
 				current_state = State.SWIMMING if is_swimming else State.RUNNING
 			else:
 				velocity = velocity.move_toward(Vector2.ZERO, 800 * delta)
@@ -260,15 +261,15 @@ var nearby_interactables: Array[Node] = []
 
 func get_effective_attack() -> float:
 	var base_atk := stats.get_attack()
-	var bonus: float = inventory.equipped_weapon.get("attack_bonus", 0.0)
-	return base_atk + bonus
+	var weapon_bonus: float = inventory.equipped_weapon.get("attack_bonus", 0.0)
+	return base_atk + weapon_bonus + stats.get_attack_buff()
 
 func get_effective_defense() -> float:
-	# Was missing: inventory_ui fell back to 0 DEF forever.
-	# Supports both "defense" and legacy "defense_bonus" keys.
-	if inventory.equipped_armor.is_empty():
-		return 0.0
-	return float(inventory.equipped_armor.get("defense", inventory.equipped_armor.get("defense_bonus", 0.0)))
+	# Supports both "defense" and legacy "defense_bonus" keys, plus food buffs.
+	var armor_defense: float = 0.0
+	if not inventory.equipped_armor.is_empty():
+		armor_defense = float(inventory.equipped_armor.get("defense", inventory.equipped_armor.get("defense_bonus", 0.0)))
+	return armor_defense + stats.get_defense_buff()
 
 func enter_water() -> void:
 	swim_zone_count += 1
