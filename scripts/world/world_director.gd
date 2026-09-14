@@ -38,6 +38,7 @@ var initialized: bool = false
 var occupied_positions: Array[Vector2] = []
 var resource_records: Array[Dictionary] = []
 var enemy_records: Array[Dictionary] = []
+var authored_stream_records: Array[Dictionary] = []
 
 const RESOURCE_CATALOG: Array[Dictionary] = [
     {"id": "wood", "name": "Wood", "weight": 20.0, "min": 1, "max": 3, "type": 0},
@@ -103,6 +104,7 @@ func _initialize() -> void:
     enemy_parent.name = "GeneratedEnemies"
     enemy_parent.y_sort_enabled = true
     add_child(enemy_parent)
+    _index_authored_stream_nodes()
 
     # Seed the complete procedural ecosystem as data only. The records are
     # cheap, preserve deterministic world locations, and are activated below
@@ -192,6 +194,85 @@ func _maintain_stream(center: Vector2) -> void:
         _update_resource_record(record, center, load_radius_sq, unload_radius_sq, now)
     for record: Dictionary in enemy_records:
         _update_enemy_record(record, center, load_radius_sq, unload_radius_sq, now)
+    _refresh_authored_stream(center, load_radius_sq)
+
+func _index_authored_stream_nodes() -> void:
+    authored_stream_records.clear()
+    if not is_instance_valid(terrain):
+        return
+    var world_node: Node = terrain.get_parent()
+    if world_node == null:
+        return
+
+    # These nodes are authored in game.tscn rather than generated from
+    # records. Keep their map positions and gameplay intact, but do not spend
+    # physics/processing time on them while they are far outside the camera.
+    for container_name: String in ["Collectables", "Monsters", "MiningArea"]:
+        var container: Node = world_node.get_node_or_null(container_name)
+        if container == null:
+            continue
+        for child: Node in container.get_children():
+            if not (child is Node2D):
+                continue
+            var node: Node2D = child as Node2D
+            var collision_states: Array[Dictionary] = []
+            for node_child: Node in node.get_children():
+                if node_child is CollisionShape2D:
+                    var shape: CollisionShape2D = node_child as CollisionShape2D
+                    collision_states.append({
+                        "node": shape,
+                        "disabled": shape.disabled
+                    })
+            var state: Dictionary = {
+                "node": node,
+                "visible": node.visible,
+                "process_mode": node.process_mode,
+                "collision_states": collision_states,
+                "active": true
+            }
+            if node is Area2D:
+                state["monitoring"] = (node as Area2D).monitoring
+            authored_stream_records.append(state)
+
+func _refresh_authored_stream(center: Vector2, load_radius_sq: float) -> void:
+    var index: int = 0
+    while index < authored_stream_records.size():
+        var state: Dictionary = authored_stream_records[index]
+        var node_value: Variant = state.get("node", null)
+        if not (node_value is Node2D) or not is_instance_valid(node_value):
+            authored_stream_records.remove_at(index)
+            continue
+
+        var node: Node2D = node_value as Node2D
+        var should_be_active: bool = node.global_position.distance_squared_to(center) <= load_radius_sq
+        var is_active: bool = bool(state.get("active", true))
+        if should_be_active == is_active:
+            index += 1
+            continue
+
+        node.visible = should_be_active and bool(state.get("visible", true))
+        node.process_mode = int(state.get("process_mode", Node.PROCESS_MODE_INHERIT)) if should_be_active else Node.PROCESS_MODE_DISABLED
+
+        var collision_value: Variant = state.get("collision_states", [])
+        if collision_value is Array:
+            for raw_collision in collision_value:
+                if not (raw_collision is Dictionary):
+                    continue
+                var collision_state: Dictionary = raw_collision
+                var shape_value: Variant = collision_state.get("node", null)
+                if shape_value is CollisionShape2D and is_instance_valid(shape_value):
+                    var shape: CollisionShape2D = shape_value as CollisionShape2D
+                    var original_disabled: bool = bool(collision_state.get("disabled", false))
+                    shape.set_deferred("disabled", original_disabled if should_be_active else true)
+
+        if node is Area2D:
+            var area: Area2D = node as Area2D
+            var original_monitoring: bool = bool(state.get("monitoring", true))
+            area.set_deferred("monitoring", original_monitoring if should_be_active else false)
+
+        state["active"] = should_be_active
+        authored_stream_records[index] = state
+        index += 1
 
 func _update_resource_record(record: Dictionary, center: Vector2, load_radius_sq: float, unload_radius_sq: float, now: float) -> void:
     var node: Node2D = _node_from_record(record)
