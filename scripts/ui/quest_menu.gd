@@ -35,8 +35,7 @@ func _toggle() -> void:
 			p_menu.visible = false
 
 		_refresh()
-		get_tree().paused = true
-		GameManager.is_paused = true
+		GameManager.set_state(GameManager.GameState.PAUSED)
 		var card := get_node_or_null("CenterContainer/PanelContainer")
 		if card is Control:
 			UIAnim.pop_in(card as Control, 0.2)
@@ -44,8 +43,7 @@ func _toggle() -> void:
 		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
 		var inv := get_tree().root.find_child("InventoryUI", true, false)
 		if (p_menu == null or not p_menu.visible) and (inv == null or not inv.visible):
-			get_tree().paused = false
-			GameManager.is_paused = false
+			GameManager.set_state(GameManager.GameState.PLAYING)
 
 func _hide_overlay(node_name: String) -> void:
 	var overlay := get_tree().root.find_child(node_name, true, false)
