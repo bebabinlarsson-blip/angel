@@ -301,7 +301,7 @@ func _draw_layer_cells(index: Dictionary, center: Vector2, factor: float, color:
     # overview scale. Redrawing thousands of tiny tile rectangles is both
     # redundant and the main source of minimap spikes; switch to exact cells
     # only once they can resolve on screen.
-    var detail_threshold: float = 5.0 if is_big_map else 4.0
+    var detail_threshold: float = 8.0 if is_big_map else 4.0
     if cell_px < detail_threshold or index.is_empty():
         return
     var half := Vector2.ONE * cell_px * 0.5

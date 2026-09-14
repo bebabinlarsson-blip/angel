@@ -78,7 +78,7 @@ func update_buffs(delta: float) -> void:
 		return
 	active_buff_remaining = maxf(0.0, active_buff_remaining - delta)
 	if active_buff_remaining <= 0.0:
-		var expired_name := active_buff_name
+		var expired_name: String = active_buff_name
 		_clear_food_buff()
 		if not expired_name.is_empty():
 			EventBus.show_notification.emit("%s has worn off." % expired_name)
@@ -104,7 +104,11 @@ func apply_food_buff(item: Dictionary) -> void:
 		effects.append("+%d%% speed" % int(buff_speed * 100.0))
 	if buff_stamina_regen != 0.0:
 		effects.append("+%d stamina regen" % int(buff_stamina_regen))
-	var effect_text := ", ".join(effects)
+	var effect_text: String = ""
+	for effect in effects:
+		if not effect_text.is_empty():
+			effect_text += ", "
+		effect_text += effect
 	if effect_text.is_empty():
 		effect_text = "special nourishment"
 	EventBus.show_notification.emit("%s active: %s for %ds" % [active_buff_name, effect_text, int(active_buff_remaining)])
