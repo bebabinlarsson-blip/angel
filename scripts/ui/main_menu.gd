@@ -216,6 +216,7 @@ func _on_new_game() -> void:
 	_transitioning = true
 	_set_transition_buttons_disabled(true)
 	GameManager.player = null
+	SaveManager.cancel_pending_load()
 	GameManager.opened_caches.clear()
 	GameManager.unlocked_waystones.clear()
 	GameManager.game_time_hours = 8.0
@@ -234,21 +235,15 @@ func _on_continue() -> void:
 	_transitioning = true
 	_set_transition_buttons_disabled(true)
 	GameManager.player = null
+	SaveManager.request_load(0)
 	GameManager.set_state(GameManager.GameState.LOADING)
 	var result := get_tree().change_scene_to_file("res://scenes/game.tscn")
 	if result != OK:
+		SaveManager.cancel_pending_load()
 		_transitioning = false
 		_set_transition_buttons_disabled(false)
 		GameManager.set_state(GameManager.GameState.MAIN_MENU)
 		push_error("Angel: could not open the saved game (%s)." % error_string(result))
-		return
-	# Wait for SceneTree.scene_changed instead of finding any Player node
-	# during the old/new scene overlap. This guarantees the save is applied to
-	# the player that belongs to the newly loaded game scene.
-	await get_tree().scene_changed
-	await get_tree().process_frame
-	if SaveManager.load_game(0) == false:
-		EventBus.show_notification.emit("Could not load the saved game.")
 
 func _set_transition_buttons_disabled(disabled: bool) -> void:
 	for button: Button in [new_game_btn, continue_btn, controls_btn, settings_btn, quit_btn]:
