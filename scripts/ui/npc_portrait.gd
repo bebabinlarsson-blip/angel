@@ -23,10 +23,10 @@ func _draw() -> void:
 	draw_rect(Rect2(-40.0, -40.0, 80.0, 80.0), Color("#e8bd62"), false, 2.0)
 
 	var palette: Dictionary = _palette()
-	var skin: Color = palette.get("skin", Color("#e6ad82"))
-	var hair: Color = palette.get("hair", Color("#5b392d"))
-	var clothes: Color = palette.get("clothes", Color("#47729d"))
-	var accent: Color = palette.get("accent", Color("#d5a84f"))
+	var skin: Color = Color(palette.get("skin", Color("#e6ad82")))
+	var hair: Color = Color(palette.get("hair", Color("#5b392d")))
+	var clothes: Color = Color(palette.get("clothes", Color("#47729d")))
+	var accent: Color = Color(palette.get("accent", Color("#d5a84f")))
 
 	draw_colored_polygon(PackedVector2Array([
 		Vector2(-32.0, 39.0), Vector2(-27.0, 18.0), Vector2(-13.0, 11.0),
