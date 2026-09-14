@@ -260,6 +260,7 @@ func _on_controls() -> void:
 		if card == null:
 			card = _find_card(controls_panel)
 		if card is Control:
+			_on_viewport_resized()
 			UIAnim.pop_in(card as Control)
 
 func _on_settings() -> void:
