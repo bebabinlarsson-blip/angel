@@ -12,7 +12,7 @@ var time_scale: float = 60.0  # 1 real second = 1 game minute
 var is_night: bool = false
 
 # Player reference
-var player: CharacterBody2D = null
+var player: Player = null
 var village_spawn_point: Vector2 = Vector2(0, 0)
 
 # Waystones
