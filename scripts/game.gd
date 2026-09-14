@@ -149,10 +149,13 @@ func _ensure_village_services(world_node: Node2D, layout_config: Dictionary) -> 
             service = VILLAGE_SERVICE_SCRIPT.new() as Node
             service.name = node_name
             services_parent.add_child(service)
-        service.set("service_id", service_id)
-        service.set("display_name", str(definition.get("name", service_id.replace("_", " ").capitalize())))
-        service.set("service_type", str(definition.get("type", "market")))
-        service.set("description", str(definition.get("description", "A useful village service.")))
+        service.call(
+            "configure",
+            service_id,
+            str(definition.get("name", service_id.replace("_", " ").capitalize())),
+            str(definition.get("type", "market")),
+            str(definition.get("description", "A useful village service."))
+        )
         var position_value: Variant = definition.get("pos", {})
         if position_value is Dictionary:
             var position_data: Dictionary = position_value
