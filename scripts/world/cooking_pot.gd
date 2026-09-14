@@ -176,7 +176,8 @@ func _refresh_recipes(player: CharacterBody2D) -> void:
 				ingredients_text += ", "
 			var has_qty: int = player.inventory.get_item_count(item_id)
 			var req_qty: int = recipe["ingredients"][item_id]
-			ingredients_text += "%s (%d/%d)" % [item_id, has_qty, req_qty]
+			var ingredient_name: String = item_id.replace("_", " ").capitalize()
+			ingredients_text += "%s (%d/%d)" % [ingredient_name, has_qty, req_qty]
 
 		var result_data: Dictionary = recipe.get("result", {})
 		var icon := ITEM_ICON_SCRIPT.new() as Control
