@@ -220,11 +220,12 @@ func _on_new_game() -> void:
 	GameManager.unlocked_waystones.clear()
 	GameManager.game_time_hours = 8.0
 	GameManager.day_count = 1
-	GameManager.set_state(GameManager.GameState.PLAYING)
+	GameManager.set_state(GameManager.GameState.LOADING)
 	var result := get_tree().change_scene_to_file("res://scenes/game.tscn")
 	if result != OK:
 		_transitioning = false
 		_set_transition_buttons_disabled(false)
+		GameManager.set_state(GameManager.GameState.MAIN_MENU)
 		push_error("Angel: could not start a new game (%s)." % error_string(result))
 
 func _on_continue() -> void:
@@ -233,11 +234,12 @@ func _on_continue() -> void:
 	_transitioning = true
 	_set_transition_buttons_disabled(true)
 	GameManager.player = null
-	GameManager.set_state(GameManager.GameState.PLAYING)
+	GameManager.set_state(GameManager.GameState.LOADING)
 	var result := get_tree().change_scene_to_file("res://scenes/game.tscn")
 	if result != OK:
 		_transitioning = false
 		_set_transition_buttons_disabled(false)
+		GameManager.set_state(GameManager.GameState.MAIN_MENU)
 		push_error("Angel: could not open the saved game (%s)." % error_string(result))
 		return
 	# Wait for SceneTree.scene_changed instead of finding any Player node
