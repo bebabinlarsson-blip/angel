@@ -217,9 +217,10 @@ func _draw_layer_cells(cells: Array, center: Vector2, factor: float, color: Colo
     var half := Vector2.ONE * cell_px * 0.5
     var safe_view := view.grow(cell_px * 2.0)
     for cell in cells:
-        if not cell is Vector2i:
+        if not (cell is Vector2i):
             continue
-        var world_pos: Vector2 = Vector2(cell) * 32.0 + Vector2(16.0, 16.0)
+        var cell_pos: Vector2i = cell
+        var world_pos := Vector2(float(cell_pos.x) * 32.0 + 16.0, float(cell_pos.y) * 32.0 + 16.0)
         var screen_pos := center + world_pos * factor
         if not safe_view.has_point(screen_pos):
             continue
@@ -242,7 +243,7 @@ func _draw_named_locations(center: Vector2, factor: float) -> void:
     var view := _map_view_rect()
     for location: Dictionary in _locations:
         var raw_pos: Variant = location.get("pos", Vector2.ZERO)
-        if not raw_pos is Vector2:
+        if not (raw_pos is Vector2):
             continue
         var world_pos: Vector2 = raw_pos
         var p := center + world_pos * factor
