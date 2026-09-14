@@ -57,6 +57,8 @@ func _ready() -> void:
 	if btn_collectibles:
 		btn_collectibles.pressed.connect(func(): _set_filter(6))
 	_create_detail_icon()
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	UITheme.style_recursive(self)
 
 func _create_detail_icon() -> void:
@@ -91,6 +93,7 @@ func _toggle() -> void:
 			p_menu.visible = false
 
 		_refresh()
+		_on_viewport_resized()
 		GameManager.set_state(GameManager.GameState.PAUSED)
 		var card := get_node_or_null("CenterContainer/PanelContainer")
 		if card is Control:
@@ -107,6 +110,11 @@ func _hide_overlay(node_name: String) -> void:
 		(overlay as Control).visible = false
 	elif overlay is CanvasLayer:
 		(overlay as CanvasLayer).visible = false
+
+func _on_viewport_resized() -> void:
+	var card := get_node_or_null("CenterContainer/PanelContainer")
+	if card is Control:
+		UITheme.fit_modal(card as Control, Vector2(820.0, 560.0))
 
 func _input(event: InputEvent) -> void:
 	if (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")) and visible:
