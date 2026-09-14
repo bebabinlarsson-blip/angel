@@ -4,6 +4,21 @@ const SAVE_DIR := "user://saves/"
 const SAVE_FILE := "save_slot_%d.json"
 const MAX_SLOTS := 3
 
+# Scene transitions destroy the menu that requested a continue. Keep the
+# request in this autoload and let the new game scene consume it safely.
+var pending_load_slot: int = -1
+
+func request_load(slot: int = 0) -> void:
+	pending_load_slot = clampi(slot, 0, MAX_SLOTS - 1)
+
+func cancel_pending_load() -> void:
+	pending_load_slot = -1
+
+func consume_pending_load() -> int:
+	var slot: int = pending_load_slot
+	pending_load_slot = -1
+	return slot
+
 func _ready() -> void:
 	var err := DirAccess.make_dir_recursive_absolute(SAVE_DIR)
 	if err != OK:
