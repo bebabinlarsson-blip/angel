@@ -38,6 +38,7 @@ var is_working: bool = false
 var routine_phase: String = ""
 var routine_clock: float = 0.0
 var interaction_count: int = 0
+var velocity: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	add_to_group("npcs")
