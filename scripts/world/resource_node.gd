@@ -169,7 +169,7 @@ func _draw() -> void:
         draw_circle(Vector2(0, 5), 22.0 + pulse * 4.0, Color(0.98, 0.84, 0.35, 0.08))
         draw_arc(Vector2(0, 5), 24.0 + pulse * 4.0, 0.0, TAU, 24, Color(1.0, 0.88, 0.45, 0.75), 2.0)
     var bob := sin(bob_time * 2.4) * 1.5
-    draw_ellipse(Vector2(0, 10), Vector2(14, 5), Color(0.04, 0.10, 0.08, 0.28))
+    _draw_ground_ellipse(Vector2(0, 10), Vector2(14, 5), Color(0.04, 0.10, 0.08, 0.28))
     draw_set_transform(Vector2(0, bob))
     match item_id:
         "wood":
@@ -196,7 +196,7 @@ func _draw() -> void:
         "plant", "reeds":
             var stem_color := Color("#3c8752") if item_id == "plant" else Color("#5c9a61")
             for x in [-8.0, -2.0, 5.0, 10.0]:
-                var lean := x * 0.35
+                var lean: float = x * 0.35
                 draw_line(Vector2(x, 11), Vector2(x + lean, -12), stem_color, 3.0)
                 draw_line(Vector2(x + lean, -5), Vector2(x + lean + 7.0, -9), Color("#77bb69"), 2.0)
         "flower", "clover":
@@ -251,7 +251,7 @@ func _draw() -> void:
             draw_circle(Vector2.ZERO, 9.0, Color("#8ed15d"))
     draw_set_transform(Vector2.ZERO)
 
-func draw_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
+func _draw_ground_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
     draw_set_transform(center, 0.0, radii)
     draw_circle(Vector2.ZERO, 1.0, color)
     draw_set_transform(Vector2.ZERO)

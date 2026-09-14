@@ -20,7 +20,16 @@ var _path_cells: Array = []
 var _bridge_cells: Array = []
 var _tree_cells: Array = []
 var _structure_cells: Array = []
+var _water_index: Dictionary = {}
+var _farm_index: Dictionary = {}
+var _path_index: Dictionary = {}
+var _bridge_index: Dictionary = {}
+var _tree_index: Dictionary = {}
+var _structure_index: Dictionary = {}
 var _layer_cache_revision: int = -1
+var _draw_dirty: bool = true
+
+const LAYER_CHUNK_TILES: int = 16
 
 const INK := Color("#f3e7ce")
 const OCEAN := Color("#244853")
@@ -35,8 +44,18 @@ func _ready() -> void:
     focus_mode = Control.FOCUS_ALL
     tooltip_text = "Open island chart [M]" if not is_big_map else "Drag to pan. Scroll to zoom. Home to find yourself."
     gui_input.connect(_on_gui_input)
-    visibility_changed.connect(func(): _dragging = false)
-    resized.connect(queue_redraw)
+    visibility_changed.connect(_on_visibility_changed)
+    resized.connect(_on_resized)
+
+func _on_resized() -> void:
+    _draw_dirty = true
+    queue_redraw()
+
+func _on_visibility_changed() -> void:
+    _dragging = false
+    _draw_dirty = true
+    if is_visible_in_tree():
+        queue_redraw()
 
 func _process(delta: float) -> void:
     if not is_visible_in_tree():
@@ -53,8 +72,11 @@ func _process(delta: float) -> void:
         _npcs = get_tree().get_nodes_in_group("npcs")
         _markers_initialized = true
         _marker_timer = 0.0
+        _draw_dirty = true
     _refresh_layer_cache()
-    queue_redraw()
+    if not is_big_map or _draw_dirty:
+        _draw_dirty = false
+        queue_redraw()
 
 func _refresh_layer_cache() -> void:
     if not is_instance_valid(_terrain):
@@ -72,7 +94,14 @@ func _refresh_layer_cache() -> void:
     _bridge_cells = _layer_cells(_terrain.bridge)
     _tree_cells = _layer_cells(_terrain.trees)
     _structure_cells = _layer_cells(_terrain.structures)
+    _water_index = _index_cells(_water_cells)
+    _farm_index = _index_cells(_farm_cells)
+    _path_index = _index_cells(_path_cells)
+    _bridge_index = _index_cells(_bridge_cells)
+    _tree_index = _index_cells(_tree_cells)
+    _structure_index = _index_cells(_structure_cells)
     _layer_cache_revision = _terrain.revision
+    _draw_dirty = true
 
 func _layer_cells(layer: TileMapLayer) -> Array:
     if layer == null or not is_instance_valid(layer):
@@ -82,6 +111,21 @@ func _layer_cells(layer: TileMapLayer) -> Array:
         if cell is Vector2i:
             cells.append(cell)
     return cells
+
+func _index_cells(cells: Array) -> Dictionary:
+    var index: Dictionary = {}
+    for cell in cells:
+        if not (cell is Vector2i):
+            continue
+        var cell_pos: Vector2i = cell
+        var chunk := Vector2i(
+            floori(float(cell_pos.x) / float(LAYER_CHUNK_TILES)),
+            floori(float(cell_pos.y) / float(LAYER_CHUNK_TILES))
+        )
+        var bucket: Array = index.get(chunk, [])
+        bucket.append(cell_pos)
+        index[chunk] = bucket
+    return index
 
 func _map_view_rect() -> Rect2:
     if is_big_map:
@@ -207,27 +251,53 @@ func _on_gui_input(event: InputEvent) -> void:
                     zoom_out()
             _clamp_offset()
             accept_event()
+    _draw_dirty = true
     queue_redraw()
 
 func _label(pos: Vector2, text: String, font_size: int = 14, color: Color = INK) -> void:
     draw_string_outline(ThemeDB.fallback_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, 4, Color("#101c24"))
     draw_string(ThemeDB.fallback_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
-func _draw_layer_cells(cells: Array, center: Vector2, factor: float, color: Color, view: Rect2) -> void:
-    var cell_px := 32.0 * factor
-    if cell_px < 0.45:
+func _draw_layer_cells(index: Dictionary, center: Vector2, factor: float, color: Color, view: Rect2) -> void:
+    var cell_px: float = 32.0 * factor
+    if cell_px < 0.45 or index.is_empty():
         return
     var half := Vector2.ONE * cell_px * 0.5
     var safe_view := view.grow(cell_px * 2.0)
-    for cell in cells:
-        if not (cell is Vector2i):
-            continue
-        var cell_pos: Vector2i = cell
-        var world_pos := Vector2(float(cell_pos.x) * 32.0 + 16.0, float(cell_pos.y) * 32.0 + 16.0)
-        var screen_pos := center + world_pos * factor
-        if not safe_view.has_point(screen_pos):
-            continue
-        draw_rect(Rect2(screen_pos - half, Vector2.ONE * cell_px), color)
+    var inverse_factor: float = 1.0 / maxf(factor, 0.0001)
+    var world_min: Vector2 = (safe_view.position - center) * inverse_factor
+    var world_max: Vector2 = (safe_view.end - center) * inverse_factor
+    var min_tile := Vector2i(
+        floori(world_min.x / 32.0) - 1,
+        floori(world_min.y / 32.0) - 1
+    )
+    var max_tile := Vector2i(
+        floori(world_max.x / 32.0) + 1,
+        floori(world_max.y / 32.0) + 1
+    )
+    var min_chunk := Vector2i(
+        floori(float(min_tile.x) / float(LAYER_CHUNK_TILES)),
+        floori(float(min_tile.y) / float(LAYER_CHUNK_TILES))
+    )
+    var max_chunk := Vector2i(
+        floori(float(max_tile.x) / float(LAYER_CHUNK_TILES)),
+        floori(float(max_tile.y) / float(LAYER_CHUNK_TILES))
+    )
+
+    for chunk_y in range(min_chunk.y, max_chunk.y + 1):
+        for chunk_x in range(min_chunk.x, max_chunk.x + 1):
+            var bucket_value: Variant = index.get(Vector2i(chunk_x, chunk_y), null)
+            if not (bucket_value is Array):
+                continue
+            for cell in bucket_value:
+                if not (cell is Vector2i):
+                    continue
+                var cell_pos: Vector2i = cell
+                var world_pos := Vector2(float(cell_pos.x) * 32.0 + 16.0, float(cell_pos.y) * 32.0 + 16.0)
+                var screen_pos := center + world_pos * factor
+                if not safe_view.has_point(screen_pos):
+                    continue
+                draw_rect(Rect2(screen_pos - half, Vector2.ONE * cell_px), color)
 
 func _draw_layer_details(center: Vector2, factor: float) -> void:
     # The 1024px overview texture keeps the complete 100x island readable.
@@ -235,12 +305,12 @@ func _draw_layer_details(center: Vector2, factor: float) -> void:
     # rivers, trees, houses, farms and roads resolve instead of becoming one
     # indistinguishable pixel.
     var view := _map_view_rect()
-    _draw_layer_cells(_water_cells, center, factor, Color("#2f879b"), view)
-    _draw_layer_cells(_farm_cells, center, factor, Color("#8d5727"), view)
-    _draw_layer_cells(_path_cells, center, factor, Color("#d1aa75"), view)
-    _draw_layer_cells(_bridge_cells, center, factor, Color("#9a6235"), view)
-    _draw_layer_cells(_tree_cells, center, factor, Color("#2f653b"), view)
-    _draw_layer_cells(_structure_cells, center, factor, Color("#c9a269"), view)
+    _draw_layer_cells(_water_index, center, factor, Color("#2f879b"), view)
+    _draw_layer_cells(_farm_index, center, factor, Color("#8d5727"), view)
+    _draw_layer_cells(_path_index, center, factor, Color("#d1aa75"), view)
+    _draw_layer_cells(_bridge_index, center, factor, Color("#9a6235"), view)
+    _draw_layer_cells(_tree_index, center, factor, Color("#2f653b"), view)
+    _draw_layer_cells(_structure_index, center, factor, Color("#c9a269"), view)
 
 func _draw_named_locations(center: Vector2, factor: float) -> void:
     var view := _map_view_rect()
@@ -292,6 +362,7 @@ func _draw() -> void:
         _stones = get_tree().get_nodes_in_group("waystones")
         _npcs = get_tree().get_nodes_in_group("npcs")
         _markers_initialized = true
+        _draw_dirty = true
     _refresh_layer_cache()
 
     # 1. Base ocean fill
