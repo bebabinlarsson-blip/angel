@@ -24,8 +24,8 @@
     "material_flowers": 30,
     "mining_nodes": 18,
     "monster_spawners": 8,
-    "generated_resource_cap": 190,
-    "generated_enemy_cap": 72
+    "generated_resource_cap": 360,
+    "generated_enemy_cap": 140
   },
   "village": {
     "center": {
