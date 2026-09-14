@@ -442,11 +442,15 @@ func _draw() -> void:
                 start_y += grid_step
 
     # 4. Waystones markers
+    var map_view_rect: Rect2 = _map_view_rect()
+    var marker_view: Rect2 = map_view_rect.grow(32.0)
     for stone: Node in _stones:
         if not is_instance_valid(stone) or not (stone is Node2D):
             continue
         var stone_2d := stone as Node2D
         var p: Vector2 = center + stone_2d.global_position * factor
+        if not marker_view.has_point(p):
+            continue
         var unlocked := bool(stone.get("is_unlocked"))
         var col_gem := Color("#4ef3e6") if unlocked else Color("#889299")
         var d_out := PackedVector2Array([p + Vector2(0, -7), p + Vector2(6, 0), p + Vector2(0, 7), p + Vector2(-6, 0)])
@@ -460,6 +464,8 @@ func _draw() -> void:
     for npc: Node in _npcs:
         if is_instance_valid(npc) and npc is Node2D and (not is_big_map or map_zoom >= 1.6):
             var p: Vector2 = center + (npc as Node2D).global_position * factor
+            if not marker_view.has_point(p):
+                continue
             draw_circle(p, 4.0, Color("#101c24"))
             draw_circle(p, 2.5, Color("#ffcf48"))
 
