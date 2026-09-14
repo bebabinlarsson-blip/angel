@@ -24,6 +24,13 @@ func _ready() -> void:
 		)
 	UITheme.style_recursive(self)
 
+
+func _on_viewport_resized() -> void:
+	var card := get_node_or_null("CenterContainer/PanelContainer") as Control
+	if card:
+		UITheme.fit_modal(card, Vector2(1040.0, 640.0))
+
+
 func _toggle() -> void:
 	visible = !visible
 	if visible:
