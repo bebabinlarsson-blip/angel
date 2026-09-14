@@ -22,13 +22,14 @@ func _ready() -> void:
 		collision.shape = shape
 		add_child(collision)
 
-	var sprite := AnimatedSprite2D.new()
-	sprite.name = "CampfireSprite"
-	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	sprite.sprite_frames = load("res://assets/sprites/world/campfire_frames.tres")
-	sprite.animation = "idle"
-	sprite.play("idle")
-	add_child(sprite)
+	if get_node_or_null("CampfireSprite") == null:
+		var sprite := AnimatedSprite2D.new()
+		sprite.name = "CampfireSprite"
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite.sprite_frames = load("res://assets/sprites/world/campfire_frames.tres")
+		sprite.animation = "idle"
+		sprite.play("idle")
+		add_child(sprite)
 	
 	if not has_node("Embers"):
 		VFX.campfire_embers(self)
