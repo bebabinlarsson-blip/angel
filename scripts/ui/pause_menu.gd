@@ -118,6 +118,12 @@ func _toggle() -> void:
 		var q_menu := get_tree().root.find_child("QuestMenu", true, false)
 		if q_menu and q_menu.visible:
 			q_menu.visible = false
+		var map := get_tree().root.find_child("BigMap", true, false)
+		if map is Control and (map as Control).visible:
+			(map as Control).visible = false
+		var cooking := get_tree().root.find_child("CookingUILayer", true, false)
+		if cooking is CanvasLayer and (cooking as CanvasLayer).visible:
+			(cooking as CanvasLayer).visible = false
 		
 		GameManager.set_state(GameManager.GameState.PAUSED)
 		var card := get_node_or_null("CenterContainer/PanelContainer")
