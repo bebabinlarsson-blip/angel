@@ -13,6 +13,8 @@ func _ready() -> void:
 	EventBus.quest_menu_toggled.connect(_toggle)
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	if close_btn:
 		close_btn.pressed.connect(func(): _toggle())
 	if dimmer:
@@ -35,6 +37,7 @@ func _toggle() -> void:
 			p_menu.visible = false
 
 		_refresh()
+		_on_viewport_resized()
 		GameManager.set_state(GameManager.GameState.PAUSED)
 		var card := get_node_or_null("CenterContainer/PanelContainer")
 		if card is Control:
@@ -53,10 +56,9 @@ func _hide_overlay(node_name: String) -> void:
 		(overlay as CanvasLayer).visible = false
 
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("quest") and visible:
+	if (event.is_action_pressed("quest") or event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")) and visible:
 		_toggle()
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("pause") and visible:
 		_toggle()
 		get_viewport().set_input_as_handled()
 
