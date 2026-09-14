@@ -255,8 +255,7 @@ func set_map_open(open: bool) -> void:
 		_hide_overlay("PauseMenu")
 		_hide_overlay("CookingUILayer")
 		big_map.visible = true
-		get_tree().paused = true
-		GameManager.is_paused = true
+		GameManager.set_state(GameManager.GameState.PAUSED)
 		if interaction_hint:
 			interaction_hint.visible = false
 		if notification_label:
@@ -266,8 +265,7 @@ func set_map_open(open: bool) -> void:
 	else:
 		big_map.visible = false
 		if GameManager.current_state != GameManager.GameState.GAME_OVER and not _has_visible_overlay():
-			get_tree().paused = false
-			GameManager.is_paused = false
+			GameManager.set_state(GameManager.GameState.PLAYING)
 
 func _hide_overlay(node_name: String) -> void:
 	var overlay := get_tree().root.find_child(node_name, true, false)
