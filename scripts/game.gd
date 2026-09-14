@@ -5,7 +5,7 @@ const VILLAGE_SERVICE_SCRIPT = preload("res://scripts/world/village_service.gd")
 const INTERIOR_MANAGER_SCRIPT = preload("res://scripts/world/interior_manager.gd")
 const QUEST_WAYPOINT_SCRIPT = preload("res://scripts/world/quest_waypoint_marker.gd")
 
-@onready var player: CharacterBody2D = get_node_or_null("World/Player") as CharacterBody2D
+@onready var player: Player = get_node_or_null("World/Player") as Player
 @onready var quest_system: QuestSystem = get_node_or_null("QuestSystem")
 @onready var cooking_system: CookingSystem = get_node_or_null("CookingSystem")
 
