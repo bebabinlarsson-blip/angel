@@ -164,6 +164,8 @@ func _on_save() -> void:
 func _on_settings() -> void:
 	if settings_panel:
 		settings_panel.visible = !settings_panel.visible
+		if settings_panel.visible:
+			_on_viewport_resized()
 
 
 func _on_quest() -> void:
