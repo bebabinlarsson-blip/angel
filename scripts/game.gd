@@ -79,7 +79,7 @@ func _ready() -> void:
 			"quantity": 1,
 			"stackable": false,
 			"attack_bonus": 15.0,
-			"description": "A balanced iron-edged sword. Your trusted starting weapon."
+			"description": "A sturdy starter sword. Keep it sharp and close when the slimes come."
 		}
 		if not player.inventory.has_item("wooden_sword"):
 			player.inventory.add_item(saved_sword)

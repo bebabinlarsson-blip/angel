@@ -55,7 +55,7 @@ func load_game(slot: int = 0) -> bool:
 		push_error("Failed to parse save file")
 		return false
 	
-	if not json.data is Dictionary:
+	if not (json.data is Dictionary):
 		push_error("Save file root is not a dictionary")
 		return false
 	var save_data: Dictionary = json.data

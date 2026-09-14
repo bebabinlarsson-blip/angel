@@ -23,8 +23,8 @@ func _draw() -> void:
 		draw_circle(Vector2(18, -2), 20.0 + glow * 5.0, Color(1.0, 0.72, 0.22, 0.10))
 	if swinging:
 		var slash_color := Color("#fff1a3") if not charged else Color("#ffb84c")
-		draw_arc(Vector2(7, 0), reach + 3.0, -1.05, 1.05, 20, Color(slash_color, 0.50), 4.0)
-		draw_arc(Vector2(7, 0), reach + 8.0, -0.82, 0.82, 16, Color(slash_color, 0.18), 3.0)
+		draw_arc(Vector2(7, 0), reach + 3.0, -1.05, 1.05, 20, Color(slash_color.r, slash_color.g, slash_color.b, 0.50), 4.0)
+		draw_arc(Vector2(7, 0), reach + 8.0, -0.82, 0.82, 16, Color(slash_color.r, slash_color.g, slash_color.b, 0.18), 3.0)
 	if hit_confirmed:
 		draw_circle(Vector2(reach, lift), 7.0, Color(1.0, 0.95, 0.55, 0.82))
 

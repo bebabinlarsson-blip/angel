@@ -233,31 +233,33 @@ func _on_exp_gained(_amount: int, total: int, required: int) -> void:
 		exp_bar.value = total
 
 func _on_interaction_available(_interactable: Node) -> void:
-	if interaction_hint:
-		interaction_hint.visible = not big_map.visible
-		var label: String = "Interact"
-		if _interactable is QuestNPC:
-			label = "Talk to " + _interactable.npc_name
-		elif _interactable is Waystone:
-			label = _interactable.display_name
-		elif _interactable is CookingPot:
-			label = "Cook at the hearth"
-		elif _interactable is MiningRock:
-			label = "Mine " + _interactable.ore_name
-		elif _interactable is ResourceNode:
-			label = "Collect " + _interactable.item_name
-		elif _interactable is CollectableItem:
-			label = "Collect " + _interactable.item_name
-		if _interactable is ResourceNode or _interactable is CollectableItem:
-			interaction_hint.text = "[F] %s  ·  walk close to auto-pick" % label
-		else:
-			return
-		elif _interactable.is_in_group("supply_caches"):
-			label = "Open supply cache"
+	if interaction_hint == null or _interactable == null:
+		return
+	interaction_hint.visible = not big_map.visible
+	var label := "Interact"
+	if _interactable is QuestNPC:
+		label = "Talk to " + _interactable.npc_name
+	elif _interactable is Waystone:
+		label = _interactable.display_name
+	elif _interactable is CookingPot:
+		label = "Cook at the hearth"
+	elif _interactable is MiningRock:
+		label = "Mine " + _interactable.ore_name
+	elif _interactable is ResourceNode:
+		label = "Collect " + _interactable.item_name
+	elif _interactable is CollectableItem:
+		label = "Collect " + _interactable.item_name
+	elif _interactable.is_in_group("supply_caches"):
+		label = "Open supply cache"
+
+	if _interactable is ResourceNode or _interactable is CollectableItem:
+		interaction_hint.text = "[F] %s  ·  walk close to auto-pick" % label
+	else:
 		interaction_hint.text = "[F] " + label
-		interaction_hint.modulate.a = 0.0
-		var tween := interaction_hint.create_tween()
-		tween.tween_property(interaction_hint, "modulate:a", 1.0, 0.15)
+	interaction_hint.modulate.a = 0.0
+	var tween := interaction_hint.create_tween()
+	tween.tween_property(interaction_hint, "modulate:a", 1.0, 0.15)
+
 
 func _on_interaction_unavailable() -> void:
 	if interaction_hint:

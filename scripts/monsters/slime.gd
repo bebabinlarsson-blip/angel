@@ -43,11 +43,16 @@ func _ready() -> void:
 	jump_timer = randf_range(0.5, jump_interval)
 
 func _physics_process(delta: float) -> void:
-	# LOD early-out lives in base; don't duplicate the distance check here.
+	var far_from_player := false
+	if GameManager.player and is_instance_valid(GameManager.player):
+		far_from_player = global_position.distance_squared_to(GameManager.player.global_position) > 2250000.0
+
+	# LOD early-out lives in base; don't run jump animation work after it sleeps.
 	super._physics_process(delta)
+	if far_from_player:
+		return
+
 	_handle_jump(delta)
-	# Lunge persists briefly so base AI doesn't overwrite velocity next frame.
-	# Skipped at LOD range so distant slimes stay asleep (perf).
 	if jump_lunge_timer > 0.0 and current_state != State.DEAD and current_state != State.HURT:
 		var p := GameManager.player
 		if p and is_instance_valid(p) and global_position.distance_squared_to((p as Node2D).global_position) < 2250000.0:
@@ -56,6 +61,7 @@ func _physics_process(delta: float) -> void:
 			move_and_slide()
 		else:
 			jump_lunge_timer = 0.0
+
 
 func _handle_jump(delta: float) -> void:
 	if current_state in [State.DEAD, State.HURT, State.ATTACK]:

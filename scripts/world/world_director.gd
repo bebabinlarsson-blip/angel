@@ -36,7 +36,7 @@ const RESOURCE_CATALOG: Array[Dictionary] = [
 	{"id": "berry", "name": "Wild Berries", "weight": 8.0, "min": 2, "max": 5, "type": 6},
 	{"id": "iron_ore", "name": "Iron Ore", "weight": 5.0, "min": 1, "max": 2, "type": 0},
 	{"id": "coal", "name": "Coal", "weight": 4.0, "min": 1, "max": 2, "type": 0},
-	{"id": "gold_ore", "name": "Gold Ore", "weight": 2.0, "min": 1, "max": 1, "type": 6},
+	{"id": "gold_ore", "name": "Gold Ore", "weight": 2.0, "min": 1, "max": 1, "type": 0},
 	{"id": "crystal", "name": "Blue Crystal", "weight": 2.5, "min": 1, "max": 1, "type": 6},
 	{"id": "sunstone", "name": "Sunstone", "weight": 1.5, "min": 1, "max": 1, "type": 6},
 	{"id": "moon_petal", "name": "Moon Petal", "weight": 1.5, "min": 1, "max": 2, "type": 6},

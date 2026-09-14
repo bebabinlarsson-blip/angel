@@ -76,6 +76,16 @@ func _physics_process(delta: float) -> void:
 				wander_timer = randf_range(2.0, 5.0)
 			return
 
+	# Keep hostile creatures outside the village ring so the settlement stays safe.
+	if global_position.length_squared() < 230400.0 and current_state not in [State.ATTACK, State.HURT]:
+		var escape_direction := global_position.normalized()
+		if escape_direction == Vector2.ZERO:
+			escape_direction = Vector2.UP
+		velocity = escape_direction * scaled_speed
+		_update_animation()
+		move_and_slide()
+		return
+
 	_update_timers(delta)
 	_update_ai(delta)
 	_apply_knockback(delta)
