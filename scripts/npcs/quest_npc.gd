@@ -430,8 +430,8 @@ func _update_activity_label() -> void:
 		return
 	var player_near := false
 	if GameManager.player and is_instance_valid(GameManager.player):
-		player_near = global_position.distance_squared_to(GameManager.player.global_position) <= 640000.0
-	activity_label.visible = (is_working or player_near) and not is_dialogue_open
+		player_near = global_position.distance_squared_to(GameManager.player.global_position) <= 57600.0
+	activity_label.visible = player_near and not is_dialogue_open
 	activity_label.text = activity
 
 
