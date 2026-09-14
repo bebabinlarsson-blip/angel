@@ -19,7 +19,7 @@ func _sync_from_save() -> void:
 	lid_lift = 12.0 if opened else 0.0
 	queue_redraw()
 
-func interact(player: CharacterBody2D) -> void:
+func interact(player: Player) -> void:
 	if player == null or not is_instance_valid(player) or player.stats == null:
 		return
 	if cache_id.is_empty():
