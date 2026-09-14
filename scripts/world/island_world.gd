@@ -124,6 +124,16 @@ func is_clear(p: Vector2, clearance: float = 36.0) -> bool:
 					return false
 	return true
 
+func get_biome_at(p: Vector2) -> String:
+	if p.length() > expanded_radius * 0.84:
+		return "shore"
+	var biome_wave := sin(p.x * 0.00008) + cos(p.y * 0.00006)
+	if biome_wave > 0.7:
+		return "grove"
+	if biome_wave < -0.55:
+		return "quarry"
+	return "meadow"
+
 func _refresh_map(water_layer: TileMapLayer = null, farm_layer: TileMapLayer = null) -> void:
 	var used_rect := Rect2i(Vector2i(bounds.position / 32.0), Vector2i(bounds.size / 32.0))
 	var dim_x: int = clampi(used_rect.size.x, 32, 1024)

@@ -10,11 +10,12 @@ func _ready() -> void:
 		push_warning("SaveManager: could not create save dir (%s)" % error_string(err))
 
 func save_game(slot: int = 0) -> bool:
+	slot = clampi(slot, 0, MAX_SLOTS - 1)
 	var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
 	var quest_data: Dictionary = quest_system.get_save_data() if quest_system else {}
 	
 	var save_data := {
-		"version": 1,
+		"version": 2,
 		"timestamp": Time.get_datetime_string_from_system(),
 		"game_manager": GameManager.get_save_data(),
 		"player": _get_player_save_data(),
@@ -35,6 +36,7 @@ func save_game(slot: int = 0) -> bool:
 	return true
 
 func load_game(slot: int = 0) -> bool:
+	slot = clampi(slot, 0, MAX_SLOTS - 1)
 	var path := SAVE_DIR + SAVE_FILE % slot
 	if not FileAccess.file_exists(path):
 		push_error("No save file found: " + path)
@@ -53,6 +55,9 @@ func load_game(slot: int = 0) -> bool:
 		push_error("Failed to parse save file")
 		return false
 	
+	if not json.data is Dictionary:
+		push_error("Save file root is not a dictionary")
+		return false
 	var save_data: Dictionary = json.data
 	GameManager.load_save_data(save_data.get("game_manager", {}))
 	_load_player_save_data(save_data.get("player", {}))
@@ -66,10 +71,12 @@ func load_game(slot: int = 0) -> bool:
 	return true
 
 func has_save(slot: int = 0) -> bool:
+	slot = clampi(slot, 0, MAX_SLOTS - 1)
 	var path := SAVE_DIR + SAVE_FILE % slot
 	return FileAccess.file_exists(path)
 
 func delete_save(slot: int = 0) -> void:
+	slot = clampi(slot, 0, MAX_SLOTS - 1)
 	var path := SAVE_DIR + SAVE_FILE % slot
 	if FileAccess.file_exists(path):
 		var err := DirAccess.remove_absolute(path)
@@ -77,6 +84,7 @@ func delete_save(slot: int = 0) -> void:
 			push_warning("SaveManager: could not delete %s (%s)" % [path, error_string(err)])
 
 func get_save_info(slot: int = 0) -> Dictionary:
+	slot = clampi(slot, 0, MAX_SLOTS - 1)
 	var path := SAVE_DIR + SAVE_FILE % slot
 	if not FileAccess.file_exists(path):
 		return {}

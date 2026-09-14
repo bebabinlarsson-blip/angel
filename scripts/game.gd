@@ -54,7 +54,7 @@ func _ready() -> void:
 			"quantity": 1,
 			"stackable": false,
 			"attack_bonus": 15.0,
-			"description": "A balanced iron-edged sword. Your trusted starting weapon."
+			"description": "A sturdy starter sword. Keep it sharp and close when the slimes come."
 		}
 		player.inventory.add_item(starter_sword)
 		player.inventory.equip_weapon(starter_sword)
@@ -95,7 +95,7 @@ func _ready() -> void:
 		EventBus.player_health_changed.emit(player.stats.current_hp, player.stats.get_max_hp())
 		EventBus.player_stamina_changed.emit(player.stats.current_stamina, player.stats.get_max_stamina())
 		EventBus.player_money_changed.emit(player.stats.money)
-		EventBus.show_notification.emit("Welcome to Angel! Explore, fight slimes, level up, and cook!")
+		EventBus.show_notification.emit("Welcome to Angel! Walk near materials to collect them, press E for your backpack, and keep your sword ready.")
 
 func _spawn_additional_villagers(world_node: Node2D) -> void:
 	var village := world_node.get_node_or_null("VillageNPCs") as Node2D

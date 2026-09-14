@@ -57,7 +57,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="PanelContainer" type="PanelContainer" parent="CenterContainer" unique_id=1332055657]
-custom_minimum_size = Vector2(740, 520)
+custom_minimum_size = Vector2(820, 560)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
 
@@ -87,6 +87,12 @@ layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.85, 0.25, 1)
 theme_override_font_sizes/font_size = 16
 text = "0 Gold"
+
+[node name="BagLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.82, 0.95, 1)
+theme_override_font_sizes/font_size = 14
+text = "Bag 0/30"
 
 [node name="CloseButton" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header" unique_id=1040125828]
 custom_minimum_size = Vector2(58, 32)
@@ -127,6 +133,18 @@ text = "Potions"
 custom_minimum_size = Vector2(85, 30)
 layout_mode = 2
 text = "Materials"
+
+[node name="BtnCollectibles" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/CategoryBar"]
+custom_minimum_size = Vector2(92, 30)
+layout_mode = 2
+text = "Relics"
+
+[node name="FooterHint" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.70, 0.80, 1)
+theme_override_font_sizes/font_size = 12
+text = "Walk near ground materials to collect them automatically. Press E or the close button to leave."
+horizontal_alignment = 1
 
 [node name="BodySplit" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer" unique_id=1906037540]
 layout_mode = 2
