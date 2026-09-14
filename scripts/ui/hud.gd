@@ -322,7 +322,7 @@ func _refresh_buff_label() -> void:
 	if buff_label == null:
 		return
 	var current_player: Variant = GameManager.player
-	if current_player == null or current_player.stats == null:
+	if current_player == null or not is_instance_valid(current_player) or current_player.stats == null:
 		buff_label.visible = false
 		return
 	var active_text: String = current_player.stats.get_active_buff_text()
@@ -377,7 +377,7 @@ func _on_show_notification(text: String) -> void:
 
 func _on_inventory_changed() -> void:
 	var player := GameManager.player
-	if weapon_label and player and player.inventory:
+	if weapon_label and player != null and is_instance_valid(player) and player.inventory:
 		var w: Dictionary = player.inventory.equipped_weapon
 		if w.is_empty():
 			weapon_label.text = "Weapon: Fist"
