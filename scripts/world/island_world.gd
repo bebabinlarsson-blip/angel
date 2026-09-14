@@ -138,8 +138,10 @@ func get_biome_at(p: Vector2) -> String:
         return "quarry"
     return "meadow"
 
-func get_map_locations() -> Array[Dictionary]:
-    return map_locations.duplicate(true)
+func get_map_locations() -> Array:
+    # The map reads this immutable snapshot while drawing. Returning the
+    # existing array avoids a deep copy every renderer refresh.
+    return map_locations
 
 func _point_from_data(data: Variant, fallback: Vector2 = Vector2.ZERO) -> Vector2:
     if data is Dictionary:
