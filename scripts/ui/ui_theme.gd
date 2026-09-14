@@ -150,10 +150,15 @@ static func fit_modal(control: Control, design_size: Vector2, viewport_size: Vec
 		maxf(1.0, viewport_size.x - 24.0),
 		maxf(1.0, viewport_size.y - 24.0)
 	)
-	var width_ratio: float = available.x / maxf(design_size.x, 1.0)
-	var height_ratio: float = available.y / maxf(design_size.y, 1.0)
+	var measured_size := control.get_combined_minimum_size()
+	var required_size := Vector2(
+		maxf(design_size.x, maxf(measured_size.x, control.size.x)),
+		maxf(design_size.y, maxf(measured_size.y, control.size.y))
+	)
+	var width_ratio: float = available.x / maxf(required_size.x, 1.0)
+	var height_ratio: float = available.y / maxf(required_size.y, 1.0)
 	var scale_factor: float = minf(1.0, minf(width_ratio, height_ratio))
-	control.pivot_offset = design_size * 0.5
+	control.pivot_offset = required_size * 0.5
 	control.scale = Vector2.ONE * maxf(0.35, scale_factor)
 
 static func style_recursive(root: Node) -> void:
