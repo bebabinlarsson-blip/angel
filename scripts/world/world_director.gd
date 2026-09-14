@@ -165,8 +165,7 @@ func _update_resource_record(record: Dictionary, center: Vector2, load_radius_sq
     if node != null:
         if node is ResourceNode:
             var resource: ResourceNode = node as ResourceNode
-            if resource.is_collected:
-                record["collected"] = true
+            record["collected"] = resource.is_collected
             if pos.distance_squared_to(center) > unload_radius_sq:
                 _unload_resource_record(record, resource, now)
         return
@@ -190,7 +189,7 @@ func _update_enemy_record(record: Dictionary, center: Vector2, load_radius_sq: f
     if node != null:
         if node is BaseMonster:
             var monster: BaseMonster = node as BaseMonster
-            if monster.current_state == monster.State.DEAD:
+            if monster.current_state == BaseMonster.State.DEAD:
                 if not bool(record.get("defeated", false)):
                     record["defeated"] = true
                     record["respawn_at"] = now + enemy_respawn_time
@@ -390,6 +389,8 @@ func _activate_enemy_record(record: Dictionary) -> void:
     if enemy == null:
         return
     enemy.set_meta("variant", str(record.get("variant", "slime")))
+    enemy.set_meta("stream_record", record)
+    enemy.set_meta("stream_respawn_seconds", enemy_respawn_time)
     enemy.position = pos
     enemy_parent.add_child(enemy)
     var saved_hp: float = float(record.get("hp", -1.0))
