@@ -205,7 +205,9 @@ func _update_state(delta: float) -> void:
 
 func _update_animation() -> void:
 	if sword_visual:
-		sword_visual.visible = not inventory.equipped_weapon.is_empty()
+		var has_weapon: bool = not inventory.equipped_weapon.is_empty()
+		sword_visual.visible = has_weapon
+		sword_visual.set_process(has_weapon)
 		sword_visual.swinging = current_state == State.ATTACKING
 		sword_visual.charged = is_charging or attack_is_charged
 		sword_visual.hit_confirmed = attack_hit_confirmed
