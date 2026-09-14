@@ -10,7 +10,6 @@ const QUEST_WAYPOINT_SCRIPT = preload("res://scripts/world/quest_waypoint_marker
 @onready var cooking_system: CookingSystem = get_node_or_null("CookingSystem")
 
 func _ready() -> void:
-    get_tree().paused = false
     GameManager.set_state(GameManager.GameState.PLAYING)
     GameManager.village_spawn_point = Vector2(0, 90)
     _ensure_audio_manager()
