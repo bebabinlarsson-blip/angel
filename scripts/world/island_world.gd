@@ -225,6 +225,32 @@ func _build_map_locations(config: Dictionary) -> void:
         var house_pos := _point_from_data(house.get("pos", {}), village_center)
         _add_map_location(house_id, house_name, house_pos, "house", 1, 12.0)
 
+    var services_value: Variant = village_data.get("services", [])
+    if services_value is Array:
+        for raw_service in services_value:
+            if not (raw_service is Dictionary):
+                continue
+            var service: Dictionary = raw_service
+            var service_id := str(service.get("id", ""))
+            if service_id.is_empty():
+                continue
+            var service_pos := _point_from_data(service.get("pos", {}), village_center)
+            _add_map_location(service_id, str(service.get("name", "Village Service")), service_pos, "service", 2, 1.4)
+
+    var interiors_value: Variant = config.get("interiors", [])
+    if interiors_value is Array:
+        for raw_interior in interiors_value:
+            if not (raw_interior is Dictionary):
+                continue
+            var interior: Dictionary = raw_interior
+            var interior_id := str(interior.get("id", ""))
+            if interior_id.is_empty() or _has_map_location(interior_id):
+                continue
+            var interior_pos := _point_from_data(interior.get("pos", interior.get("position", {})), village_center)
+            var interior_kind := str(interior.get("kind", "house"))
+            var map_kind := "house" if interior_kind in ["house", "cook", "smith", "market"] else "landmark"
+            _add_map_location(interior_id, str(interior.get("name", "Interior")), interior_pos, map_kind, 2, 1.0)
+
     var landmark_names := {
         "northwest_highlands": "Northwest Highlands",
         "western_farmlands": "Western Farmlands",
