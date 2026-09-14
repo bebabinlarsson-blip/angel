@@ -85,7 +85,7 @@ func _toggle() -> void:
 	if visible:
 		_hide_overlay("BigMap")
 		_hide_overlay("CookingUILayer")
-		var q_menu := get_tree().root.find_child("QuestMenu", true, false) as Control as Control
+		var q_menu := get_tree().root.find_child("QuestMenu", true, false) as Control
 		if q_menu and q_menu.visible:
 			q_menu.visible = false
 		var p_menu := get_tree().root.find_child("PauseMenu", true, false) as Control
@@ -99,8 +99,8 @@ func _toggle() -> void:
 		if card is Control:
 			UIAnim.pop_in(card as Control, 0.2)
 	else:
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
-		var q_menu := get_tree().root.find_child("QuestMenu", true, false)
+		var p_menu := get_tree().root.find_child("PauseMenu", true, false) as Control
+		var q_menu := get_tree().root.find_child("QuestMenu", true, false) as Control
 		if (p_menu == null or not p_menu.visible) and (q_menu == null or not q_menu.visible):
 			GameManager.set_state(GameManager.GameState.PLAYING)
 
