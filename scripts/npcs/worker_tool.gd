@@ -5,10 +5,23 @@ extends Node2D
 var active: bool = false
 var motion: float = 0.0
 
+func _ready() -> void:
+	# The tool is dormant outside the work phase; do not redraw ten idle tools.
+	set_process(false)
+
+func set_active(value: bool) -> void:
+	if active == value:
+		return
+	active = value
+	motion = 0.0
+	if not active:
+		rotation = 0.0
+	set_process(active)
+	queue_redraw()
+
 func _process(delta: float) -> void:
-	if active:
-		motion += delta * 7.0
-		rotation = sin(motion) * 0.18
+	motion += delta * 7.0
+	rotation = sin(motion) * 0.18
 	queue_redraw()
 
 func _draw() -> void:
