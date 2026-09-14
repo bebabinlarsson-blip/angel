@@ -246,7 +246,7 @@ func _index_authored_stream_nodes() -> void:
                         "disabled": shape.disabled
                     })
             var protected_from_spawn: bool = false
-            if node is ResourceNode or node is CollectableItem or node is MiningRock:
+            if node is ResourceNode or node is CollectableItem or node is MiningRock or node is BaseMonster:
                 protected_from_spawn = terrain.is_inside_village_safe_zone(node.global_position, 0.0)
             var state: Dictionary = {
                 "node": node,
