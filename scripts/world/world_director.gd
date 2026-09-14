@@ -37,7 +37,9 @@ var stream_timer: float = 0.0
 var initialized: bool = false
 var occupied_positions: Array[Vector2] = []
 var resource_records: Array[Dictionary] = []
-var enemy_records: Array[Dictionary] = const RESOURCE_CATALOG: Array[Dictionary] = [
+var enemy_records: Array[Dictionary] = []
+
+const RESOURCE_CATALOG: Array[Dictionary] = [
     {"id": "wood", "name": "Wood", "weight": 20.0, "min": 1, "max": 3, "type": 0},
     {"id": "herb", "name": "Herb", "weight": 14.0, "min": 1, "max": 3, "type": 0},
     {"id": "mushroom", "name": "Mushroom", "weight": 11.0, "min": 1, "max": 2, "type": 0},
@@ -61,6 +63,25 @@ var enemy_records: Array[Dictionary] = const RESOURCE_CATALOG: Array[Dictionary]
     {"id": "moon_petal", "name": "Moon Petal", "weight": 1.5, "min": 1, "max": 2, "type": 6},
     {"id": "ancient_shard", "name": "Ancient Shard", "weight": 0.5, "min": 1, "max": 1, "type": 6},
 ]
+
+const GUARANTEED_STARTER_MATERIALS: Array[String] = [
+    "herb",
+    "berry",
+    "apple",
+    "plant",
+    "flower",
+    "mushroom",
+    "orange",
+    "pear",
+    "banana",
+    "grapes"
+]
+
+func _catalog_entry(resource_id: String) -> Dictionary:
+    for entry: Dictionary in RESOURCE_CATALOG:
+        if str(entry.get("id", "")) == resource_id:
+            return entry
+    return RESOURCE_CATALOG[0]
 
 func _ready() -> void:
     rng.seed = world_seed
@@ -90,6 +111,19 @@ func _initialize() -> void:
         var resource_pos := _find_position(650.0, 10500.0, 48.0)
         if resource_pos != Vector2.ZERO:
             _register_resource_record(resource_pos, _pick_resource_at(resource_pos))
+
+    # Guarantee a useful first foraging loop just outside the village. These
+    # records are still streamed like every other resource, but the player can
+    # reliably find herbs, fruit, flowers and plants instead of waiting for a
+    # random catalog roll.
+    for resource_id: String in GUARANTEED_STARTER_MATERIALS:
+        var starter_pos := _find_position_near(Vector2.ZERO, 680.0, 1200.0, 52.0)
+        if starter_pos == Vector2.ZERO:
+            continue
+        var starter_record := _register_resource_record(starter_pos, _catalog_entry(resource_id))
+        if starter_record.is_empty():
+            occupied_positions.erase(starter_pos)
+
     for i in range(starting_enemies):
         var enemy_pos := _find_position(900.0, 14500.0, 72.0)
         if enemy_pos != Vector2.ZERO:

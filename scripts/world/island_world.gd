@@ -10,6 +10,7 @@ var decor: TileMapLayer
 var water_layer: TileMapLayer
 var farm_layer: TileMapLayer
 var map_texture: ImageTexture
+var authored_map_texture: ImageTexture
 var bounds := Rect2(-3520, -3520, 7040, 7040)
 var radius: float = 3500.0
 var authored_bounds := Rect2(-3520, -3520, 7040, 7040)
@@ -195,92 +196,93 @@ func _build_map_locations(config: Dictionary) -> void:
         var key := str(landmark_id)
         var display_name := str(landmark_names.get(key, key.replace("_", " ").capitalize()))
         var kind := "water" if key == "serpentine_lake" else "landmark"
-        var label_zoom := 1.0 if kind == "water" else 1.4
+        var label_zoom := 1.0 # Major place names are visible in the fit-to-island view.
         _add_map_location(key, display_name, _point_from_data(entry.get("center", {})), kind, 3, label_zoom)
 
     # Keep the chart useful even if a minimal test scene omits the JSON.
-    _add_map_location_if_missing("northwest_highlands", "Northwest Highlands", Vector2(-2080.0, -2240.0), "landmark", 3, 1.4)
-    _add_map_location_if_missing("western_farmlands", "Western Farmlands", Vector2(-1664.0, 1024.0), "landmark", 3, 1.4)
-    _add_map_location_if_missing("whispering_woods", "Whispering Woods", Vector2(1984.0, -1760.0), "landmark", 3, 1.4)
+    _add_map_location_if_missing("northwest_highlands", "Northwest Highlands", Vector2(-2080.0, -2240.0), "landmark", 3, 1.0)
+    _add_map_location_if_missing("western_farmlands", "Western Farmlands", Vector2(-1664.0, 1024.0), "landmark", 3, 1.0)
+    _add_map_location_if_missing("whispering_woods", "Whispering Woods", Vector2(1984.0, -1760.0), "landmark", 3, 1.0)
     _add_map_location_if_missing("serpentine_lake", "Serpentine Lake & River", Vector2(1536.0, 896.0), "water", 3, 1.0)
-    _add_map_location_if_missing("forgotten_citadel", "Forgotten Citadel", Vector2(160.0, 2304.0), "landmark", 3, 1.4)
+    _add_map_location_if_missing("forgotten_citadel", "Forgotten Citadel", Vector2(160.0, 2304.0), "landmark", 3, 1.0)
 
 func _refresh_map(water: TileMapLayer = null, farm: TileMapLayer = null) -> void:
-    var used_rect := Rect2i(Vector2i(bounds.position / 32.0), Vector2i(bounds.size / 32.0))
-    var dim_x: int = clampi(used_rect.size.x, 32, 1024)
-    var dim_y: int = clampi(used_rect.size.y, 32, 1024)
-    var img := Image.create(dim_x, dim_y, false, Image.FORMAT_RGBA8)
-    img.fill(Color("#244853")) # Match MinimapDrawer ocean color
-
-    # Paint the procedural outer landmass first. The map texture is capped at
-    # 1024px, so this remains cheap even though the world itself is enormous.
-    for y in range(dim_y):
-        for x in range(dim_x):
-            var world_p := Vector2(float(x) / float(dim_x) * bounds.size.x + bounds.position.x, float(y) / float(dim_y) * bounds.size.y + bounds.position.y)
-            if world_p.length_squared() <= expanded_radius * expanded_radius:
-                var biome_wave := sin(world_p.x * 0.00008) + cos(world_p.y * 0.00006)
-                img.set_pixel(x, y, Color("#6f954d") if biome_wave > -0.4 else Color("#648b4a"))
-
-    # 1. Base Ground (Grass & Cliffs)
-    for cell: Vector2i in land:
-        var color := Color("#73974c")
-        if ground:
-            var coords: Vector2i = ground.get_cell_atlas_coords(cell)
-            if coords.y >= 8 and coords.y <= 13 and coords.x <= 5:
-                color = Color("#5a5448")
-        var pixel: Vector2i = _world_to_map_pixel(Vector2(cell) * 32.0 + Vector2(16.0, 16.0), dim_x, dim_y)
-        if pixel.x >= 0 and pixel.y >= 0 and pixel.x < dim_x and pixel.y < dim_y:
-            img.set_pixelv(pixel, color)
-
-    # 2. Waterways and lakes. Paint every authored water cell so rivers are
-    # never clipped by the old island-radius shortcut.
-    if water:
-        for cell: Vector2i in water.get_used_cells():
-            var pixel: Vector2i = _world_to_map_pixel(Vector2(cell) * 32.0 + Vector2(16.0, 16.0), dim_x, dim_y)
-            if pixel.x >= 0 and pixel.y >= 0 and pixel.x < dim_x and pixel.y < dim_y:
-                img.set_pixelv(pixel, Color("#276b80"))
-
-    # 3. Farmland plots
-    if farm:
-        for cell: Vector2i in farm.get_used_cells():
-            var pixel: Vector2i = _world_to_map_pixel(Vector2(cell) * 32.0 + Vector2(16.0, 16.0), dim_x, dim_y)
-            if pixel.x >= 0 and pixel.y >= 0 and pixel.x < dim_x and pixel.y < dim_y:
-                img.set_pixelv(pixel, Color("#673e1e"))
-
-    # 4. Pathways and roads
-    if paths:
-        for cell: Vector2i in paths.get_used_cells():
-            var pixel: Vector2i = _world_to_map_pixel(Vector2(cell) * 32.0 + Vector2(16.0, 16.0), dim_x, dim_y)
-            if pixel.x >= 0 and pixel.y >= 0 and pixel.x < dim_x and pixel.y < dim_y:
-                img.set_pixelv(pixel, Color("#c39e68"))
-
-    # 5. Wooden bridge
-    if bridge:
-        for cell: Vector2i in bridge.get_used_cells():
-            var pixel: Vector2i = _world_to_map_pixel(Vector2(cell) * 32.0 + Vector2(16.0, 16.0), dim_x, dim_y)
-            if pixel.x >= 0 and pixel.y >= 0 and pixel.x < dim_x and pixel.y < dim_y:
-                img.set_pixelv(pixel, Color("#835327"))
-
-    # 6. Tree groves
-    if trees:
-        for cell: Vector2i in trees.get_used_cells():
-            var pixel: Vector2i = _world_to_map_pixel(Vector2(cell) * 32.0 + Vector2(16.0, 16.0), dim_x, dim_y)
-            if pixel.x >= 0 and pixel.y >= 0 and pixel.x < dim_x and pixel.y < dim_y:
-                img.set_pixelv(pixel, Color("#264c2f"))
-
-    # 7. Structures: houses, ruins, and cave entrance
-    if structures:
-        for cell: Vector2i in structures.get_used_cells():
-            var pixel: Vector2i = _world_to_map_pixel(Vector2(cell) * 32.0 + Vector2(16.0, 16.0), dim_x, dim_y)
-            if pixel.x >= 0 and pixel.y >= 0 and pixel.x < dim_x and pixel.y < dim_y:
-                img.set_pixelv(pixel, Color("#8b8277"))
-
-    map_texture = ImageTexture.create_from_image(img)
+    # Keep two projections: the full 100x world for orientation, and an exact
+    # authored-island projection for the detailed chart view. Both are baked
+    # once when the tilemap is rebuilt, so opening the map never scans tiles.
+    map_texture = _build_map_texture(bounds, true, water, farm)
+    authored_map_texture = _build_map_texture(authored_bounds, false, water, farm)
     queue_redraw()
 
-func _world_to_map_pixel(world_p: Vector2, width: int, height: int) -> Vector2i:
-    var nx := clampf((world_p.x - bounds.position.x) / maxf(bounds.size.x, 1.0), 0.0, 0.999999)
-    var ny := clampf((world_p.y - bounds.position.y) / maxf(bounds.size.y, 1.0), 0.0, 0.999999)
+func _build_map_texture(target_bounds: Rect2, include_outer_land: bool, water: TileMapLayer = null, farm: TileMapLayer = null) -> ImageTexture:
+    const MAP_SIZE: int = 1024
+    var img := Image.create(MAP_SIZE, MAP_SIZE, false, Image.FORMAT_RGBA8)
+    img.fill(Color("#244853")) # Ocean
+
+    if include_outer_land:
+        # Paint the expanded procedural landmass first. The texture stays
+        # capped at 1024px, so the enlarged world remains inexpensive.
+        for y in range(MAP_SIZE):
+            for x in range(MAP_SIZE):
+                var world_p := Vector2(
+                    (float(x) + 0.5) / float(MAP_SIZE) * target_bounds.size.x + target_bounds.position.x,
+                    (float(y) + 0.5) / float(MAP_SIZE) * target_bounds.size.y + target_bounds.position.y
+                )
+                if world_p.length_squared() <= expanded_radius * expanded_radius:
+                    var biome_wave := sin(world_p.x * 0.00008) + cos(world_p.y * 0.00006)
+                    img.set_pixel(x, y, Color("#6f954d") if biome_wave > -0.4 else Color("#648b4a"))
+
+    # A tile occupies several pixels in the authored projection, which keeps
+    # individual trees, buildings and waterways visible at the default view.
+    var tile_pixels: float = 32.0 * float(MAP_SIZE) / maxf(target_bounds.size.x, 1.0)
+    var stamp_radius: int = 0 if include_outer_land else clampi(int(ceilf(tile_pixels * 0.42)), 1, 3)
+
+    # 1. The real ground footprint also defines the authored island's ocean
+    # edge. This makes the chart a faithful copy of the playable land shape.
+    for cell in land.keys():
+        if not (cell is Vector2i):
+            continue
+        var cell_pos: Vector2i = cell
+        var color := Color("#73974c")
+        if is_instance_valid(ground):
+            var coords: Vector2i = ground.get_cell_atlas_coords(cell_pos)
+            if coords.y >= 8 and coords.y <= 13 and coords.x <= 5:
+                color = Color("#5a5448")
+        var world_p := Vector2(cell_pos) * 32.0 + Vector2(16.0, 16.0)
+        _paint_map_cell(img, _world_to_map_pixel(world_p, MAP_SIZE, MAP_SIZE, target_bounds), color, stamp_radius)
+
+    # 2. Decorative terrain, then the authored water, farms, paths and bridge.
+    # Each layer is painted in the same order used by the world visual.
+    _paint_map_layer(img, decor, Color("#476e3b"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layer(img, water, Color("#276b80"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layer(img, farm, Color("#673e1e"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layer(img, paths, Color("#c39e68"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layer(img, bridge, Color("#835327"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layer(img, trees, Color("#264c2f"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layer(img, structures, Color("#8b8277"), target_bounds, MAP_SIZE, stamp_radius)
+
+    return ImageTexture.create_from_image(img)
+
+func _paint_map_layer(image: Image, layer: TileMapLayer, color: Color, target_bounds: Rect2, map_size: int, stamp_radius: int) -> void:
+    if layer == null or not is_instance_valid(layer):
+        return
+    for cell in layer.get_used_cells():
+        if not (cell is Vector2i):
+            continue
+        var cell_pos: Vector2i = cell
+        var world_p := Vector2(cell_pos) * 32.0 + Vector2(16.0, 16.0)
+        _paint_map_cell(image, _world_to_map_pixel(world_p, map_size, map_size, target_bounds), color, stamp_radius)
+
+func _paint_map_cell(image: Image, pixel: Vector2i, color: Color, stamp_radius: int) -> void:
+    for dy in range(-stamp_radius, stamp_radius + 1):
+        for dx in range(-stamp_radius, stamp_radius + 1):
+            var p := pixel + Vector2i(dx, dy)
+            if p.x >= 0 and p.y >= 0 and p.x < image.get_width() and p.y < image.get_height():
+                image.set_pixelv(p, color)
+
+func _world_to_map_pixel(world_p: Vector2, width: int, height: int, target_bounds: Rect2) -> Vector2i:
+    var nx := clampf((world_p.x - target_bounds.position.x) / maxf(target_bounds.size.x, 1.0), 0.0, 0.999999)
+    var ny := clampf((world_p.y - target_bounds.position.y) / maxf(target_bounds.size.y, 1.0), 0.0, 0.999999)
     return Vector2i(int(nx * width), int(ny * height))
 
 func _draw() -> void:

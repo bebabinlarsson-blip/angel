@@ -13,6 +13,7 @@ extends CanvasLayer
 @onready var level_label: Label = $TopRight/LevelLabel
 @onready var interaction_hint: Label = $InteractionHint
 var controls_hint: Label = null
+var buff_label: Label = null
 
 var notification_timer: float = 0.0
 var _notif_tween: Tween = null
@@ -88,10 +89,17 @@ func _ready() -> void:
 		
 		var fit_btn := Button.new()
 		fit_btn.name = "FitIsland"
-		fit_btn.text = "Fit Island"
+		fit_btn.text = "Fit Island Detail"
 		UITheme.style_button(fit_btn)
 		fit_btn.pressed.connect(big_draw.fit_island)
 		btn_container.add_child(fit_btn)
+
+		var world_btn := Button.new()
+		world_btn.name = "FitWorld"
+		world_btn.text = "Full World / Ocean"
+		UITheme.style_button(world_btn)
+		world_btn.pressed.connect(big_draw.fit_world)
+		btn_container.add_child(world_btn)
 		
 		for button: Button in btn_container.get_children():
 			button.custom_minimum_size.y = 32
@@ -103,6 +111,7 @@ func _ready() -> void:
 	if interaction_hint:
 		interaction_hint.visible = false
 	_create_controls_hint()
+	_create_buff_label()
 	_on_inventory_changed()
 	_apply_theme()
 
@@ -118,6 +127,20 @@ func _create_controls_hint() -> void:
 	controls_hint.add_theme_constant_override("outline_size", 4)
 	controls_hint.add_theme_font_size_override("font_size", 12)
 	add_child(controls_hint)
+
+func _create_buff_label() -> void:
+	buff_label = Label.new()
+	buff_label.name = "FoodBuffStatus"
+	buff_label.position = Vector2(16, 276)
+	buff_label.custom_minimum_size = Vector2(300, 28)
+	buff_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	buff_label.visible = false
+	buff_label.add_theme_color_override("font_color", Color("#b8f08a"))
+	buff_label.add_theme_color_override("font_outline_color", Color(0.01, 0.03, 0.06, 0.95))
+	buff_label.add_theme_constant_override("outline_size", 4)
+	buff_label.add_theme_font_size_override("font_size", 13)
+	add_child(buff_label)
+
 
 func _apply_theme() -> void:
 	UITheme.style_bar(health_bar, UITheme.HP_FILL)
@@ -161,6 +184,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
+	_refresh_buff_label()
 	if notification_timer > 0:
 		notification_timer -= delta
 		if notification_timer <= 0 and notification_label:
@@ -177,6 +201,19 @@ func _process(delta: float) -> void:
 		health_bar.value = lerpf(health_bar.value, _displayed_hp, minf(delta * 10.0, 1.0))
 	if stamina_bar and _displayed_stam >= 0.0 and absf(stamina_bar.value - _displayed_stam) > 0.5:
 		stamina_bar.value = lerpf(stamina_bar.value, _displayed_stam, minf(delta * 10.0, 1.0))
+
+func _refresh_buff_label() -> void:
+	if buff_label == null:
+		return
+	var current_player: Variant = GameManager.player
+	if current_player == null or current_player.stats == null:
+		buff_label.visible = false
+		return
+	var active_text: String = current_player.stats.get_active_buff_text()
+	buff_label.visible = not active_text.is_empty()
+	if buff_label.visible:
+		buff_label.text = "Food buff: " + active_text
+
 
 func _on_health_changed(current: float, maximum: float) -> void:
 	_displayed_hp = current

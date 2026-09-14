@@ -28,6 +28,8 @@ var _tree_index: Dictionary = {}
 var _structure_index: Dictionary = {}
 var _layer_cache_revision: int = -1
 var _draw_dirty: bool = true
+var _focus_authored: bool = true
+var _view_initialized: bool = false
 
 const LAYER_CHUNK_TILES: int = 16
 
@@ -83,6 +85,13 @@ func _refresh_layer_cache() -> void:
         return
     if _layer_cache_revision == _terrain.revision:
         return
+    if is_big_map and not _view_initialized:
+        # Start on the actual authored island so the first map view matches
+        # the playable trees, houses, river and ocean edge.
+        _focus_authored = true
+        map_zoom = 1.0
+        map_offset = -_terrain.authored_bounds.get_center()
+        _view_initialized = true
     _locations.clear()
     if _terrain.has_method("get_map_locations"):
         for location in _terrain.get_map_locations():
@@ -137,6 +146,20 @@ func _map_panel_center() -> Vector2:
         return Vector2((size.x - MAP_PANEL_WIDTH) * 0.5, size.y * 0.5 + 10.0)
     return Vector2(size.x * 0.5, (size.y + 22.0) * 0.5)
 
+func _display_bounds() -> Rect2:
+    if not is_instance_valid(_terrain):
+        return Rect2(-1.0, -1.0, 2.0, 2.0)
+    if is_big_map and _focus_authored:
+        return _terrain.authored_bounds
+    return _terrain.bounds
+
+func _active_map_texture() -> Texture2D:
+    if not is_instance_valid(_terrain):
+        return null
+    if is_big_map and _focus_authored and _terrain.authored_map_texture != null:
+        return _terrain.authored_map_texture
+    return _terrain.map_texture
+
 func _map_scale() -> float:
     if not is_instance_valid(_terrain):
         return 1.0
@@ -145,7 +168,8 @@ func _map_scale() -> float:
         # minimap useful by showing a generous local area around the player.
         return minf(size.x, size.y - 22.0) / 8000.0
     var available := _map_view_rect().size
-    return minf(available.x, available.y) / maxf(_terrain.bounds.size.x, 1.0) * map_zoom
+    var display_bounds := _display_bounds()
+    return minf(available.x, available.y) / maxf(display_bounds.size.x, 1.0) * map_zoom
 
 func _center() -> Vector2:
     if is_big_map:
@@ -162,11 +186,23 @@ func center_on_player() -> void:
     queue_redraw()
 
 func fit_island() -> void:
+    _focus_authored = true
+    map_zoom = 1.0
+    if is_instance_valid(_terrain):
+        map_offset = -_terrain.authored_bounds.get_center()
+    else:
+        map_offset = Vector2.ZERO
+    _clamp_offset()
+    queue_redraw()
+
+func fit_world() -> void:
+    _focus_authored = false
     map_zoom = 1.0
     if is_instance_valid(_terrain):
         map_offset = -_terrain.bounds.get_center()
     else:
         map_offset = Vector2.ZERO
+    _clamp_offset()
     queue_redraw()
 
 func zoom_in(pivot: Vector2 = Vector2.INF) -> void:
@@ -197,8 +233,9 @@ func _clamp_offset() -> void:
     if not is_big_map:
         return
     var limit: float = 3800.0
-    if is_instance_valid(_terrain) and _terrain.expanded_radius > 0.0:
-        limit = _terrain.expanded_radius * 1.5
+    if is_instance_valid(_terrain):
+        var display_bounds := _display_bounds()
+        limit = maxf(display_bounds.size.x, display_bounds.size.y) * 1.15
     map_offset.x = clampf(map_offset.x, -limit, limit)
     map_offset.y = clampf(map_offset.y, -limit, limit)
 
@@ -260,7 +297,12 @@ func _label(pos: Vector2, text: String, font_size: int = 14, color: Color = INK)
 
 func _draw_layer_cells(index: Dictionary, center: Vector2, factor: float, color: Color, view: Rect2) -> void:
     var cell_px: float = 32.0 * factor
-    if cell_px < 0.45 or index.is_empty():
+    # The baked map texture already contains every authored feature at
+    # overview scale. Redrawing thousands of tiny tile rectangles is both
+    # redundant and the main source of minimap spikes; switch to exact cells
+    # only once they can resolve on screen.
+    var detail_threshold: float = 8.0 if is_big_map else 4.0
+    if cell_px < detail_threshold or index.is_empty():
         return
     var half := Vector2.ONE * cell_px * 0.5
     var safe_view := view.grow(cell_px * 2.0)
@@ -368,16 +410,19 @@ func _draw() -> void:
     # 1. Base ocean fill
     draw_rect(Rect2(Vector2.ZERO, size), OCEAN)
 
-    if not is_instance_valid(_terrain) or _terrain.map_texture == null:
+    var active_texture: Texture2D = _active_map_texture()
+    if not is_instance_valid(_terrain) or active_texture == null:
         _label(Vector2(12, 28), "Charting island...", 14)
         return
 
     var factor: float = _map_scale()
     var center: Vector2 = _center()
+    var display_bounds := _display_bounds()
 
-    # 2. Complete overview plus high-detail authored layers
-    var map_rect := Rect2(center + _terrain.bounds.position * factor, _terrain.bounds.size * factor)
-    draw_texture_rect(_terrain.map_texture, map_rect, false)
+    # 2. Use the exact authored projection for the default island view; the
+    # full-world projection remains available through the ledger button.
+    var map_rect := Rect2(center + display_bounds.position * factor, display_bounds.size * factor)
+    draw_texture_rect(active_texture, map_rect, false)
     _draw_layer_details(center, factor)
     _draw_named_locations(center, factor)
 
