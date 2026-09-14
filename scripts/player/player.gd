@@ -48,6 +48,7 @@ var nearby_interactable: Node = null
 @onready var hurtbox: Area2D = get_node_or_null("Hurtbox")
 
 var visual_renderer: CustomDraw2D = null
+var sword_visual: SwordVisual = null
 
 # Camera feel: smoothing + trauma-based shake
 var camera: Camera2D = null
@@ -71,6 +72,11 @@ func _ready() -> void:
 		call_deferred("_setup_camera_limits")
 	
 	# Procedural renderer removed in favor of AnimatedSprite2D
+	sword_visual = SwordVisual.new()
+	sword_visual.name = "SwordVisual"
+	sword_visual.position = Vector2(0, -8)
+	sword_visual.z_index = 8
+	add_child(sword_visual)
 	
 	stats.current_hp = stats.get_max_hp()
 	stats.current_stamina = stats.get_max_stamina()
@@ -94,6 +100,9 @@ func _physics_process(delta: float) -> void:
 	
 	var terrain := get_tree().get_first_node_in_group("island_world") as IslandWorld
 	if terrain:
+		if not terrain.is_inside_playable_area(global_position):
+			global_position = terrain.clamp_to_playable_area(global_position)
+			velocity = Vector2.ZERO
 		set_swimming(terrain.is_water(global_position + Vector2(0, 8)))
 	_update_active_interactable()
 	_handle_input()
@@ -189,6 +198,10 @@ func _update_state(delta: float) -> void:
 					current_state = State.SWIMMING if is_swimming else State.IDLE
 
 func _update_animation() -> void:
+	if sword_visual:
+		sword_visual.visible = not inventory.equipped_weapon.is_empty()
+		sword_visual.swinging = current_state == State.ATTACKING
+		sword_visual.rotation = look_direction.angle()
 	if attack_area:
 		attack_area.position = look_direction.normalized() * 30
 		attack_area.rotation = look_direction.angle()

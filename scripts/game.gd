@@ -1,5 +1,7 @@
 extends Node2D
 
+const VILLAGER_SCENE = preload("res://scenes/npcs/villager.tscn")
+
 @onready var player: CharacterBody2D = get_node_or_null("World/Player") as CharacterBody2D
 @onready var quest_system: QuestSystem = get_node_or_null("QuestSystem")
 @onready var cooking_system: CookingSystem = get_node_or_null("CookingSystem")
@@ -24,6 +26,12 @@ func _ready() -> void:
 		terrain.add_to_group("island_world")
 		world_node.add_child(terrain)
 	terrain.rebuild(world_node)
+	_spawn_additional_villagers(world_node)
+	var director := world_node.get_node_or_null("WorldDirector") as WorldDirector
+	if director == null:
+		director = WorldDirector.new()
+		director.name = "WorldDirector"
+		world_node.add_child(director)
 	
 	# Connect monster kills & item pickups to quest system.
 	# EventBus persists across scene changes, so guard every connect
@@ -45,7 +53,8 @@ func _ready() -> void:
 			"type": 1, # WEAPON
 			"quantity": 1,
 			"stackable": false,
-			"description": "A basic training sword. Better than bare hands!"
+			"attack_bonus": 15.0,
+			"description": "A balanced iron-edged sword. Your trusted starting weapon."
 		}
 		player.inventory.add_item(starter_sword)
 		player.inventory.equip_weapon(starter_sword)
@@ -61,13 +70,59 @@ func _ready() -> void:
 			"description": "Restores 15 HP and 25 Stamina."
 		}
 		player.inventory.add_item(starter_potions)
-	
+	elif player and player.inventory and player.inventory.equipped_weapon.is_empty():
+		# Existing saves from the fist-only prototype get a real sword too.
+		var saved_sword := {
+			"id": "wooden_sword",
+			"name": "Wooden Sword",
+			"type": 1,
+			"quantity": 1,
+			"stackable": false,
+			"attack_bonus": 15.0,
+			"description": "A balanced iron-edged sword. Your trusted starting weapon."
+		}
+		if not player.inventory.has_item("wooden_sword"):
+			player.inventory.add_item(saved_sword)
+		player.inventory.equip_weapon(saved_sword)
+	elif player and player.inventory and player.inventory.equipped_weapon.get("id", "") == "wooden_sword":
+		# Migrate the old prototype sword so it has real weapon damage in saves
+		# created before the explicit sword stats were added.
+		player.inventory.equipped_weapon["attack_bonus"] = 15.0
+		player.inventory.equipped_weapon["description"] = "A balanced iron-edged sword. Your trusted starting weapon."
+
 	# Emit initial UI state
 	if player and player.stats:
 		EventBus.player_health_changed.emit(player.stats.current_hp, player.stats.get_max_hp())
 		EventBus.player_stamina_changed.emit(player.stats.current_stamina, player.stats.get_max_stamina())
 		EventBus.player_money_changed.emit(player.stats.money)
 		EventBus.show_notification.emit("Welcome to Angel! Explore, fight slimes, level up, and cook!")
+
+func _spawn_additional_villagers(world_node: Node2D) -> void:
+	var village := world_node.get_node_or_null("VillageNPCs") as Node2D
+	if village == null:
+		return
+	var villagers := [
+		{"id": "farmer", "name": "Anika the Farmer", "job": "farmer", "pos": Vector2(-448, 224), "greeting": "The fields feed everyone in Angel Village."},
+		{"id": "guard", "name": "Rook the Gatekeeper", "job": "guard", "pos": Vector2(448, 160), "greeting": "Keep your eyes open beyond the village markers."},
+		{"id": "merchant", "name": "Lio the Trader", "job": "merchant", "pos": Vector2(416, -96), "greeting": "I buy rare finds and sell stories from distant shores."},
+		{"id": "fisher", "name": "Mira the Fisher", "job": "fisher", "pos": Vector2(384, 416), "greeting": "The lake has been generous this morning."},
+		{"id": "herbalist", "name": "Elin the Herbalist", "job": "herbalist", "pos": Vector2(-416, 256), "greeting": "The island grows medicine for those who know where to look."},
+		{"id": "builder", "name": "Oskar the Builder", "job": "builder", "pos": Vector2(352, 224), "greeting": "There is always another roof, fence or bridge to repair."},
+	]
+	for data: Dictionary in villagers:
+		var node_name := "NPC_" + str(data["id"]).capitalize()
+		if village.get_node_or_null(node_name) != null:
+			continue
+		var npc := VILLAGER_SCENE.instantiate() as QuestNPC
+		if npc == null:
+			continue
+		npc.name = node_name
+		npc.npc_id = str(data["id"])
+		npc.npc_name = str(data["name"])
+		npc.job = str(data["job"])
+		npc.greeting_text = str(data["greeting"])
+		npc.position = data["pos"]
+		village.add_child(npc)
 
 func _connect_once(sig: Signal, handler: Callable) -> void:
 	if not sig.is_connected(handler):

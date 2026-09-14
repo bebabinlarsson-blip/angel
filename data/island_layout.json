@@ -4,18 +4,24 @@
     "base_radius": 3000.0,
     "beach_radius": 3200.0,
     "water_rim_radius": 3350.0,
-    "ocean_boundary": 3600.0,
+    "ocean_boundary": 350000.0,
+    "expansion_multiplier": 100.0,
     "village_radius": 500.0
   },
   "density_settings": {
-    "tree_count": 0,
-    "rock_clusters": 0,
-    "flower_count": 0,
-    "material_wood": 12,
-    "material_herb": 12,
-    "material_mushroom": 10,
-    "mining_nodes": 8,
-    "monster_spawners": 1
+    "tree_count": 160,
+    "rock_clusters": 90,
+    "flower_count": 220,
+    "material_wood": 34,
+    "material_herb": 30,
+    "material_mushroom": 24,
+    "material_stone": 24,
+    "material_fiber": 20,
+    "material_rare_collectibles": 14,
+    "mining_nodes": 18,
+    "monster_spawners": 8,
+    "generated_resource_cap": 190,
+    "generated_enemy_cap": 72
   },
   "village": {
     "center": {

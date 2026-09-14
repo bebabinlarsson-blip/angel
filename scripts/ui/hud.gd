@@ -229,6 +229,10 @@ func _on_interaction_available(_interactable: Node) -> void:
 			label = "Cook at the hearth"
 		elif _interactable is MiningRock:
 			label = "Mine " + _interactable.ore_name
+		elif _interactable is ResourceNode:
+			label = "Collect " + _interactable.item_name
+		elif _interactable is CollectableItem:
+			label = "Collect " + _interactable.item_name
 		elif _interactable.is_in_group("supply_caches"):
 			label = "Open supply cache"
 		interaction_hint.text = "[F] " + label
