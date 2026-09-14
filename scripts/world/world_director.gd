@@ -8,12 +8,12 @@ extends Node2D
 const RESOURCE_SCRIPT = preload("res://scripts/world/resource_node.gd")
 const SLIME_SCENE = preload("res://scenes/monsters/slime.tscn")
 
-@export var starting_resources: int = 110
-@export var starting_enemies: int = 42
-@export var max_resources: int = 260
-@export var max_enemies: int = 100
-@export var remote_resources: int = 30
-@export var remote_enemies: int = 16
+@export var starting_resources: int = 160
+@export var starting_enemies: int = 60
+@export var max_resources: int = 360
+@export var max_enemies: int = 140
+@export var remote_resources: int = 40
+@export var remote_enemies: int = 24
 @export var respawn_interval: float = 2.5
 @export var local_resource_target: int = 22
 @export var local_enemy_target: int = 10
