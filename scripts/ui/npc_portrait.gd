@@ -121,6 +121,12 @@ func _palette() -> Dictionary:
 			return {"skin": Color("#e2a77d"), "hair": Color("#544039"), "clothes": Color("#5477a2"), "accent": Color("#e1ba5b")}
 
 func draw_ellipse_leaf(center: Vector2, radius: float, color: Color) -> void:
-	draw_set_transform(center, 0.0, Vector2(1.45, 0.65))
-	draw_circle(Vector2.ZERO, radius, color)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var leaf_points: PackedVector2Array = PackedVector2Array([
+		center + Vector2(-radius, 0.0),
+		center + Vector2(-radius * 0.35, -radius * 0.62),
+		center + Vector2(radius * 0.75, -radius * 0.30),
+		center + Vector2(radius, 0.0),
+		center + Vector2(radius * 0.35, radius * 0.62),
+		center + Vector2(-radius * 0.75, radius * 0.30)
+	])
+	draw_colored_polygon(leaf_points, color)

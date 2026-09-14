@@ -235,7 +235,9 @@ func _draw_relic() -> void:
 		var angle: float = -PI / 2.0 + float(i) * PI / 5.0
 		points.append(Vector2.RIGHT.rotated(angle) * radius)
 	draw_colored_polygon(points, Color("#f5cf61"))
-	var outline: PackedVector2Array = PackedVector2Array(points)
+	var outline: PackedVector2Array = PackedVector2Array()
+	for point: Vector2 in points:
+		outline.append(point)
 	outline.append(points[0])
 	draw_polyline(outline, Color("#fff2a8"), 2.0)
 
@@ -245,7 +247,13 @@ func _draw_material_fallback() -> void:
 	draw_line(Vector2(0.0, 17.0), Vector2(0.0, 26.0), Color("#4e7b4a"), 3.0)
 
 func draw_ellipse_leaf(center: Vector2, radius: float, color: Color) -> void:
-	# Uniformly scaled circles keep this icon renderer compatible with CanvasItem.
-	draw_set_transform(center, 0.0, Vector2(1.55, 0.65))
-	draw_circle(Vector2.ZERO, radius, color)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# A polygon avoids changing the parent draw transform mid-icon.
+	var leaf_points: PackedVector2Array = PackedVector2Array([
+		center + Vector2(-radius, 0.0),
+		center + Vector2(-radius * 0.35, -radius * 0.62),
+		center + Vector2(radius * 0.75, -radius * 0.30),
+		center + Vector2(radius, 0.0),
+		center + Vector2(radius * 0.35, radius * 0.62),
+		center + Vector2(-radius * 0.75, radius * 0.30)
+	])
+	draw_colored_polygon(leaf_points, color)
