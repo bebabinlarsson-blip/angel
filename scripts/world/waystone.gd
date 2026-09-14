@@ -104,10 +104,17 @@ func _show_fast_travel_ui() -> void:
 	close_btn.pressed.connect(_close_fast_travel)
 	vbox.add_child(close_btn)
 
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
+	_on_viewport_resized()
 	UIAnim.pop_in(fast_travel_popup, 0.18)
 	for b in vbox.get_children():
 		if b is Button:
 			UIAnim.hook_button_sounds(b as Button)
+
+func _on_viewport_resized() -> void:
+	if fast_travel_popup:
+		UITheme.fit_modal(fast_travel_popup, Vector2(300.0, 380.0))
 
 func _on_destination_selected(destination_id: String, destination_name: String) -> void:
 	GameManager.fast_travel_to(destination_id)
