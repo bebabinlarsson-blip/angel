@@ -138,19 +138,28 @@ func _draw_player() -> void:
 	var move_spd: float = 0.0
 	
 	if parent_node:
-		if "velocity" in parent_node:
-			var vel := parent_node.velocity as Vector2
+		# Object property membership is not supported consistently by all
+		# Godot runtimes. Read optional properties through Variant and validate
+		# their types so procedural visuals stay safe for every entity scene.
+		var velocity_value: Variant = parent_node.get("velocity")
+		if velocity_value is Vector2:
+			var vel: Vector2 = velocity_value
 			move_spd = vel.length()
 			is_moving = move_spd > 10.0
-		if "current_state" in parent_node:
-			var state = parent_node.current_state
-			is_dashing = (state == 2) # DASHING
-			is_swimming = (state == 3) # SWIMMING
-			is_attacking = (state == 4) # ATTACKING
-			is_charging = (state == 5) or ("is_charging" in parent_node and parent_node.is_charging)
-			is_dead = (state == 6) # DEAD
-		if "look_direction" in parent_node:
-			look_dir = (parent_node.look_direction as Vector2).normalized()
+		var state_value: Variant = parent_node.get("current_state")
+		if state_value is int or state_value is float:
+			var state: int = int(state_value)
+			is_dashing = state == 2 # DASHING
+			is_swimming = state == 3 # SWIMMING
+			is_attacking = state == 4 # ATTACKING
+			is_charging = state == 5 # CHARGING
+			var charging_value: Variant = parent_node.get("is_charging")
+			if charging_value is bool:
+				is_charging = is_charging or charging_value
+			is_dead = state == 6 # DEAD
+		var look_value: Variant = parent_node.get("look_direction")
+		if look_value is Vector2:
+			look_dir = (look_value as Vector2).normalized()
 	
 	# Determine primary facing: 0=Down, 1=Up, 2=Left, 3=Right
 	var facing: int = 0
@@ -328,15 +337,18 @@ func _draw_slime() -> void:
 	var vel_len: float = 0.0
 	
 	if parent_node:
-		if "current_state" in parent_node:
-			var s = parent_node.current_state
-			is_hurt = (s == 4) # HURT
-			if s == 5: # DEAD
+		var state_value: Variant = parent_node.get("current_state")
+		if state_value is int or state_value is float:
+			var state: int = int(state_value)
+			is_hurt = state == 4 # HURT
+			if state == 5: # DEAD
 				return
-		if "is_jumping" in parent_node:
-			is_jumping = parent_node.is_jumping
-		if "velocity" in parent_node:
-			vel_len = (parent_node.velocity as Vector2).length()
+		var jumping_value: Variant = parent_node.get("is_jumping")
+		if jumping_value is bool:
+			is_jumping = jumping_value
+		var velocity_value: Variant = parent_node.get("velocity")
+		if velocity_value is Vector2:
+			vel_len = (velocity_value as Vector2).length()
 	
 	# 30 FPS Organic Wobble / Hop Cycle
 	var hop_cycle: float = fmod(anim_time * 4.0, 1.0)
