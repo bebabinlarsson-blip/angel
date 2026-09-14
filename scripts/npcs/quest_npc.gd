@@ -68,6 +68,8 @@ func _ready() -> void:
 	_create_activity_label()
 	
 	_create_dialogue_ui()
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	
 	if has_node("InteractionLabel"):
 		interaction_label = get_node("InteractionLabel") as Label
@@ -272,6 +274,10 @@ func _find_quest_system() -> QuestSystem:
 		return node
 	return null
 
+func _on_viewport_resized() -> void:
+	if dialogue_panel:
+		UITheme.fit_modal(dialogue_panel, Vector2(460.0, 220.0))
+
 func interact(_player: CharacterBody2D) -> void:
 	if is_dialogue_open:
 		_close_dialogue()
@@ -288,6 +294,7 @@ func interact(_player: CharacterBody2D) -> void:
 	interaction_count += 1
 	if dialogue_panel:
 		dialogue_panel.visible = true
+		_on_viewport_resized()
 		UIAnim.pop_in(dialogue_panel, 0.18)
 	
 	if quest_system == null:
