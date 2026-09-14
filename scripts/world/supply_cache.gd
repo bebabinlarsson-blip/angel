@@ -6,34 +6,37 @@ var lid_lift: float = 0.0
 
 func _ready() -> void:
 	add_to_group("supply_caches")
-	opened = cache_id in GameManager.opened_caches
+	_sync_from_save()
+	if not EventBus.game_loaded.is_connected(_sync_from_save):
+		EventBus.game_loaded.connect(_sync_from_save)
+	set_process(false)
+
+func _sync_from_save() -> void:
+	if cache_id.is_empty():
+		opened = false
+	else:
+		opened = GameManager.opened_caches.has(cache_id)
 	lid_lift = 12.0 if opened else 0.0
-	var feet := CollisionShape2D.new()
-	feet.name = "ChestFootprint"
-	var shape := RectangleShape2D.new()
-	shape.size = Vector2(28, 16)
-	feet.shape = shape
-	feet.position.y = -3
-	add_child(feet)
+	queue_redraw()
 
 func interact(player: CharacterBody2D) -> void:
+	if player == null or not is_instance_valid(player) or player.stats == null:
+		return
+	if cache_id.is_empty():
+		EventBus.show_notification.emit("This cache has no valid identifier.")
+		return
 	if opened:
 		EventBus.show_notification.emit("This cache is empty.")
 		return
 	opened = true
-	GameManager.opened_caches.append(cache_id)
+	if not GameManager.opened_caches.has(cache_id):
+		GameManager.opened_caches.append(cache_id)
 	player.stats.add_money(35)
 	player.stats.add_exp(40)
 	player.stats.heal(20)
 	var tween := create_tween()
 	tween.tween_property(self, "lid_lift", 12.0, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	EventBus.show_notification.emit("Supply cache: 35 gold, 40 EXP, 20 health restored.")
-
-func _process(_delta: float) -> void:
-	var saved_open: bool = cache_id in GameManager.opened_caches
-	if opened != saved_open:
-		opened = saved_open
-		lid_lift = 12.0 if opened else 0.0
 	queue_redraw()
 
 func _draw() -> void:
