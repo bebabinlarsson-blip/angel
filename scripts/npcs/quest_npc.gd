@@ -82,6 +82,16 @@ func _ready() -> void:
 	worker_tool.visible = false
 	add_child(worker_tool)
 
+func set_village_anchor(anchor: Vector2) -> void:
+	if not stays_in_village:
+		return
+	global_position = anchor
+	home_position = anchor
+	work_position = home_position + _default_work_offset()
+	schedule_destination = work_position
+	_village_bounds_ready = false
+	_configure_village_bounds()
+
 func _configure_village_bounds() -> void:
 	if not stays_in_village:
 		_village_bounds_ready = true
