@@ -205,7 +205,7 @@ func _process(delta: float) -> void:
 func _refresh_buff_label() -> void:
 	if buff_label == null:
 		return
-	var current_player := GameManager.player
+	var current_player: Variant = GameManager.player
 	if current_player == null or current_player.stats == null:
 		buff_label.visible = false
 		return
