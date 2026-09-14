@@ -39,6 +39,7 @@ var occupied_positions: Array[Vector2] = []
 var resource_records: Array[Dictionary] = []
 var enemy_records: Array[Dictionary] = []
 var authored_stream_records: Array[Dictionary] = []
+var _pending_save_data: Dictionary = {}
 
 const RESOURCE_CATALOG: Array[Dictionary] = [
     {"id": "wood", "name": "Wood", "weight": 20.0, "min": 1, "max": 3, "type": 0},
@@ -159,6 +160,8 @@ func _initialize() -> void:
             _register_enemy_record(remote_enemy_pos)
 
     initialized = true
+    _apply_save_data(_pending_save_data)
+    _pending_save_data.clear()
     # Fill the local target on the first available frame, after the player and
     # camera have finished entering the scene.
     population_timer = respawn_interval
@@ -321,9 +324,14 @@ func _update_enemy_record(record: Dictionary, center: Vector2, load_radius_sq: f
         if node is BaseMonster:
             var monster: BaseMonster = node as BaseMonster
             if monster.current_state == BaseMonster.State.DEAD:
-                if not bool(record.get("defeated", false)):
-                    record["defeated"] = true
+                record["defeated"] = true
+                if float(record.get("respawn_at", 0.0)) <= now:
                     record["respawn_at"] = now + enemy_respawn_time
+                # A dying enemy is safe to unload once it is outside the
+                # streaming band; its defeated/respawn state remains in the
+                # compact record and avoids keeping a dead scene tree alive.
+                if pos.distance_squared_to(center) > unload_radius_sq:
+                    _unload_enemy_record(record, monster)
                 return
             record["hp"] = monster.current_hp
         if pos.distance_squared_to(center) > unload_radius_sq:
@@ -547,7 +555,124 @@ func _unload_enemy_record(record: Dictionary, node: Node2D) -> void:
     if node is BaseMonster:
         record["hp"] = (node as BaseMonster).current_hp
     record["node"] = null
-    node.queue_free()
+    if is_instance_valid(node) and not node.is_queued_for_deletion():
+        node.queue_free()
+
+func get_save_data() -> Dictionary:
+    var now: float = float(Time.get_ticks_msec()) / 1000.0
+    var saved_resources: Array[Dictionary] = []
+    for index in range(resource_records.size()):
+        var record: Dictionary = resource_records[index]
+        var collected: bool = bool(record.get("collected", false))
+        var remaining: float = maxf(0.0, float(record.get("respawn_at", 0.0)) - now) if collected else 0.0
+        var node := _node_from_record(record)
+        if node is ResourceNode:
+            var resource: ResourceNode = node as ResourceNode
+            collected = resource.is_collected
+            remaining = maxf(0.0, resource.respawn_timer) if collected else 0.0
+            record["collected"] = collected
+        saved_resources.append({
+            "index": index,
+            "position": _save_position(_record_position(record)),
+            "quantity": maxi(1, int(record.get("quantity", 1))),
+            "collected": collected,
+            "respawn_remaining": remaining
+        })
+
+    var saved_enemies: Array[Dictionary] = []
+    for index in range(enemy_records.size()):
+        var record: Dictionary = enemy_records[index]
+        var defeated: bool = bool(record.get("defeated", false))
+        var remaining: float = maxf(0.0, float(record.get("respawn_at", 0.0)) - now) if defeated else 0.0
+        var hp: float = float(record.get("hp", -1.0))
+        var node := _node_from_record(record)
+        if node is BaseMonster:
+            var monster: BaseMonster = node as BaseMonster
+            hp = monster.current_hp
+            if monster.current_state == BaseMonster.State.DEAD:
+                defeated = true
+        saved_enemies.append({
+            "index": index,
+            "position": _save_position(_record_position(record)),
+            "hp": hp,
+            "defeated": defeated,
+            "respawn_remaining": remaining
+        })
+
+    return {
+        "version": 1,
+        "resources": saved_resources,
+        "enemies": saved_enemies
+    }
+
+func _save_position(position: Vector2) -> Dictionary:
+    return {"x": position.x, "y": position.y}
+
+func _saved_position_matches(record: Dictionary, saved_value: Variant) -> bool:
+    if not (saved_value is Dictionary):
+        return true
+    var saved: Dictionary = saved_value
+    var saved_position := Vector2(float(saved.get("x", 0.0)), float(saved.get("y", 0.0)))
+    return _record_position(record).distance_squared_to(saved_position) <= 16.0
+
+func load_save_data(data: Dictionary) -> void:
+    if not initialized:
+        _pending_save_data = data.duplicate(true)
+        return
+    _apply_save_data(data)
+
+func _apply_save_data(data: Dictionary) -> void:
+    if data.is_empty():
+        return
+    var now: float = float(Time.get_ticks_msec()) / 1000.0
+    var resources_value: Variant = data.get("resources", [])
+    if resources_value is Array:
+        for raw_state in resources_value:
+            if not (raw_state is Dictionary):
+                continue
+            var saved_resource: Dictionary = raw_state
+            var index: int = int(saved_resource.get("index", -1))
+            if index < 0 or index >= resource_records.size():
+                continue
+            var record: Dictionary = resource_records[index]
+            if not _saved_position_matches(record, saved_resource.get("position", {})):
+                continue
+            record["quantity"] = maxi(1, int(saved_resource.get("quantity", record.get("quantity", 1))))
+            record["collected"] = bool(saved_resource.get("collected", false))
+            var remaining: float = maxf(0.0, float(saved_resource.get("respawn_remaining", 0.0)))
+            record["respawn_at"] = now + remaining if bool(record.get("collected", false)) else 0.0
+            var resource_node := _node_from_record(record)
+            if resource_node is ResourceNode:
+                var resource: ResourceNode = resource_node as ResourceNode
+                resource.is_collected = bool(record.get("collected", false))
+                resource.respawn_timer = remaining
+                resource.visible = not resource.is_collected
+                resource.set_deferred("monitoring", not resource.is_collected)
+                if resource.collision:
+                    resource.collision.set_deferred("disabled", resource.is_collected)
+
+    var enemies_value: Variant = data.get("enemies", [])
+    if enemies_value is Array:
+        for raw_state in enemies_value:
+            if not (raw_state is Dictionary):
+                continue
+            var saved_enemy: Dictionary = raw_state
+            var index: int = int(saved_enemy.get("index", -1))
+            if index < 0 or index >= enemy_records.size():
+                continue
+            var record: Dictionary = enemy_records[index]
+            if not _saved_position_matches(record, saved_enemy.get("position", {})):
+                continue
+            var defeated: bool = bool(saved_enemy.get("defeated", false))
+            var remaining: float = maxf(0.0, float(saved_enemy.get("respawn_remaining", 0.0)))
+            record["defeated"] = defeated
+            record["respawn_at"] = now + remaining if defeated else 0.0
+            record["hp"] = float(saved_enemy.get("hp", -1.0))
+            var enemy_node := _node_from_record(record)
+            if defeated and enemy_node != null:
+                record["node"] = null
+                if not enemy_node.is_queued_for_deletion():
+                    enemy_node.queue_free()
 
 # Kept as compatibility wrappers for any scene or test that calls the old
 # internal spawn helpers.
