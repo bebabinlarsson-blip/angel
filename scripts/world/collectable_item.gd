@@ -1,6 +1,8 @@
 class_name CollectableItem
 extends Area2D
 
+const ITEM_ICON_SCRIPT = preload("res://scripts/ui/item_icon.gd")
+
 @export var item_id: String = "wood"
 @export var item_name: String = "Wood"
 @export var item_type: int = 0 # 0=MATERIAL
@@ -26,22 +28,37 @@ func _ready() -> void:
 	if has_node("Sprite2D"):
 		visual = get_node("Sprite2D") as CanvasItem
 	else:
-		var spr := Sprite2D.new()
-		spr.name = "Sprite2D"
-		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		# Keep the imported pixel art for the original resources, but use the
+		# procedural icon for every newer fruit/plant/relic so no pickup renders
+		# as a misleading herb or as an invisible blank sprite.
+		var authored_texture_path := ""
 		match item_id:
 			"wood":
-				spr.texture = load("res://assets/sprites/items/item_wood.png")
+				authored_texture_path = "res://assets/sprites/items/item_wood.png"
 			"herb":
-				spr.texture = load("res://assets/sprites/items/item_herb.png")
+				authored_texture_path = "res://assets/sprites/items/item_herb.png"
 			"mushroom":
-				spr.texture = load("res://assets/sprites/items/item_mushroom.png")
+				authored_texture_path = "res://assets/sprites/items/item_mushroom.png"
 			"iron_ore", "gold_ore":
-				spr.texture = load("res://assets/sprites/items/item_ore.png")
-			_:
-				spr.texture = load("res://assets/sprites/items/item_herb.png")
-		add_child(spr)
-		visual = spr
+				authored_texture_path = "res://assets/sprites/items/item_ore.png"
+		if not authored_texture_path.is_empty() and ResourceLoader.exists(authored_texture_path):
+			var spr := Sprite2D.new()
+			spr.name = "Sprite2D"
+			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			spr.texture = load(authored_texture_path)
+			add_child(spr)
+			visual = spr
+		else:
+			var icon := ITEM_ICON_SCRIPT.new() as Control
+			icon.name = "ItemIcon"
+			icon.set("item_id", item_id)
+			icon.set("item_type", item_type)
+			icon.custom_minimum_size = Vector2(48.0, 48.0)
+			icon.size = Vector2(48.0, 48.0)
+			icon.position = Vector2(-24.0, -24.0)
+			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_child(icon)
+			visual = icon
 
 	pickup_label = Label.new()
 	pickup_label.name = "PickupLabel"
