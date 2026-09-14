@@ -20,6 +20,7 @@ func save_game(slot: int = 0) -> bool:
 		"game_manager": GameManager.get_save_data(),
 		"player": _get_player_save_data(),
 		"quests": quest_data,
+		"world": _get_world_save_data(),
 	}
 	
 	var path := SAVE_DIR + SAVE_FILE % slot
@@ -59,12 +60,20 @@ func load_game(slot: int = 0) -> bool:
 		push_error("Save file root is not a dictionary")
 		return false
 	var save_data: Dictionary = json.data
-	GameManager.load_save_data(save_data.get("game_manager", {}))
+	var game_manager_value: Variant = save_data.get("game_manager", {})
+	if game_manager_value is Dictionary:
+		GameManager.load_save_data(game_manager_value)
 	_load_player_save_data(save_data.get("player", {}))
-	
+
 	var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
-	if quest_system and save_data.has("quests"):
-		quest_system.load_save_data(save_data["quests"])
+	var quest_value: Variant = save_data.get("quests", {})
+	if quest_system and quest_value is Dictionary:
+		quest_system.load_save_data(quest_value)
+
+	var world_director := get_tree().root.find_child("WorldDirector", true, false) as WorldDirector
+	var world_value: Variant = save_data.get("world", {})
+	if world_director and world_value is Dictionary:
+		world_director.load_save_data(world_value)
 	
 	EventBus.game_loaded.emit()
 	EventBus.show_notification.emit("Game loaded!")
