@@ -179,7 +179,7 @@ func _create_controls_modal() -> void:
 		["Hold [Space] / Click", "Power Whirlwind Nova (Hold & Release)"],
 		["Mouse Cursor", "Aim Direction"],
 		["[F]", "Interact / Talk to NPCs / Campfire"],
-		["[I] or [Tab]", "Open Inventory & Equipment"],
+		["[E]", "Open Backpack Inventory & Equipment"],
 		["[Q]", "Open Quest Journal"],
 		["[M] or Click Map", "Toggle Big Map"],
 		["[Esc]", "Pause Menu & Save Game"]
@@ -257,6 +257,8 @@ func _set_transition_buttons_disabled(disabled: bool) -> void:
 
 func _on_controls() -> void:
 	if controls_panel:
+		if settings_panel:
+			settings_panel.visible = false
 		controls_panel.visible = true
 		var card := controls_panel.get_node_or_null("CenterContainer/PanelContainer")
 		if card == null:
@@ -267,6 +269,8 @@ func _on_controls() -> void:
 
 func _on_settings() -> void:
 	if settings_panel:
+		if controls_panel:
+			controls_panel.visible = false
 		settings_panel.visible = true
 		var card := settings_panel.get_node_or_null("CenterContainer/PanelContainer")
 		if card == null:
