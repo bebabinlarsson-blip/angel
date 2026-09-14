@@ -127,3 +127,12 @@ func _load_player_save_data(data: Dictionary) -> void:
 	var player := GameManager.player
 	if player != null and is_instance_valid(player):
 		player.load_save_data(data)
+func _get_world_save_data() -> Dictionary:
+	var director := get_tree().root.find_child("WorldDirector", true, false) as WorldDirector
+	if director == null or not is_instance_valid(director) or not director.has_method("get_save_data"):
+		return {}
+	var value: Variant = director.call("get_save_data")
+	if value is Dictionary:
+		return value
+	return {}
+
