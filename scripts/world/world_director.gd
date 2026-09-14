@@ -36,6 +36,7 @@ var population_timer: float = 0.0
 var stream_timer: float = 0.0
 var initialized: bool = false
 var occupied_positions: Array[Vector2] = []
+var occupied_grid: Dictionary = {}
 var resource_records: Array[Dictionary] = []
 var enemy_records: Array[Dictionary] = []
 var authored_stream_records: Array[Dictionary] = []
@@ -112,6 +113,8 @@ func _initialize() -> void:
     if terrain == null:
         return
 
+    occupied_positions.clear()
+    occupied_grid.clear()
     resource_parent = Node2D.new()
     resource_parent.name = "GeneratedResources"
     resource_parent.y_sort_enabled = true
@@ -141,7 +144,7 @@ func _initialize() -> void:
             continue
         var starter_record := _register_resource_record(starter_pos, _catalog_entry(resource_id))
         if starter_record.is_empty():
-            occupied_positions.erase(starter_pos)
+            _release_occupied_position(starter_pos)
 
     for i in range(starting_enemies):
         var enemy_pos := _find_position(900.0, 14500.0, 72.0)
@@ -436,7 +439,7 @@ func _find_position(min_radius: float, max_radius: float, separation: float) -> 
         var radius := sqrt(rng.randf_range(min_radius * min_radius, max_radius * max_radius))
         var pos := Vector2.RIGHT.rotated(rng.randf_range(0.0, TAU)) * radius
         if _valid_position(pos, separation):
-            occupied_positions.append(pos)
+            _reserve_occupied_position(pos)
             return pos
     return Vector2.ZERO
 
@@ -444,18 +447,54 @@ func _find_position_near(center: Vector2, min_radius: float, max_radius: float, 
     for attempt in range(80):
         var pos := center + Vector2.RIGHT.rotated(rng.randf_range(0.0, TAU)) * rng.randf_range(min_radius, max_radius)
         if _valid_position(pos, separation):
-            occupied_positions.append(pos)
+            _reserve_occupied_position(pos)
             return pos
     return Vector2.ZERO
+
+const OCCUPANCY_CELL_SIZE: float = 128.0
+
+func _occupancy_key(pos: Vector2) -> Vector2i:
+    return Vector2i(
+        floori(pos.x / OCCUPANCY_CELL_SIZE),
+        floori(pos.y / OCCUPANCY_CELL_SIZE)
+    )
+
+func _reserve_occupied_position(pos: Vector2) -> void:
+    occupied_positions.append(pos)
+    var key := _occupancy_key(pos)
+    var bucket_value: Variant = occupied_grid.get(key, [])
+    var bucket: Array = bucket_value if bucket_value is Array else []
+    bucket.append(pos)
+    occupied_grid[key] = bucket
+
+func _release_occupied_position(pos: Vector2) -> void:
+    occupied_positions.erase(pos)
+    var key := _occupancy_key(pos)
+    var bucket_value: Variant = occupied_grid.get(key, [])
+    if not (bucket_value is Array):
+        return
+    var bucket: Array = bucket_value
+    bucket.erase(pos)
+    if bucket.is_empty():
+        occupied_grid.erase(key)
+    else:
+        occupied_grid[key] = bucket
 
 func _valid_position(pos: Vector2, separation: float) -> bool:
     if terrain == null or not terrain.is_inside_playable_area(pos) or terrain.is_inside_village_safe_zone(pos, 24.0) or not terrain.is_clear(pos, separation):
         return false
     if pos.length() < 600.0:
         return false
-    for other: Vector2 in occupied_positions:
-        if pos.distance_squared_to(other) < separation * separation:
-            return false
+    var cell := _occupancy_key(pos)
+    var cell_radius: int = ceili(separation / OCCUPANCY_CELL_SIZE)
+    for offset_y in range(-cell_radius, cell_radius + 1):
+        for offset_x in range(-cell_radius, cell_radius + 1):
+            var bucket_value: Variant = occupied_grid.get(cell + Vector2i(offset_x, offset_y), [])
+            if not (bucket_value is Array):
+                continue
+            for raw_other in bucket_value:
+                if raw_other is Vector2 and pos.distance_squared_to(raw_other) < separation * separation:
+                    return false
     return true
 
 func _register_resource_record(pos: Vector2, data: Dictionary) -> Dictionary:
