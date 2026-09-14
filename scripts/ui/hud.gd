@@ -14,6 +14,9 @@ extends CanvasLayer
 @onready var interaction_hint: Label = $InteractionHint
 var controls_hint: Label = null
 var buff_label: Label = null
+var quest_tracker_panel: PanelContainer = null
+var quest_tracker_label: Label = null
+var quest_tracker_timer: float = 0.0
 
 var notification_timer: float = 0.0
 var _notif_tween: Tween = null
@@ -33,6 +36,9 @@ func _ready() -> void:
 	EventBus.interaction_available.connect(_on_interaction_available)
 	EventBus.interaction_unavailable.connect(_on_interaction_unavailable)
 	EventBus.inventory_changed.connect(_on_inventory_changed)
+	EventBus.quest_accepted.connect(_on_quest_changed)
+	EventBus.quest_completed.connect(_on_quest_changed)
+	EventBus.quest_updated.connect(_on_quest_changed)
 	
 	# Setup Small Minimap
 	if minimap_container:
@@ -112,7 +118,9 @@ func _ready() -> void:
 		interaction_hint.visible = false
 	_create_controls_hint()
 	_create_buff_label()
+	_create_quest_tracker()
 	_on_inventory_changed()
+	_refresh_quest_tracker()
 	_apply_theme()
 
 func _create_controls_hint() -> void:
@@ -127,6 +135,80 @@ func _create_controls_hint() -> void:
 	controls_hint.add_theme_constant_override("outline_size", 4)
 	controls_hint.add_theme_font_size_override("font_size", 12)
 	add_child(controls_hint)
+
+func _create_quest_tracker() -> void:
+	quest_tracker_panel = PanelContainer.new()
+	quest_tracker_panel.name = "QuestTracker"
+	quest_tracker_panel.position = Vector2(16.0, 326.0)
+	quest_tracker_panel.custom_minimum_size = Vector2(330.0, 92.0)
+	quest_tracker_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	quest_tracker_panel.visible = false
+	quest_tracker_panel.add_theme_stylebox_override("panel", UITheme.panel_style(UITheme.EDGE, Color(0.05, 0.09, 0.13, 0.92)))
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	quest_tracker_panel.add_child(margin)
+
+	quest_tracker_label = Label.new()
+	quest_tracker_label.name = "QuestTrackerLabel"
+	quest_tracker_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	quest_tracker_label.add_theme_color_override("font_color", Color("#eef3f6"))
+	quest_tracker_label.add_theme_color_override("font_outline_color", Color(0.01, 0.03, 0.06, 0.95))
+	quest_tracker_label.add_theme_constant_override("outline_size", 3)
+	quest_tracker_label.add_theme_font_size_override("font_size", 12)
+	margin.add_child(quest_tracker_label)
+	add_child(quest_tracker_panel)
+
+func _direction_arrow(direction: Vector2) -> String:
+	if direction.length_squared() <= 1.0:
+		return "•"
+	var arrows: Array[String] = ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
+	var index: int = posmod(int(round(direction.angle() / (PI / 4.0))), arrows.size())
+	return arrows[index]
+
+func _refresh_quest_tracker() -> void:
+	if quest_tracker_panel == null or quest_tracker_label == null:
+		return
+	var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
+	if quest_system == null:
+		quest_tracker_panel.visible = false
+		return
+	var quest: Dictionary = quest_system.get_active_quest()
+	var waypoint: Dictionary = quest_system.get_active_waypoint()
+	if quest.is_empty() or waypoint.is_empty():
+		quest_tracker_panel.visible = false
+		return
+	var raw_position: Variant = waypoint.get("position", Vector2.ZERO)
+	var player := GameManager.player
+	if not (raw_position is Vector2) or player == null or not is_instance_valid(player):
+		quest_tracker_panel.visible = false
+		return
+
+	var target_position: Vector2 = raw_position
+	var direction: Vector2 = target_position - player.global_position
+	var distance: int = maxi(0, int(round(direction.length())))
+	var progress: String = "%d/%d" % [
+		int(quest.get("current_count", 0)),
+		maxi(1, int(quest.get("target_count", 1)))
+	]
+	var is_return: bool = bool(waypoint.get("is_return", false))
+	var phase: String = "RETURN TO GIVER" if is_return else "ACTIVE QUEST"
+	var arrow: String = _direction_arrow(direction)
+	quest_tracker_label.text = "%s  %s\n%s\n%s  %s  •  %dm" % [
+		phase,
+		str(quest.get("title", "Quest")),
+		str(quest.get("objective", "Follow the waypoint.")),
+		arrow,
+		str(waypoint.get("name", "Quest objective")),
+		distance
+	]
+	quest_tracker_panel.visible = big_map == null or not big_map.visible
+
+func _on_quest_changed(_quest_id: String) -> void:
+	_refresh_quest_tracker()
 
 func _create_buff_label() -> void:
 	buff_label = Label.new()
@@ -215,6 +297,10 @@ func _input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	_refresh_buff_label()
+	quest_tracker_timer -= delta
+	if quest_tracker_timer <= 0.0:
+		quest_tracker_timer = 0.2
+		_refresh_quest_tracker()
 	if notification_timer > 0:
 		notification_timer -= delta
 		if notification_timer <= 0 and notification_label:
