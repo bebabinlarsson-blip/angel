@@ -6,20 +6,23 @@ extends Area2D
 @export var item_type: int = 0 # 0=MATERIAL
 @export var quantity: int = 1
 @export var respawn_time: float = 45.0
-@export var pickup_radius: float = 52.0
+@export var pickup_radius: float = 64.0
+@export var pickup_hint_radius: float = 124.0
 
 var is_collected: bool = false
 var respawn_timer: float = 0.0
-
+var near_player: bool = false
 var collision: CollisionShape2D = null
 var visual: CanvasItem = null
+var pickup_label: Label = null
 
 func _ready() -> void:
+	add_to_group("collectables")
 	body_entered.connect(_on_body_entered)
-	
+
 	if has_node("CollisionShape2D"):
 		collision = get_node("CollisionShape2D") as CollisionShape2D
-	
+
 	if has_node("Sprite2D"):
 		visual = get_node("Sprite2D") as CanvasItem
 	else:
@@ -39,17 +42,41 @@ func _ready() -> void:
 				spr.texture = load("res://assets/sprites/items/item_herb.png")
 		add_child(spr)
 		visual = spr
-	set_process(true)
+
+	pickup_label = Label.new()
+	pickup_label.name = "PickupLabel"
+	pickup_label.custom_minimum_size = Vector2(144, 24)
+	pickup_label.position = Vector2(-72, -44)
+	pickup_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pickup_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pickup_label.visible = false
+	pickup_label.add_theme_color_override("font_color", Color("#f8e6a1"))
+	pickup_label.add_theme_color_override("font_outline_color", Color(0.02, 0.04, 0.06, 0.95))
+	pickup_label.add_theme_constant_override("outline_size", 4)
+	pickup_label.add_theme_font_size_override("font_size", 12)
+	add_child(pickup_label)
 
 func _process(delta: float) -> void:
 	if is_collected:
 		respawn_timer -= delta
-		if respawn_timer <= 0:
+		if respawn_timer <= 0.0:
 			_respawn()
 		return
+
 	var player := GameManager.player
-	if player and is_instance_valid(player) and global_position.distance_squared_to(player.global_position) <= pickup_radius * pickup_radius:
-		_give_to_player(player)
+	var was_near := near_player
+	near_player = false
+	if player and is_instance_valid(player):
+		var distance_sq := global_position.distance_squared_to(player.global_position)
+		near_player = distance_sq <= pickup_hint_radius * pickup_hint_radius
+		if distance_sq <= pickup_radius * pickup_radius:
+			_give_to_player(player)
+
+	if pickup_label:
+		pickup_label.visible = near_player and not is_collected
+		pickup_label.text = "%s  x%d" % [item_name, quantity]
+	if was_near != near_player and visual:
+		visual.modulate = Color(1.0, 0.9, 0.55) if near_player else Color.WHITE
 
 func _on_body_entered(body: Node2D) -> void:
 	if is_collected:
@@ -82,16 +109,18 @@ func _collect() -> void:
 	is_collected = true
 	respawn_timer = respawn_time
 	set_process(true)
+	near_player = false
+	if pickup_label:
+		pickup_label.visible = false
 	if visual:
 		visual.visible = false
 	if collision:
 		collision.set_deferred("disabled", true)
 	EventBus.show_notification.emit("Collected %s x%d" % [item_name, quantity])
-	
-
 
 func _respawn() -> void:
 	is_collected = false
+	near_player = false
 	set_process(true)
 	if visual:
 		visual.visible = true

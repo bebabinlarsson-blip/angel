@@ -12,6 +12,7 @@ extends CanvasLayer
 @onready var exp_bar: ProgressBar = $TopRight/ExpBar
 @onready var level_label: Label = $TopRight/LevelLabel
 @onready var interaction_hint: Label = $InteractionHint
+var controls_hint: Label = null
 
 var notification_timer: float = 0.0
 var _notif_tween: Tween = null
@@ -101,8 +102,22 @@ func _ready() -> void:
 		notification_label.visible = false
 	if interaction_hint:
 		interaction_hint.visible = false
+	_create_controls_hint()
 	_on_inventory_changed()
 	_apply_theme()
+
+func _create_controls_hint() -> void:
+	controls_hint = Label.new()
+	controls_hint.name = "ControlsHint"
+	controls_hint.position = Vector2(16, 214)
+	controls_hint.custom_minimum_size = Vector2(280, 58)
+	controls_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	controls_hint.text = "WASD  Move    E  Backpack\nF  Interact    LMB / Space  Sword\nShift  Dash    M  Map"
+	controls_hint.add_theme_color_override("font_color", Color(0.82, 0.88, 0.92, 0.82))
+	controls_hint.add_theme_color_override("font_outline_color", Color(0.01, 0.03, 0.06, 0.90))
+	controls_hint.add_theme_constant_override("outline_size", 4)
+	controls_hint.add_theme_font_size_override("font_size", 12)
+	add_child(controls_hint)
 
 func _apply_theme() -> void:
 	UITheme.style_bar(health_bar, UITheme.HP_FILL)
@@ -218,27 +233,33 @@ func _on_exp_gained(_amount: int, total: int, required: int) -> void:
 		exp_bar.value = total
 
 func _on_interaction_available(_interactable: Node) -> void:
-	if interaction_hint:
-		interaction_hint.visible = not big_map.visible
-		var label: String = "Interact"
-		if _interactable is QuestNPC:
-			label = "Talk to " + _interactable.npc_name
-		elif _interactable is Waystone:
-			label = _interactable.display_name
-		elif _interactable is CookingPot:
-			label = "Cook at the hearth"
-		elif _interactable is MiningRock:
-			label = "Mine " + _interactable.ore_name
-		elif _interactable is ResourceNode:
-			label = "Collect " + _interactable.item_name
-		elif _interactable is CollectableItem:
-			label = "Collect " + _interactable.item_name
-		elif _interactable.is_in_group("supply_caches"):
-			label = "Open supply cache"
+	if interaction_hint == null or _interactable == null:
+		return
+	interaction_hint.visible = not big_map.visible
+	var label := "Interact"
+	if _interactable is QuestNPC:
+		label = "Talk to " + _interactable.npc_name
+	elif _interactable is Waystone:
+		label = _interactable.display_name
+	elif _interactable is CookingPot:
+		label = "Cook at the hearth"
+	elif _interactable is MiningRock:
+		label = "Mine " + _interactable.ore_name
+	elif _interactable is ResourceNode:
+		label = "Collect " + _interactable.item_name
+	elif _interactable is CollectableItem:
+		label = "Collect " + _interactable.item_name
+	elif _interactable.is_in_group("supply_caches"):
+		label = "Open supply cache"
+
+	if _interactable is ResourceNode or _interactable is CollectableItem:
+		interaction_hint.text = "[F] %s  ·  walk close to auto-pick" % label
+	else:
 		interaction_hint.text = "[F] " + label
-		interaction_hint.modulate.a = 0.0
-		var tween := interaction_hint.create_tween()
-		tween.tween_property(interaction_hint, "modulate:a", 1.0, 0.15)
+	interaction_hint.modulate.a = 0.0
+	var tween := interaction_hint.create_tween()
+	tween.tween_property(interaction_hint, "modulate:a", 1.0, 0.15)
+
 
 func _on_interaction_unavailable() -> void:
 	if interaction_hint:

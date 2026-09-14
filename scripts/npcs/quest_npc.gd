@@ -39,6 +39,8 @@ var routine_phase: String = ""
 var routine_clock: float = 0.0
 var interaction_count: int = 0
 var velocity: Vector2 = Vector2.ZERO
+var activity_label: Label = null
+var work_cycle_index: int = 0
 
 func _ready() -> void:
 	add_to_group("npcs")
@@ -51,6 +53,7 @@ func _ready() -> void:
 	if has_node("NameLabel"):
 		name_label = get_node("NameLabel") as Label
 		name_label.text = npc_name
+	_create_activity_label()
 	
 	_create_dialogue_ui()
 	
@@ -74,6 +77,20 @@ func _job_from_npc_id() -> String:
 		"carpenter": return "carpenter"
 		"miner": return "miner"
 		_: return "idle"
+
+func _create_activity_label() -> void:
+	activity_label = Label.new()
+	activity_label.name = "ActivityLabel"
+	activity_label.custom_minimum_size = Vector2(150, 18)
+	activity_label.position = Vector2(-75, -78)
+	activity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	activity_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	activity_label.visible = false
+	activity_label.add_theme_color_override("font_color", Color("#b8d7c0"))
+	activity_label.add_theme_color_override("font_outline_color", Color(0.02, 0.04, 0.06, 0.92))
+	activity_label.add_theme_constant_override("outline_size", 3)
+	activity_label.add_theme_font_size_override("font_size", 11)
+	add_child(activity_label)
 
 func _create_dialogue_ui() -> void:
 	# Screen-space modal: the old world-space Panel drifted with the camera
@@ -231,6 +248,7 @@ func _process(delta: float) -> void:
 		_run_daily_routine(delta)
 	_update_facing()
 	_update_worker_animation()
+	_update_activity_label()
 
 func _update_facing() -> void:
 	if is_dialogue_open and _dialogue_player and is_instance_valid(_dialogue_player):
@@ -295,11 +313,13 @@ func _run_daily_routine(delta: float) -> void:
 		activity = "Resting"
 		is_working = false
 		return
+
 	var hour := GameManager.game_time_hours
 	var new_phase := "sleep" if hour < 6.0 or hour >= 22.0 else ("work" if hour >= 8.0 and hour < 17.0 else "social")
 	if new_phase != routine_phase:
 		routine_phase = new_phase
 		routine_clock = 0.0
+		work_cycle_index = 0
 		match routine_phase:
 			"sleep":
 				schedule_destination = home_position
@@ -310,18 +330,52 @@ func _run_daily_routine(delta: float) -> void:
 			"social":
 				schedule_destination = home_position.lerp(Vector2.ZERO, 0.72)
 				activity = "At the village square"
+
 	routine_clock += delta
 	if global_position.distance_to(schedule_destination) > 8.0:
 		var travel := (schedule_destination - global_position).normalized()
 		velocity = travel * work_speed
 		is_working = false
 		global_position += velocity * delta
-	else:
-		velocity = Vector2.ZERO
-		is_working = routine_phase == "work"
-		# Working animations have a gentle cadence so every villager visibly acts.
-		if is_working and routine_clock > 4.0:
-			routine_clock = 0.0
+		return
+
+	velocity = Vector2.ZERO
+	is_working = routine_phase == "work"
+	if is_working and routine_clock >= 4.5:
+		routine_clock = 0.0
+		work_cycle_index += 1
+		schedule_destination = work_position + _work_offset_for_cycle(work_cycle_index)
+		is_working = false
+
+func _work_offset_for_cycle(cycle: int) -> Vector2:
+	var radius := 34.0
+	match job:
+		"farmer":
+			radius = 88.0
+		"guard":
+			radius = 140.0
+		"merchant", "carpenter", "builder":
+			radius = 54.0
+		"fisher":
+			radius = 62.0
+		"herbalist":
+			radius = 76.0
+		"miner":
+			radius = 48.0
+		"cook":
+			radius = 30.0
+	var angle := float(cycle) * 1.75
+	return Vector2.RIGHT.rotated(angle) * radius
+
+func _update_activity_label() -> void:
+	if activity_label == null:
+		return
+	var player_near := false
+	if GameManager.player and is_instance_valid(GameManager.player):
+		player_near = global_position.distance_squared_to(GameManager.player.global_position) <= 640000.0
+	activity_label.visible = (is_working or player_near) and not is_dialogue_open
+	activity_label.text = activity
+
 
 func _job_activity() -> String:
 	match job:

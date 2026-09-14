@@ -100,8 +100,8 @@ func get_save_data() -> Dictionary:
 	}
 
 func load_save_data(data: Dictionary) -> void:
-	level = data.get("level", 0)
-	current_exp = data.get("current_exp", 0)
-	current_hp = data.get("current_hp", BASE_HP)
-	current_stamina = data.get("current_stamina", BASE_STAMINA)
-	money = data.get("money", 0)
+	level = maxi(0, int(data.get("level", 0)))
+	current_exp = clampi(int(data.get("current_exp", 0)), 0, get_exp_required() - 1)
+	current_hp = clampf(float(data.get("current_hp", BASE_HP)), 0.0, get_max_hp())
+	current_stamina = clampf(float(data.get("current_stamina", BASE_STAMINA)), 0.0, get_max_stamina())
+	money = maxi(0, int(data.get("money", 0)))

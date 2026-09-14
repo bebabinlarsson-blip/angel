@@ -33,6 +33,8 @@ var dash_direction: Vector2 = Vector2.ZERO
 var attack_timer: float = 0.0
 var charge_timer: float = 0.0
 var is_charging: bool = false
+var attack_is_charged: bool = false
+var attack_hit_confirmed: bool = false
 
 # Stamina regen
 var stamina_regen_cooldown: float = 0.0
@@ -128,6 +130,9 @@ func _handle_input() -> void:
 	
 	# Attack / Charge attack
 	if Input.is_action_just_pressed("attack") and current_state not in [State.DASHING, State.DEAD]:
+		if inventory.equipped_weapon.is_empty():
+			EventBus.show_notification.emit("Equip your sword from the backpack first.")
+			return
 		var mouse_pos := get_global_mouse_position()
 		var aim_dir := (mouse_pos - global_position).normalized()
 		if aim_dir != Vector2.ZERO:
@@ -201,9 +206,11 @@ func _update_animation() -> void:
 	if sword_visual:
 		sword_visual.visible = not inventory.equipped_weapon.is_empty()
 		sword_visual.swinging = current_state == State.ATTACKING
+		sword_visual.charged = is_charging or attack_is_charged
+		sword_visual.hit_confirmed = attack_hit_confirmed
 		sword_visual.rotation = look_direction.angle()
 	if attack_area:
-		attack_area.position = look_direction.normalized() * 30
+		attack_area.position = look_direction.normalized() * 34
 		attack_area.rotation = look_direction.angle()
 	
 	if sprite and sprite.sprite_frames:
@@ -281,28 +288,32 @@ func _try_dash() -> void:
 		VFX.dash_trail(self)
 
 func _normal_attack() -> void:
-	if attack_timer > 0:
+	if attack_timer > 0.0:
 		return
+	attack_is_charged = false
+	attack_hit_confirmed = false
 	current_state = State.ATTACKING
 	attack_timer = ATTACK_COOLDOWN
 	if attack_area:
 		attack_area.monitoring = true
-		# Fix first-swing whiff: Area overlaps update on physics tick,
-		# so wait one physics frame before querying.
 		await get_tree().physics_frame
 		if not is_instance_valid(attack_area):
 			return
-	_deal_damage_to_area(get_effective_attack(), false)
+	var hits := _deal_damage_to_area(get_effective_attack(), false)
+	attack_hit_confirmed = hits > 0
 	await get_tree().create_timer(0.15).timeout
 	if is_instance_valid(self):
 		if attack_area and is_instance_valid(attack_area):
 			attack_area.monitoring = false
+		attack_hit_confirmed = false
 		if current_state == State.ATTACKING:
 			current_state = State.IDLE if not is_swimming else State.SWIMMING
 
 func _charge_attack() -> void:
-	if attack_timer > 0:
+	if attack_timer > 0.0:
 		return
+	attack_is_charged = true
+	attack_hit_confirmed = false
 	current_state = State.ATTACKING
 	attack_timer = ATTACK_COOLDOWN * 1.5
 	if attack_area:
@@ -311,20 +322,23 @@ func _charge_attack() -> void:
 		if not is_instance_valid(attack_area):
 			return
 	var charge_damage: float = get_effective_attack() * 2.0
-	_deal_damage_to_area(charge_damage, true)
+	var hits := _deal_damage_to_area(charge_damage, true)
+	attack_hit_confirmed = hits > 0
 	await get_tree().create_timer(0.25).timeout
 	if is_instance_valid(self):
 		if attack_area and is_instance_valid(attack_area):
 			attack_area.monitoring = false
+		attack_is_charged = false
+		attack_hit_confirmed = false
 		if current_state == State.ATTACKING:
 			current_state = State.IDLE if not is_swimming else State.SWIMMING
 
-func _deal_damage_to_area(damage: float, is_charge: bool = false) -> void:
+func _deal_damage_to_area(damage: float, is_charge: bool = false) -> int:
 	if attack_area == null:
-		return
+		return 0
 	var hit_targets: Array[Node] = []
-	
-	# Check overlapping bodies (monsters, mining rocks)
+	var hit_count := 0
+
 	for body in attack_area.get_overlapping_bodies():
 		if body != self and body not in hit_targets and body.has_method("take_damage"):
 			hit_targets.append(body)
@@ -332,8 +346,8 @@ func _deal_damage_to_area(damage: float, is_charge: bool = false) -> void:
 			body.take_damage(damage, knockback_dir * KNOCKBACK_FORCE)
 			EventBus.damage_dealt.emit(body, damage)
 			add_trauma(0.45 if is_charge else 0.25)
-	
-	# Check overlapping areas (hurtboxes, destructibles)
+			hit_count += 1
+
 	for area in attack_area.get_overlapping_areas():
 		var parent: Node = area.get_parent()
 		if parent and parent != self and parent not in hit_targets and parent.has_method("take_damage"):
@@ -342,12 +356,15 @@ func _deal_damage_to_area(damage: float, is_charge: bool = false) -> void:
 			parent.take_damage(damage, knockback_dir * KNOCKBACK_FORCE)
 			EventBus.damage_dealt.emit(parent, damage)
 			add_trauma(0.45 if is_charge else 0.25)
+			hit_count += 1
 		elif area != self and area not in hit_targets and area.has_method("take_damage"):
 			hit_targets.append(area)
 			var knockback_dir: Vector2 = (area.global_position - global_position).normalized()
 			area.take_damage(damage, knockback_dir * KNOCKBACK_FORCE)
 			EventBus.damage_dealt.emit(area, damage)
 			add_trauma(0.45 if is_charge else 0.25)
+			hit_count += 1
+	return hit_count
 
 func take_damage(amount: float, knockback: Vector2 = Vector2.ZERO) -> void:
 	if current_state == State.DASHING or current_state == State.DEAD:
@@ -355,7 +372,10 @@ func take_damage(amount: float, knockback: Vector2 = Vector2.ZERO) -> void:
 	var defense: float = get_effective_defense()
 	var final_dmg := maxf(1.0, amount - defense)
 	stats.take_damage(final_dmg)
+	stamina_regen_cooldown = stats.STAMINA_REGEN_DELAY
 	add_trauma(0.45)
+	if sprite:
+		VFX.flash_hit(sprite)
 	velocity += knockback
 	if stats.current_hp <= 0:
 		die()
@@ -376,6 +396,8 @@ func respawn() -> void:
 	current_state = State.IDLE
 	is_swimming = false
 	swim_zone_count = 0
+	attack_is_charged = false
+	attack_hit_confirmed = false
 	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
 	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
 
@@ -449,6 +471,9 @@ func load_save_data(data: Dictionary) -> void:
 		inventory.load_save_data(data["inventory"])
 	if data.has("position"):
 		global_position = Vector2(data["position"]["x"], data["position"]["y"])
+	var terrain := get_tree().get_first_node_in_group("island_world") as IslandWorld
+	if terrain:
+		global_position = terrain.clamp_to_playable_area(global_position)
 	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
 	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
 	EventBus.player_money_changed.emit(stats.money)
