@@ -160,7 +160,7 @@ func _refresh_recipes(player: CharacterBody2D) -> void:
 	var recipes := cooking_system.get_available_recipes(player.inventory)
 	for recipe in recipes:
 		var hbox := HBoxContainer.new()
-		hbox.custom_minimum_size = Vector2(360, 36)
+		hbox.custom_minimum_size = Vector2(360, 54)
 		
 		var label := Label.new()
 		var ingredients_text := ""
@@ -170,8 +170,14 @@ func _refresh_recipes(player: CharacterBody2D) -> void:
 			var has_qty: int = player.inventory.get_item_count(item_id)
 			var req_qty: int = recipe["ingredients"][item_id]
 			ingredients_text += "%s (%d/%d)" % [item_id, has_qty, req_qty]
-		
-		label.text = "%s\n[%s]" % [recipe.get("name", "???"), ingredients_text]
+
+		var result_data: Dictionary = recipe.get("result", {})
+		label.text = "%s\n[%s]\n→ %s" % [
+			recipe.get("name", "???"),
+			ingredients_text,
+			_recipe_effect_text(result_data)
+		]
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hbox.add_child(label)
 		
@@ -184,6 +190,24 @@ func _refresh_recipes(player: CharacterBody2D) -> void:
 		hbox.add_child(cook_btn)
 		
 		recipe_list.add_child(hbox)
+
+func _recipe_effect_text(result: Dictionary) -> String:
+	var effects: Array[String] = []
+	if result.has("heal"):
+		effects.append("heal %d HP" % int(result["heal"]))
+	if result.has("stamina_restore"):
+		effects.append("restore %d stamina" % int(result["stamina_restore"]))
+	if result.has("buff_name"):
+		effects.append("%s %ds" % [str(result["buff_name"]), int(result.get("buff_duration", 0.0))])
+	if effects.is_empty():
+		return "A useful meal"
+	var effect_text: String = ""
+	for effect in effects:
+		if not effect_text.is_empty():
+			effect_text += ", "
+		effect_text += effect
+	return effect_text
+
 
 func _on_cook(recipe_id: String, player: CharacterBody2D) -> void:
 	if cooking_system:
