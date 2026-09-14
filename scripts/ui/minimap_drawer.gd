@@ -90,19 +90,19 @@ func _process(delta: float) -> void:
         queue_redraw()
 
 func _on_quest_changed(_quest_id: String) -> void:
-	_refresh_quest_waypoint()
-	_draw_dirty = true
-	queue_redraw()
+    _refresh_quest_waypoint()
+    _draw_dirty = true
+    queue_redraw()
 
 func _refresh_quest_waypoint() -> void:
-	if not is_instance_valid(_quest_system):
-		_quest_system = get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
-	var next_waypoint: Dictionary = {}
-	if is_instance_valid(_quest_system):
-		next_waypoint = _quest_system.get_active_waypoint()
-	if next_waypoint != _quest_waypoint:
-		_quest_waypoint = next_waypoint
-		_draw_dirty = true
+    if not is_instance_valid(_quest_system):
+        _quest_system = get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
+    var next_waypoint: Dictionary = {}
+    if is_instance_valid(_quest_system):
+        next_waypoint = _quest_system.get_active_waypoint()
+    if next_waypoint != _quest_waypoint:
+        _quest_waypoint = next_waypoint
+        _draw_dirty = true
 
 func _refresh_layer_cache() -> void:
     if not is_instance_valid(_terrain):
@@ -379,35 +379,35 @@ func _draw_layer_details(center: Vector2, factor: float) -> void:
     _draw_layer_cells(_structure_index, center, factor, Color("#c9a269"), view)
 
 func _draw_quest_waypoint(center: Vector2, factor: float) -> void:
-	if _quest_waypoint.is_empty():
-		return
-	var raw_position: Variant = _quest_waypoint.get("position", Vector2.ZERO)
-	if not (raw_position is Vector2):
-		return
-	var view := _map_view_rect()
-	var point: Vector2 = center + (raw_position as Vector2) * factor
-	if not view.grow(48.0).has_point(point):
-		return
+    if _quest_waypoint.is_empty():
+        return
+    var raw_position: Variant = _quest_waypoint.get("position", Vector2.ZERO)
+    if not (raw_position is Vector2):
+        return
+    var view := _map_view_rect()
+    var point: Vector2 = center + (raw_position as Vector2) * factor
+    if not view.grow(48.0).has_point(point):
+        return
 
-	var pulse: float = (sin(Time.get_ticks_msec() * 0.006) + 1.0) * 0.5
-	draw_circle(point, 13.0 + pulse * 3.0, Color(1.0, 0.75, 0.20, 0.16))
-	var diamond := PackedVector2Array([
-		point + Vector2(0.0, -10.0),
-		point + Vector2(9.0, 0.0),
-		point + Vector2(0.0, 10.0),
-		point + Vector2(-9.0, 0.0)
-	])
-	draw_colored_polygon(diamond, Color("#101c24"))
-	var inner := PackedVector2Array([
-		point + Vector2(0.0, -6.0),
-		point + Vector2(5.0, 0.0),
-		point + Vector2(0.0, 6.0),
-		point + Vector2(-5.0, 0.0)
-	])
-	var marker_color := Color("#f6c84f") if not bool(_quest_waypoint.get("is_return", false)) else Color("#86efac")
-	draw_colored_polygon(inner, marker_color)
-	if is_big_map or factor >= 0.04:
-		_label(point + Vector2(13.0, 5.0), str(_quest_waypoint.get("name", "Quest objective")), 12 if is_big_map else 10, marker_color)
+    var pulse: float = (sin(Time.get_ticks_msec() * 0.006) + 1.0) * 0.5
+    draw_circle(point, 13.0 + pulse * 3.0, Color(1.0, 0.75, 0.20, 0.16))
+    var diamond := PackedVector2Array([
+        point + Vector2(0.0, -10.0),
+        point + Vector2(9.0, 0.0),
+        point + Vector2(0.0, 10.0),
+        point + Vector2(-9.0, 0.0)
+    ])
+    draw_colored_polygon(diamond, Color("#101c24"))
+    var inner := PackedVector2Array([
+        point + Vector2(0.0, -6.0),
+        point + Vector2(5.0, 0.0),
+        point + Vector2(0.0, 6.0),
+        point + Vector2(-5.0, 0.0)
+    ])
+    var marker_color := Color("#f6c84f") if not bool(_quest_waypoint.get("is_return", false)) else Color("#86efac")
+    draw_colored_polygon(inner, marker_color)
+    if is_big_map or factor >= 0.04:
+        _label(point + Vector2(13.0, 5.0), str(_quest_waypoint.get("name", "Quest objective")), 12 if is_big_map else 10, marker_color)
 
 func _draw_named_locations(center: Vector2, factor: float) -> void:
     var view := _map_view_rect()
