@@ -468,10 +468,16 @@ func get_save_data() -> Dictionary:
 
 func load_save_data(data: Dictionary) -> void:
 	stats.load_save_data(data)
-	if data.has("inventory"):
-		inventory.load_save_data(data["inventory"])
-	if data.has("position"):
-		global_position = Vector2(data["position"]["x"], data["position"]["y"])
+	var inventory_value: Variant = data.get("inventory", {})
+	if inventory_value is Dictionary:
+		inventory.load_save_data(inventory_value)
+	var position_value: Variant = data.get("position", {})
+	if position_value is Dictionary:
+		var saved_position: Dictionary = position_value
+		global_position = Vector2(
+			float(saved_position.get("x", global_position.x)),
+			float(saved_position.get("y", global_position.y))
+		)
 	var terrain := get_tree().get_first_node_in_group("island_world") as IslandWorld
 	if terrain:
 		global_position = terrain.clamp_to_playable_area(global_position)
