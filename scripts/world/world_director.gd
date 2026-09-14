@@ -672,8 +672,14 @@ func _apply_save_data(data: Dictionary) -> void:
             var remaining: float = maxf(0.0, float(saved_enemy.get("respawn_remaining", 0.0)))
             record["defeated"] = defeated
             record["respawn_at"] = now + remaining if defeated else 0.0
-            record["hp"] = float(saved_enemy.get("hp", -1.0))
+            var saved_hp: float = float(saved_enemy.get("hp", -1.0))
+            record["hp"] = saved_hp
             var enemy_node := _node_from_record(record)
+            if not defeated and enemy_node is BaseMonster and saved_hp > 0.0:
+                var active_enemy: BaseMonster = enemy_node as BaseMonster
+                active_enemy.current_hp = clampf(saved_hp, 1.0, active_enemy.base_hp)
+                if active_enemy.health_bar:
+                    active_enemy.health_bar.value = active_enemy.current_hp
             if defeated and enemy_node != null:
                 record["node"] = null
                 if not enemy_node.is_queued_for_deletion():
