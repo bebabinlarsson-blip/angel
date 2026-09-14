@@ -104,6 +104,11 @@ func _ready() -> void:
         EventBus.player_stamina_changed.emit(player.stats.current_stamina, player.stats.get_max_stamina())
         EventBus.player_money_changed.emit(player.stats.money)
         EventBus.show_notification.emit("Welcome to Angel! Walk near materials to collect them, press E for your backpack, and keep your sword ready.")
+    
+    # A continue request is consumed only after this scene owns the live player.
+    var pending_slot: int = SaveManager.consume_pending_load()
+    if pending_slot >= 0:
+        call_deferred("_load_pending_save", pending_slot)
 
 func _ensure_cooking_place(world_node: Node2D) -> void:
     if world_node.get_node_or_null("Campfire") != null:
