@@ -211,19 +211,24 @@ func _on_new_game() -> void:
 	GameManager.unlocked_waystones.clear()
 	GameManager.game_time_hours = 8.0
 	GameManager.day_count = 1
-	GameManager.current_state = GameManager.GameState.PLAYING
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
+	GameManager.set_state(GameManager.GameState.PLAYING)
+	var result := get_tree().change_scene_to_file("res://scenes/game.tscn")
+	if result != OK:
+		push_error("Angel: could not start a new game (%s)." % error_string(result))
 
 func _on_continue() -> void:
-	GameManager.current_state = GameManager.GameState.PLAYING
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
-	# Was fixed 0.2s (racy on slow/web loads). Wait for the new scene + player.
-	for i in range(60):
-		await get_tree().process_frame
-		var p := get_tree().root.find_child("Player", true, false)
-		if p:
-			break
-	SaveManager.load_game(0)
+	GameManager.set_state(GameManager.GameState.PLAYING)
+	var result := get_tree().change_scene_to_file("res://scenes/game.tscn")
+	if result != OK:
+		push_error("Angel: could not open the saved game (%s)." % error_string(result))
+		return
+	# Wait for SceneTree.scene_changed instead of finding any Player node
+	# during the old/new scene overlap. This guarantees the save is applied to
+	# the player that belongs to the newly loaded game scene.
+	await get_tree().scene_changed
+	await get_tree().process_frame
+	if SaveManager.load_game(0) == false:
+		EventBus.show_notification.emit("Could not load the saved game.")
 
 func _on_controls() -> void:
 	if controls_panel:
