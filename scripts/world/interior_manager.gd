@@ -15,6 +15,7 @@ var description_label: Label = null
 var exit_button: Button = null
 var active_interior_id: String = ""
 var return_position: Vector2 = Vector2.ZERO
+var player_was_visible: bool = true
 var inside_interior: bool = false
 
 func _ready() -> void:
@@ -197,7 +198,11 @@ func enter_interior(interior_id: String, entrance_position: Vector2) -> void:
 	var definition := _definition_for(interior_id)
 	if definition.is_empty():
 		return
-	var player := player_value as Node2D
+	var player := player_value as Player
+	if player == null:
+		return
+	player_was_visible = player.visible
+	player.visible = false
 	var outward := player.global_position - entrance_position
 	if outward.length_squared() <= 0.001:
 		outward = Vector2.DOWN
@@ -223,10 +228,11 @@ func _exit_interior() -> void:
 	if not inside_interior:
 		return
 	var player_value: Variant = GameManager.player
-	if player_value is Node2D and is_instance_valid(player_value):
-		var player := player_value as Node2D
+	if player_value is Player and is_instance_valid(player_value):
+		var player := player_value as Player
 		player.global_position = return_position
-		player.set("velocity", Vector2.ZERO)
+		player.velocity = Vector2.ZERO
+		player.visible = player_was_visible
 	inside_interior = false
 	active_interior_id = ""
 	if interior_layer:
