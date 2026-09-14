@@ -110,6 +110,10 @@ func _ready() -> void:
     if pending_slot >= 0:
         call_deferred("_load_pending_save", pending_slot)
 
+func _load_pending_save(slot: int) -> void:
+    if not SaveManager.load_game(slot):
+        EventBus.show_notification.emit("Could not load the saved game.")
+    
 func _ensure_cooking_place(world_node: Node2D) -> void:
     if world_node.get_node_or_null("Campfire") != null:
         return
