@@ -146,7 +146,7 @@ func _on_item_selected(item: Dictionary) -> void:
 		item_name_label.text = item.get("name", "Unknown")
 	
 	var item_type: int = item.get("type", 0)
-	var type_names := {0: "Material", 1: "Weapon", 2: "Armor", 3: "Cooked Dish", 4: "Potion"}
+	var type_names := {0: "Material", 1: "Weapon", 2: "Armor", 3: "Cooked Dish", 4: "Potion", 6: "Collectible"}
 	if item_type_label:
 		item_type_label.text = "Type: " + type_names.get(item_type, "Item")
 	

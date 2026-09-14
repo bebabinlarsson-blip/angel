@@ -41,7 +41,9 @@ func _map_scale() -> float:
 	if not is_instance_valid(_terrain):
 		return 1.0
 	if not is_big_map:
-		return minf(size.x, size.y - 22.0) / 1500.0
+		# The world can now be much larger than the authored village. Keep the
+		# minimap useful by showing a generous local area around the player.
+		return minf(size.x, size.y - 22.0) / 8000.0
 	return minf(size.x - 340.0, size.y - 130.0) / _terrain.bounds.size.x * map_zoom
 
 func _center() -> Vector2:
@@ -94,8 +96,8 @@ func _clamp_offset() -> void:
 	if not is_big_map:
 		return
 	var limit: float = 3800.0
-	if is_instance_valid(_terrain) and _terrain.radius > 0.0:
-		limit = _terrain.radius * 1.5
+	if is_instance_valid(_terrain) and _terrain.expanded_radius > 0.0:
+		limit = _terrain.expanded_radius * 1.5
 	map_offset.x = clampf(map_offset.x, -limit, limit)
 	map_offset.y = clampf(map_offset.y, -limit, limit)
 

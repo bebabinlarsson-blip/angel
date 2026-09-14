@@ -10,6 +10,9 @@ var jump_lunge_timer: float = 0.0
 var jump_lunge_dir: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
+	# Keep the original slime as the baseline, but let WorldDirector create
+	# stronger visual/stat variants across the enlarged island.
+	var variant := str(get_meta("variant", "slime"))
 	base_hp = 60.0
 	base_attack = 12.0
 	base_speed = 85.0
@@ -18,7 +21,25 @@ func _ready() -> void:
 	coin_drop_min = 2
 	coin_drop_max = 6
 	exp_drop = 30
+	match variant:
+		"moss":
+			base_hp = 92.0
+			base_attack = 16.0
+			base_speed = 68.0
+		"ember":
+			base_hp = 66.0
+			base_attack = 24.0
+			base_speed = 105.0
+		"crystal":
+			base_hp = 125.0
+			base_attack = 20.0
+			base_speed = 74.0
 	super._ready()
+	if sprite:
+		match variant:
+			"moss": sprite.modulate = Color("#6ba66a")
+			"ember": sprite.modulate = Color("#e88b61")
+			"crystal": sprite.modulate = Color("#8bd9e8")
 	jump_timer = randf_range(0.5, jump_interval)
 
 func _physics_process(delta: float) -> void:
