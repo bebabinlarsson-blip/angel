@@ -8,13 +8,19 @@ extends RefCounted
 static func pop_in(control: Control, duration: float = 0.22) -> void:
 	if control == null or not is_instance_valid(control):
 		return
+	# Preserve a responsive target scale calculated by UITheme.fit_modal().
+	# Previously every animation ended at Vector2.ONE and made small-window
+	# dialogs overflow again immediately after opening.
+	var target_scale: Vector2 = control.scale
+	if target_scale.length_squared() <= 0.001:
+		target_scale = Vector2.ONE
 	control.pivot_offset = control.size * 0.5
-	control.scale = Vector2(0.92, 0.92)
+	control.scale = target_scale * 0.92
 	control.modulate.a = 0.0
 	var tween := control.create_tween()
 	tween.set_parallel(true)
 	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.tween_property(control, "scale", Vector2.ONE, duration)
+	tween.tween_property(control, "scale", target_scale, duration)
 	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.tween_property(control, "modulate:a", 1.0, duration * 0.8)
 
