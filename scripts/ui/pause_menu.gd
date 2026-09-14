@@ -13,6 +13,8 @@ func _ready() -> void:
 	EventBus.pause_toggled.connect(_toggle)
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if not get_viewport().size_changed.is_connected(_on_viewport_resized):
+		get_viewport().size_changed.connect(_on_viewport_resized)
 	
 	if resume_btn:
 		resume_btn.pressed.connect(_on_resume)
@@ -126,6 +128,7 @@ func _toggle() -> void:
 			(cooking as CanvasLayer).visible = false
 		
 		GameManager.set_state(GameManager.GameState.PAUSED)
+		_on_viewport_resized()
 		var card := get_node_or_null("CenterContainer/PanelContainer")
 		if card is Control:
 			UIAnim.pop_in(card as Control, 0.2)
@@ -134,8 +137,17 @@ func _toggle() -> void:
 		if settings_panel:
 			settings_panel.visible = false
 
+func _on_viewport_resized() -> void:
+	var card := get_node_or_null("CenterContainer/PanelContainer")
+	if card is Control:
+		UITheme.fit_modal(card as Control, Vector2(340.0, 420.0))
+	if settings_panel and settings_panel.visible:
+		var settings_card := settings_panel.find_child("PanelContainer", true, false)
+		if settings_card is Control:
+			UITheme.fit_modal(settings_card as Control, Vector2(380.0, 360.0))
+
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause") and visible:
+	if (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")) and visible:
 		if settings_panel and settings_panel.visible:
 			settings_panel.visible = false
 		else:
