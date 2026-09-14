@@ -15,7 +15,7 @@ func _ready() -> void:
     _ensure_audio_manager()
 
     # Initialize world map texture and collision bounds from authored scene layers
-    var world_node := get_node_or_null("World")
+    var world_node: Node2D = get_node_or_null("World") as Node2D
     if world_node == null:
         world_node = Node2D.new()
         world_node.name = "World"
