@@ -18,7 +18,9 @@ var respawn_timer: float = 0.0
 var bob_time: float = 0.0
 var redraw_timer: float = 0.0
 var proximity_timer: float = 0.0
+var visibility_timer: float = 0.0
 var near_player: bool = false
+var camera_visible: bool = false
 var collision: CollisionShape2D = null
 var pickup_label: Label = null
 
@@ -101,9 +103,16 @@ func _process(delta: float) -> void:
         if was_near != near_player:
             queue_redraw()
 
+    # Camera visibility changes much more slowly than the frame rate. Cache it
+    # so hundreds of resources do not each query the viewport every frame.
+    visibility_timer -= delta
+    if visibility_timer <= 0.0:
+        visibility_timer = 0.15
+        camera_visible = _is_visible_to_camera()
+
     # Only animate and redraw nodes in/near the camera view. Off-screen
     # resources remain fully available for pickup and respawn.
-    if near_player or _is_visible_to_camera():
+    if near_player or camera_visible:
         bob_time += delta
         redraw_timer -= delta
         if redraw_timer <= 0.0:
