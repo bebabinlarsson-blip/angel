@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/inventory.tscn" id="9_inventory"]
 [ext_resource type="PackedScene" path="res://scenes/ui/quest_menu.tscn" id="10_quest_menu"]
 [ext_resource type="PackedScene" path="res://scenes/ui/game_over.tscn" id="11_game_over"]
+[ext_resource type="PackedScene" path="res://scenes/interiors/house_tiles.tscn" id="12_tiles"]
 
 [sub_resource type="CircleShape2D" id="CircleShape_exit"]
 radius = 36.0
@@ -26,6 +27,9 @@ room_size = Vector2(960, 640)
 script = ExtResource("2_visual")
 theme_kind = "house"
 room_size = Vector2(960, 640)
+visible = false
+
+[node name="InteriorTilemap" parent="." instance=ExtResource("12_tiles")]
 
 [node name="Player" parent="." instance=ExtResource("4_player")]
 position = Vector2(0, 180)

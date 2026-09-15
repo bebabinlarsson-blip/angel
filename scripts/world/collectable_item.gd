@@ -1,6 +1,17 @@
 class_name CollectableItem
 extends Area2D
 
+const ENVIRONMENT_TILESET = preload("res://assets/tilesets/angel_environment_tileset.tres")
+const ITEM_TILE_SOURCES := {
+	"wood": 21,
+	"herb": 22,
+	"mushroom": 23,
+	"iron_ore": 24,
+	"gold_ore": 24,
+	"stone": 25,
+	"flower": 26,
+}
+
 @export var item_id: String = "wood"
 @export var item_name: String = "Wood"
 @export var item_type: int = 0 # 0=MATERIAL
@@ -42,6 +53,9 @@ func _ready() -> void:
 				spr.texture = load("res://assets/sprites/items/item_herb.png")
 		add_child(spr)
 		visual = spr
+	var tile_sprite := visual as Sprite2D
+	if tile_sprite != null:
+		_apply_environment_tile(tile_sprite)
 
 	pickup_label = Label.new()
 	pickup_label.name = "PickupLabel"
@@ -55,6 +69,18 @@ func _ready() -> void:
 	pickup_label.add_theme_constant_override("outline_size", 4)
 	pickup_label.add_theme_font_size_override("font_size", 12)
 	add_child(pickup_label)
+
+func _apply_environment_tile(target: Sprite2D) -> void:
+	var source_id := int(ITEM_TILE_SOURCES.get(item_id, 22))
+	var source := ENVIRONMENT_TILESET.get_source(source_id) as TileSetAtlasSource
+	if source == null:
+		return
+	target.texture = source.texture
+	target.region_enabled = true
+	target.region_rect = Rect2(0, 0, 32, 32)
+	target.centered = true
+	if item_id == "gold_ore":
+		target.modulate = Color(1.18, 0.98, 0.52)
 
 func _process(delta: float) -> void:
 	if is_collected:

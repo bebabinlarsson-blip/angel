@@ -1,8 +1,6 @@
 class_name InteriorScene
 extends Node2D
 
-const MINING_ROCK_SCRIPT = preload("res://scripts/world/mining_rock.gd")
-
 @export var interior_id: String = "interior"
 @export var display_name: String = "Interior"
 @export var theme_kind: String = "house"
@@ -59,23 +57,11 @@ func _ensure_room_bounds() -> void:
         walls.add_child(body)
 
 func _ensure_mine_rocks() -> void:
-    var rocks := get_node_or_null("InteriorMining") as Node2D
-    if rocks == null:
-        rocks = Node2D.new()
-        rocks.name = "InteriorMining"
-        rocks.y_sort_enabled = true
-        add_child(rocks)
-    if not rocks.get_children().is_empty():
-        return
-    var positions := [Vector2(-300, -190), Vector2(300, -190), Vector2(-300, 25), Vector2(300, 25), Vector2(0, -250)]
-    for index in range(positions.size()):
-        var rock := MINING_ROCK_SCRIPT.new() as MiningRock
-        rock.name = "MineRock_%d" % (index + 1)
-        rock.position = positions[index]
-        rock.ore_type = "iron_ore" if index < 4 else "coal"
-        rock.ore_name = "Iron Ore" if index < 4 else "Coal"
-        rock.ore_count = 2 if index < 4 else 1
-        rocks.add_child(rock)
+    # Mining spots are authored StaticBody2D nodes in mine.tscn. Keeping this
+    # check makes a malformed/minimal test scene obvious without silently
+    # placing gameplay objects at runtime.
+    if get_node_or_null("InteriorMining") == null:
+        push_warning("MineInterior: no authored InteriorMining nodes found.")
 
 func _setup_camera() -> void:
     if player == null or not is_instance_valid(player.camera):

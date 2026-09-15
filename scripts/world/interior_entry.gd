@@ -57,8 +57,6 @@ func _find_quest_system() -> Node:
 func _draw() -> void:
     var glow := 0.16 + (sin(_pulse * 3.0) + 1.0) * 0.05
     draw_circle(Vector2.ZERO, 38.0, Color(0.42, 0.85, 0.90, glow))
-    draw_rect(Rect2(-24, -28, 48, 56), Color("#2b2428"))
-    draw_rect(Rect2(-19, -23, 38, 50), Color("#b98659"))
-    draw_colored_polygon(PackedVector2Array([Vector2(-26, -23), Vector2(0, -44), Vector2(26, -23)]), Color("#9b4d48"))
-    draw_rect(Rect2(-8, 2, 16, 25), Color("#49352e"))
-    draw_circle(Vector2(0, -8), 3.0, Color("#ffe18a"))
+    draw_arc(Vector2.ZERO, 30.0, 0.0, TAU, 24, Color(0.60, 0.92, 0.94, 0.75), 2.0)
+    draw_line(Vector2(-8, 2), Vector2(0, -6), Color("#ffe18a"), 2.0)
+    draw_line(Vector2(0, -6), Vector2(8, 2), Color("#ffe18a"), 2.0)

@@ -1,6 +1,8 @@
 class_name MiningRock
 extends StaticBody2D
 
+const ENVIRONMENT_TILESET = preload("res://assets/tilesets/angel_environment_tileset.tres")
+
 @export var max_hits: int = 4
 @export var ore_type: String = "iron_ore"
 @export var ore_name: String = "Iron Ore"
@@ -35,8 +37,20 @@ func _ready() -> void:
 		else:
 			sprite.modulate = Color(0.9, 1.0, 1.1)
 		add_child(sprite)
+	_apply_environment_tile(sprite)
 	visual = sprite
 	set_process(false)
+
+func _apply_environment_tile(target: Sprite2D) -> void:
+	var source := ENVIRONMENT_TILESET.get_source(20) as TileSetAtlasSource
+	if source == null:
+		return
+	target.texture = source.texture
+	target.region_enabled = true
+	target.region_rect = Rect2(0, 0, 32, 32)
+	target.centered = true
+	if ore_type == "gold_ore":
+		target.modulate = Color(1.2, 0.96, 0.5)
 
 func _process(delta: float) -> void:
 	if is_depleted:
