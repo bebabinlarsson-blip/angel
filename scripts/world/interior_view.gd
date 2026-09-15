@@ -8,16 +8,78 @@ extends Control
 var interior_id: String = ""
 var interior_kind: String = "house"
 var display_name: String = ""
+var world_tileset: TileSet = null
+var mine_button: Button = null
+var mine_status: Label = null
+var mine_veins_remaining: int = 3
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	world_tileset = load("res://assets/tilesets/angel_world_tileset.tres") as TileSet
+	resized.connect(_layout_mine_controls)
+	_ensure_mine_controls()
 	queue_redraw()
 
 func configure(new_id: String, new_name: String, new_kind: String) -> void:
 	interior_id = new_id
 	display_name = new_name
 	interior_kind = new_kind
+	mine_veins_remaining = 3
+	_ensure_mine_controls()
+	queue_redraw()
+
+signal mine_requested(ore_type: String, amount: int)
+
+func _draw_atlas_floor(floor_rect: Rect2) -> void:
+	if world_tileset == null:
+		return
+	var source_id: int = 16 if interior_kind == "mine" else 14
+	var source := world_tileset.get_source(source_id) as TileSetAtlasSource
+	if source == null or source.texture == null:
+		return
+	var source_region := Rect2(Vector2.ZERO, Vector2(32.0, 32.0))
+	for y in range(int(floor_rect.position.y), int(floor_rect.end.y), 32):
+		for x in range(int(floor_rect.position.x), int(floor_rect.end.x), 32):
+			var dest := Rect2(Vector2(x, y), Vector2(32.0, 32.0))
+			draw_texture_rect_region(source.texture, dest, source_region, Color(1.0, 1.0, 1.0, 0.28))
+
+func _ensure_mine_controls() -> void:
+	if mine_button == null:
+		mine_button = Button.new()
+		mine_button.name = "MineVeinButton"
+		mine_button.custom_minimum_size = Vector2(210.0, 36.0)
+		mine_button.mouse_filter = Control.MOUSE_FILTER_STOP
+		mine_button.pressed.connect(_on_mine_pressed)
+		UITheme.style_button(mine_button)
+		add_child(mine_button)
+	if mine_status == null:
+		mine_status = Label.new()
+		mine_status.name = "MineStatus"
+		mine_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mine_status.add_theme_color_override("font_color", Color("#ffe08a"))
+		mine_status.add_theme_color_override("font_outline_color", Color("#111b29"))
+		mine_status.add_theme_constant_override("outline_size", 3)
+		add_child(mine_status)
+	mine_button.visible = interior_kind == "mine"
+	mine_status.visible = interior_kind == "mine"
+	_layout_mine_controls()
+
+func _layout_mine_controls() -> void:
+	if mine_button == null or mine_status == null:
+		return
+	mine_button.position = Vector2(18.0, maxf(18.0, size.y - 52.0))
+	mine_status.position = Vector2(242.0, maxf(18.0, size.y - 46.0))
+	mine_status.text = "%d veins remain" % mine_veins_remaining
+
+func _on_mine_pressed() -> void:
+	if interior_kind != "mine" or mine_veins_remaining <= 0:
+		return
+	mine_veins_remaining -= 1
+	mine_button.disabled = mine_veins_remaining <= 0
+	mine_status.text = "%d veins remain" % mine_veins_remaining
+	mine_button.text = "Mine iron vein" if mine_veins_remaining > 0 else "Mine exhausted"
+	mine_requested.emit("iron_ore", 2)
 	queue_redraw()
 
 func _draw() -> void:
@@ -44,6 +106,7 @@ func _draw() -> void:
 
 func _draw_floor(room: Rect2) -> void:
 	var floor_rect := room.grow(-7.0)
+	_draw_atlas_floor(floor_rect)
 	for y in range(0, maxi(1, int(floor_rect.size.y)), 24):
 		var line_y := floor_rect.position.y + float(y)
 		draw_line(Vector2(floor_rect.position.x, line_y), Vector2(floor_rect.end.x, line_y), Color(0.25, 0.15, 0.12, 0.32), 1.0)
