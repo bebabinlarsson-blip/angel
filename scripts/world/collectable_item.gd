@@ -63,13 +63,13 @@ func _ready() -> void:
 
 
 func _apply_tile_visual() -> void:
-    var texture := TILESET_VISUAL_SCRIPT.texture_for_item(item_id)
-    if texture == null or not (visual is Sprite2D):
-        return
-    var sprite := visual as Sprite2D
-    sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-    sprite.texture = texture
-    sprite.scale = Vector2.ONE * TILESET_VISUAL_SCRIPT.scale_for_item(item_id)
+	var texture := TILESET_VISUAL_SCRIPT.texture_for_item(item_id)
+	if texture == null or not (visual is Sprite2D):
+		return
+	var sprite := visual as Sprite2D
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.texture = texture
+	sprite.scale = Vector2.ONE * TILESET_VISUAL_SCRIPT.scale_for_item(item_id)
 
 	_apply_tile_visual()
 	pickup_label = Label.new()
