@@ -20,12 +20,20 @@ var _path_cells: Array = []
 var _bridge_cells: Array = []
 var _tree_cells: Array = []
 var _structure_cells: Array = []
+var _building_cells: Array = []
+var _cave_cells: Array = []
+var _landmark_cells: Array = []
+var _material_cells: Array = []
 var _water_index: Dictionary = {}
 var _farm_index: Dictionary = {}
 var _path_index: Dictionary = {}
 var _bridge_index: Dictionary = {}
 var _tree_index: Dictionary = {}
 var _structure_index: Dictionary = {}
+var _building_index: Dictionary = {}
+var _cave_index: Dictionary = {}
+var _landmark_index: Dictionary = {}
+var _material_index: Dictionary = {}
 var _layer_cache_revision: int = -1
 var _draw_dirty: bool = true
 var _focus_authored: bool = true
@@ -37,6 +45,7 @@ const INK := Color("#f3e7ce")
 const OCEAN := Color("#244853")
 const MAP_PANEL_WIDTH: float = 210.0
 const MAX_MAP_ZOOM: float = 96.0
+const MINIMAP_ZOOM: float = 2.6
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
@@ -110,18 +119,26 @@ func _refresh_layer_cache() -> void:
     # Water is a single repeated tile over a compact authored silhouette.
     # OceanBackdrop and IslandWorld keep that silhouette without retaining a
     # 289k-cell TileMap array in every minimap instance.
-    _water_cells.clear()
-    _farm_cells = _layer_cells(_terrain.farm_layer)
-    _path_cells = _layer_cells(_terrain.paths)
-    _bridge_cells = _layer_cells(_terrain.bridge)
-    _tree_cells = _layer_cells(_terrain.trees)
-    _structure_cells = _layer_cells(_terrain.structures)
+    _water_cells = _cells_for_layer_key("water", _terrain.water_layer)
+    _farm_cells = _cells_for_layer_key("farm", _terrain.farm_layer)
+    _path_cells = _cells_for_layer_key("paths", _terrain.paths)
+    _bridge_cells = _cells_for_layer_key("bridge", _terrain.bridge)
+    _tree_cells = _cells_for_layer_key("trees", _terrain.trees)
+    _structure_cells = _cells_for_layer_key("structures", _terrain.structures)
+    _building_cells = _cells_for_layer_key("buildings", _terrain.buildings)
+    _cave_cells = _cells_for_layer_key("caves", _terrain.caves)
+    _landmark_cells = _cells_for_layer_key("landmarks", _terrain.landmarks)
+    _material_cells = _cells_for_layer_key("materials", _terrain.materials)
     _water_index = _index_cells(_water_cells)
     _farm_index = _index_cells(_farm_cells)
     _path_index = _index_cells(_path_cells)
     _bridge_index = _index_cells(_bridge_cells)
     _tree_index = _index_cells(_tree_cells)
     _structure_index = _index_cells(_structure_cells)
+    _building_index = _index_cells(_building_cells)
+    _cave_index = _index_cells(_cave_cells)
+    _landmark_index = _index_cells(_landmark_cells)
+    _material_index = _index_cells(_material_cells)
     _layer_cache_revision = _terrain.revision
     _draw_dirty = true
 
@@ -133,6 +150,11 @@ func _layer_cells(layer: TileMapLayer) -> Array:
         if cell is Vector2i:
             cells.append(cell)
     return cells
+
+func _cells_for_layer_key(layer_key: String, fallback_layer: TileMapLayer) -> Array:
+    if _terrain != null and _terrain.has_method("get_layer_cells"):
+        return _terrain.get_layer_cells(layer_key)
+    return _layer_cells(fallback_layer)
 
 func _index_cells(cells: Array) -> Dictionary:
     var index: Dictionary = {}
@@ -162,14 +184,21 @@ func _map_panel_center() -> Vector2:
 func _display_bounds() -> Rect2:
     if not is_instance_valid(_terrain):
         return Rect2(-1.0, -1.0, 2.0, 2.0)
-    if is_big_map and _focus_authored:
+    if (is_big_map and _focus_authored) or (not is_big_map and _minimap_uses_authored_bounds()):
         return _terrain.authored_bounds
     return _terrain.bounds
+
+func _minimap_uses_authored_bounds() -> bool:
+    if not is_instance_valid(_terrain):
+        return false
+    if not is_instance_valid(GameManager.player):
+        return true
+    return _terrain.authored_bounds.grow(256.0).has_point(GameManager.player.global_position)
 
 func _active_map_texture() -> Texture2D:
     if not is_instance_valid(_terrain):
         return null
-    if is_big_map and _focus_authored and _terrain.authored_map_texture != null:
+    if ((is_big_map and _focus_authored) or (not is_big_map and _minimap_uses_authored_bounds())) and _terrain.authored_map_texture != null:
         return _terrain.authored_map_texture
     return _terrain.map_texture
 
@@ -177,9 +206,15 @@ func _map_scale() -> float:
     if not is_instance_valid(_terrain):
         return 1.0
     if not is_big_map:
-        # The world can now be much larger than the authored village. Keep the
-        # minimap useful by showing a generous local area around the player.
-        return minf(size.x, size.y - 22.0) / 8000.0
+        # The minimap is the same authored chart as the big map, centered on
+        # the player and enlarged so nearby roads, buildings and cave mouths
+        # can be read while exploring. Outside the authored island it falls
+        # back to the broad world projection.
+        var display_bounds := _display_bounds()
+        var view_size := minf(size.x, maxf(size.y - 22.0, 1.0))
+        if _minimap_uses_authored_bounds():
+            return view_size / maxf(display_bounds.size.x, 1.0) * MINIMAP_ZOOM
+        return view_size / 8000.0 * 1.6
     var available := _map_view_rect().size
     var display_bounds := _display_bounds()
     return minf(available.x, available.y) / maxf(display_bounds.size.x, 1.0) * map_zoom
@@ -370,11 +405,16 @@ func _draw_layer_details(center: Vector2, factor: float) -> void:
     # indistinguishable pixel.
     var view := _map_view_rect()
     _draw_water_details(center, factor, view)
+    _draw_layer_cells(_water_index, center, factor, Color("#2f879b"), view)
     _draw_layer_cells(_farm_index, center, factor, Color("#8d5727"), view)
     _draw_layer_cells(_path_index, center, factor, Color("#d1aa75"), view)
     _draw_layer_cells(_bridge_index, center, factor, Color("#9a6235"), view)
     _draw_layer_cells(_tree_index, center, factor, Color("#2f653b"), view)
     _draw_layer_cells(_structure_index, center, factor, Color("#c9a269"), view)
+    _draw_layer_cells(_building_index, center, factor, Color("#d7aa68"), view)
+    _draw_layer_cells(_cave_index, center, factor, Color("#435d45"), view)
+    _draw_layer_cells(_landmark_index, center, factor, Color("#b0a68b"), view)
+    _draw_layer_cells(_material_index, center, factor, Color("#c88a4d"), view)
 
 func _draw_water_details(center: Vector2, factor: float, view: Rect2) -> void:
     var cell_px: float = 32.0 * factor
@@ -695,7 +735,7 @@ func _draw() -> void:
         # Minimap header
         draw_rect(Rect2(0, 0, size.x, 22), Color("#12202a"))
         draw_line(Vector2(0, 22), Vector2(size.x, 22), Color("#8a7143"), 1.0)
-        _label(Vector2(8, 16), "Nearby [M]", 11, Color("#ffe08a"))
+        _label(Vector2(8, 16), "Nearby · x%.1f [M]" % MINIMAP_ZOOM, 11, Color("#ffe08a"))
         var comp_x: float = size.x - 22.0
         draw_colored_polygon(PackedVector2Array([Vector2(comp_x, 4), Vector2(comp_x + 3, 11), Vector2(comp_x - 3, 11)]), Color("#e84a4a"))
         draw_colored_polygon(PackedVector2Array([Vector2(comp_x, 18), Vector2(comp_x + 3, 11), Vector2(comp_x - 3, 11)]), Color("#c8d0d6"))

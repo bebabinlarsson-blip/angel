@@ -1,8 +1,29 @@
 class_name ResourceNode
 extends Area2D
 
-## Procedural ground material. It can be collected by walking close to it or
-## by pressing the normal interaction key, with a lightweight nearby prompt.
+## Collectable ground material. Its visible icon is taken from the shared
+## environment TileSet; this script only owns pickup, respawn and feedback.
+
+const ENVIRONMENT_TILESET = preload("res://assets/tilesets/angel_environment_tileset.tres")
+const RESOURCE_TILE_SOURCES := {
+    "wood": 21,
+    "herb": 22,
+    "fiber": 22,
+    "mint": 22,
+    "lavender": 22,
+    "moon_petal": 22,
+    "mushroom": 23,
+    "iron_ore": 24,
+    "gold_ore": 24,
+    "coal": 24,
+    "stone": 25,
+    "crystal": 25,
+    "sunstone": 25,
+    "ancient_shard": 25,
+    "flower": 26,
+    "clover": 26,
+    "rose": 26,
+}
 
 @export var item_id: String = "wood"
 @export var item_name: String = "Wood"
@@ -22,6 +43,7 @@ var visibility_timer: float = 0.0
 var near_player: bool = false
 var camera_visible: bool = false
 var collision: CollisionShape2D = null
+var visual: Sprite2D = null
 var pickup_label: Label = null
 
 func _ready() -> void:
@@ -37,11 +59,30 @@ func _ready() -> void:
         collision.shape = shape
         add_child(collision)
 
+    visual = get_node_or_null("MaterialTile") as Sprite2D
+    if visual == null:
+        visual = Sprite2D.new()
+        visual.name = "MaterialTile"
+        visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+        add_child(visual)
+    _apply_environment_tile(visual)
+
     # Labels are created only while the player is close enough to read them.
     # Keeping dormant resources as lightweight Area2Ds removes hundreds of
     # idle Control nodes without changing the pickup experience.
-
     queue_redraw()
+
+func _apply_environment_tile(target: Sprite2D) -> void:
+    var source_id := int(RESOURCE_TILE_SOURCES.get(item_id, 25))
+    var source := ENVIRONMENT_TILESET.get_source(source_id) as TileSetAtlasSource
+    if source == null:
+        return
+    target.texture = source.texture
+    target.region_enabled = true
+    target.region_rect = Rect2(0, 0, 32, 32)
+    target.centered = true
+    if item_id == "gold_ore":
+        target.modulate = Color(1.18, 0.98, 0.52)
 
 func _ensure_pickup_label() -> void:
     if pickup_label != null:
@@ -114,6 +155,8 @@ func _process(delta: float) -> void:
     # resources remain fully available for pickup and respawn.
     if near_player or camera_visible:
         bob_time += delta
+        if visual:
+            visual.position.y = sin(bob_time * 2.4) * 1.5
         redraw_timer -= delta
         if redraw_timer <= 0.0:
             redraw_timer = 0.04
@@ -161,6 +204,8 @@ func _give_to_player(player: CharacterBody2D) -> void:
             collision.set_deferred("disabled", true)
         if pickup_label:
             pickup_label.visible = false
+        if visual:
+            visual.visible = false
         EventBus.show_notification.emit("Collected %s x%d" % [item_name, quantity])
 
 func _respawn() -> void:
@@ -169,6 +214,8 @@ func _respawn() -> void:
     set_deferred("monitoring", true)
     if collision:
         collision.set_deferred("disabled", false)
+    if visual:
+        visual.visible = true
     queue_redraw()
 
 func _draw() -> void:
@@ -178,117 +225,9 @@ func _draw() -> void:
         var pulse := (sin(bob_time * 5.0) + 1.0) * 0.5
         draw_circle(Vector2(0, 5), 22.0 + pulse * 4.0, Color(0.98, 0.84, 0.35, 0.08))
         draw_arc(Vector2(0, 5), 24.0 + pulse * 4.0, 0.0, TAU, 24, Color(1.0, 0.88, 0.45, 0.75), 2.0)
-    var bob := sin(bob_time * 2.4) * 1.5
+    # The material sprite above is a real tile from the shared TileSet. This
+    # parent draw only supplies a ground shadow and interaction highlight.
     _draw_ground_ellipse(Vector2(0, 10), Vector2(14, 5), Color(0.04, 0.10, 0.08, 0.28))
-    draw_set_transform(Vector2(0, bob))
-    match item_id:
-        "wood":
-            draw_line(Vector2(-13, 5), Vector2(12, -7), Color("#563921"), 8.0)
-            draw_line(Vector2(-12, 3), Vector2(13, -9), Color("#b8753c"), 5.0)
-            draw_circle(Vector2(-13, 5), 5.0, Color("#d39554"))
-        "stone", "iron_ore", "gold_ore", "coal":
-            var rock_color := Color("#8b929b")
-            if item_id == "iron_ore":
-                rock_color = Color("#9b6870")
-            elif item_id == "gold_ore":
-                rock_color = Color("#e7bb48")
-            elif item_id == "coal":
-                rock_color = Color("#30363d")
-            draw_colored_polygon(PackedVector2Array([Vector2(-13, 6), Vector2(-10, -7), Vector2(0, -13), Vector2(13, -5), Vector2(10, 7), Vector2(-3, 11)]), rock_color)
-            draw_line(Vector2(-6, -3), Vector2(3, -7), Color(1, 1, 1, 0.35), 2.0)
-        "herb", "fiber", "moon_petal", "mint", "lavender":
-            draw_line(Vector2(0, 10), Vector2(0, -8), Color("#367243"), 3.0)
-            for side in [-1.0, 1.0]:
-                draw_line(Vector2(0, 2), Vector2(side * 10, -4), Color("#61b75d"), 3.0)
-                draw_line(Vector2(0, -3), Vector2(side * 7, -10), Color("#8ad66b"), 3.0)
-            if item_id == "moon_petal":
-                draw_circle(Vector2(0, -10), 5.0, Color("#b8a7ff"))
-            elif item_id == "lavender":
-                draw_circle(Vector2(0, -10), 5.0, Color("#a681d6"))
-            elif item_id == "mint":
-                draw_circle(Vector2(0, -10), 5.0, Color("#a2e48a"))
-        "plant", "reeds", "wheat":
-            var stem_color := Color("#3c8752") if item_id == "plant" else Color("#5c9a61")
-            if item_id == "wheat":
-                stem_color = Color("#d0a94d")
-            for x in [-8.0, -2.0, 5.0, 10.0]:
-                var lean: float = x * 0.35
-                draw_line(Vector2(x, 11), Vector2(x + lean, -12), stem_color, 3.0)
-                draw_line(Vector2(x + lean, -5), Vector2(x + lean + 7.0, -9), Color("#77bb69"), 2.0)
-        "flower", "clover", "rose":
-            var flower_color := Color("#f29aaf") if item_id == "flower" else Color("#d9d765")
-            if item_id == "rose":
-                flower_color = Color("#e74f67")
-            draw_line(Vector2(0, 11), Vector2(0, -7), Color("#3b8248"), 3.0)
-            var petal_center := Vector2(0, -9)
-            for petal_offset in [Vector2(-5, 0), Vector2(5, 0), Vector2(0, -5), Vector2(0, 5)]:
-                draw_circle(petal_center + petal_offset, 3.6, flower_color)
-            draw_circle(petal_center, 2.5, Color("#f8d36a"))
-        "apple", "orange", "pear", "banana":
-            var fruit_color := Color("#d94d49")
-            if item_id == "orange":
-                fruit_color = Color("#ee963e")
-            elif item_id == "pear":
-                fruit_color = Color("#c6d85b")
-            elif item_id == "banana":
-                fruit_color = Color("#f4d15b")
-            draw_line(Vector2(0, -4), Vector2(2, -12), Color("#5a3a25"), 2.0)
-            draw_line(Vector2(1, -9), Vector2(8, -12), Color("#5f9b4c"), 3.0)
-            if item_id == "banana":
-                draw_arc(Vector2(0, 0), 10.0, -0.7, 1.5, 16, fruit_color, 5.0)
-            elif item_id == "pear":
-                draw_circle(Vector2(0, 1), 8.0, fruit_color)
-                draw_circle(Vector2(0, -5), 5.5, fruit_color)
-            else:
-                draw_circle(Vector2(0, 0), 8.5, fruit_color)
-            draw_circle(Vector2(-3, -3), 2.0, Color(1, 1, 1, 0.35))
-        "tomato", "coconut", "watermelon":
-            var garden_fruit_color := Color("#d84d49")
-            if item_id == "coconut":
-                garden_fruit_color = Color("#8d5e3d")
-            elif item_id == "watermelon":
-                garden_fruit_color = Color("#5cae61")
-            draw_circle(Vector2(0, 0), 10.0, garden_fruit_color)
-            if item_id == "watermelon":
-                draw_circle(Vector2(0, 0), 6.5, Color("#e86565"))
-                draw_arc(Vector2(0, 0), 8.0, 0.3, 2.8, 12, Color("#2d7548"), 1.5)
-            elif item_id == "tomato":
-                draw_line(Vector2(-4, -8), Vector2(0, -13), Color("#4e8e4e"), 2.0)
-                draw_line(Vector2(0, -13), Vector2(5, -8), Color("#4e8e4e"), 2.0)
-            else:
-                draw_circle(Vector2(-3, -3), 2.0, Color("#d5a471"))
-        "carrot":
-            draw_line(Vector2(0, -2), Vector2(0, -12), Color("#4f9b4c"), 2.0)
-            draw_line(Vector2(0, -8), Vector2(-5, -12), Color("#6db25d"), 2.0)
-            draw_line(Vector2(0, -8), Vector2(5, -12), Color("#6db25d"), 2.0)
-            draw_colored_polygon(PackedVector2Array([Vector2(-5, -2), Vector2(5, -2), Vector2(1, 10), Vector2(0, 13), Vector2(-1, 10)]), Color("#e88943"))
-            draw_line(Vector2(-2, 1), Vector2(2, 8), Color("#ffd08a"), 1.5)
-        "grapes":
-            draw_line(Vector2(0, 10), Vector2(0, -10), Color("#4f874a"), 3.0)
-            draw_line(Vector2(0, -6), Vector2(8, -11), Color("#6daa51"), 3.0)
-            for grape_pos in [Vector2(-5, -1), Vector2(5, -1), Vector2(-5, 6), Vector2(5, 6), Vector2(0, 12)]:
-                draw_circle(grape_pos, 4.0, Color("#7953b7"))
-                draw_circle(grape_pos + Vector2(-1, -1), 1.2, Color(1, 1, 1, 0.35))
-        "mushroom":
-            draw_rect(Rect2(-3, -1, 6, 11), Color("#f0d8a1"))
-            draw_circle(Vector2(0, -3), 10.0, Color("#c95d5d"))
-            draw_circle(Vector2(-4, -6), 2.0, Color("#ffe8b8"))
-            draw_circle(Vector2(4, -2), 2.0, Color("#ffe8b8"))
-        "berry":
-            draw_line(Vector2(0, 9), Vector2(0, -7), Color("#4f884b"), 3.0)
-            draw_circle(Vector2(-6, -3), 5.0, Color("#c53d63"))
-            draw_circle(Vector2(5, -6), 5.0, Color("#e15872"))
-        "crystal", "sunstone", "ancient_shard":
-            var crystal_color := Color("#65dbe8")
-            if item_id == "sunstone":
-                crystal_color = Color("#f4ae43")
-            elif item_id == "ancient_shard":
-                crystal_color = Color("#a77aff")
-            draw_colored_polygon(PackedVector2Array([Vector2(-9, 8), Vector2(-6, -9), Vector2(0, -15), Vector2(8, -7), Vector2(10, 8)]), crystal_color)
-            draw_line(Vector2(-2, -9), Vector2(0, 5), Color(1, 1, 1, 0.65), 2.0)
-        _:
-            draw_circle(Vector2.ZERO, 9.0, Color("#8ed15d"))
-    draw_set_transform(Vector2.ZERO)
 
 func _draw_ground_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
     draw_set_transform(center, 0.0, radii)

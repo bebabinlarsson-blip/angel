@@ -123,27 +123,32 @@ func _ensure_village_content(world_node: Node2D) -> void:
 		interiors.name = "Interiors"
 		interiors.y_sort_enabled = true
 		world_node.add_child(interiors)
+	# Doorway positions are authored in scenes/world/interior_entries.tscn.
+	# Keep the old construction path only for minimal test scenes that do not
+	# ship the authored entry scene.
+	if interiors.get_child_count() > 0:
+		return
 
 	var entry_data: Array[Dictionary] = [
 		{
 			"id": "mine",
 			"name": "Northern Mine",
 			"scene": "res://scenes/interiors/mine.tscn",
-			"position": Vector2(-2112.0, -2016.0),
+				"position": Vector2(-2160.0, -2344.0),
 			"spawn": Vector2(0.0, 180.0),
 		},
 		{
 			"id": "abandoned_church",
 			"name": "Abandoned Church",
 			"scene": "res://scenes/interiors/abandoned_church.tscn",
-			"position": Vector2(512.0, -704.0),
+				"position": Vector2(528.0, -616.0),
 			"spawn": Vector2(0.0, 180.0),
 		},
 		{
 			"id": "village_house",
 			"name": "Guest House",
 			"scene": "res://scenes/interiors/generic_house.tscn",
-			"position": Vector2(256.0, -96.0),
+				"position": Vector2(256.0, -72.0),
 			"spawn": Vector2(0.0, 180.0),
 		},
 	]

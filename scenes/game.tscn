@@ -1,7 +1,7 @@
 [gd_scene format=4 uid="uid://f4plvadsq1vd"]
 
 [ext_resource type="Script" uid="uid://jbyoa1864v6r" path="res://scripts/game.gd" id="1_ssvqc"]
-[ext_resource type="TileSet" uid="uid://be3kkygdic263" path="res://assets/tilesets/master_tileset.tres" id="2_kvpfn"]
+[ext_resource type="TileSet" path="res://assets/tilesets/angel_environment_tileset.tres" id="2_kvpfn"]
 [ext_resource type="Script" uid="uid://cungptn5dwedf" path="res://scripts/world/cooking_pot.gd" id="3_e1j6l"]
 [ext_resource type="Script" uid="uid://ehf2ikkcfbdb" path="res://scripts/npcs/quest_npc.gd" id="4_pl11u"]
 [ext_resource type="SpriteFrames" uid="uid://bod7cdgjnvhda" path="res://assets/sprites/npc_cook_frames.tres" id="5_bhx41"]
@@ -26,6 +26,8 @@
 [ext_resource type="Texture2D" uid="uid://dbsm4gdxvrbh5" path="res://assets/sprites/items/item_wood.png" id="18_v2yb1"]
 [ext_resource type="Texture2D" uid="uid://bb6x82nheias1" path="res://assets/sprites/items/item_herb.png" id="19_js0lu"]
 [ext_resource type="Texture2D" uid="uid://dgj6js7mp8lo8" path="res://assets/sprites/items/item_mushroom.png" id="20_gxtfn"]
+[ext_resource type="PackedScene" path="res://scenes/world/authored_environment.tscn" id="21_environment"]
+[ext_resource type="PackedScene" path="res://scenes/world/interior_entries.tscn" id="22_entries"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_suyxu"]
 radius = 12.0
@@ -96,6 +98,10 @@ script = ExtResource("1_ssvqc")
 
 [node name="World" type="Node2D" parent="." unique_id=1123355614]
 y_sort_enabled = true
+
+[node name="AuthoredEnvironment" parent="World" instance=ExtResource("21_environment")]
+
+[node name="Interiors" parent="World" instance=ExtResource("22_entries")]
 
 [node name="GroundLayer" type="TileMapLayer" parent="World" unique_id=1421161525]
 z_index = -100

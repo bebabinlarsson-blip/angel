@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "godot-ai": {
+      "command": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/uvx",
+      "args": [
+        "--isolated",
+        "--no-config",
+        "--no-env-file",
+        "--no-sources",
+        "--no-build",
+        "--index",
+        "https://pypi.org/simple",
+        "--default-index",
+        "https://pypi.org/simple",
+        "--find-links",
+        "https://pypi.org/simple/godot-ai/",
+        "--link-mode",
+        "copy",
+        "--from",
+        "godot-ai==4.0.4",
+        "godot-ai",
+        "attach",
+        "--port",
+        "8000",
+        "--ws-port",
+        "9500"
+      ],
+      "cwd": "/workspace/scratch/24e6c4a0ac12/angel",
+      "env": {
+        "FASTMCP_CHECK_FOR_UPDATES": "off",
+        "GODOT_AI_DISABLE_TELEMETRY": "true"
+      }
+    }
+  }
+}

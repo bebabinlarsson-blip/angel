@@ -11,9 +11,14 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/inventory.tscn" id="9_inventory"]
 [ext_resource type="PackedScene" path="res://scenes/ui/quest_menu.tscn" id="10_quest_menu"]
 [ext_resource type="PackedScene" path="res://scenes/ui/game_over.tscn" id="11_game_over"]
+[ext_resource type="PackedScene" path="res://scenes/interiors/mine_tiles.tscn" id="12_tiles"]
+[ext_resource type="Script" path="res://scripts/world/mining_rock.gd" id="13_mining"]
 
 [sub_resource type="CircleShape2D" id="CircleShape_exit"]
 radius = 36.0
+
+[sub_resource type="CircleShape2D" id="CircleShape_mine_rock"]
+radius = 24.0
 
 [node name="MineInterior" type="Node2D"]
 script = ExtResource("1_interior")
@@ -26,6 +31,63 @@ room_size = Vector2(960, 640)
 script = ExtResource("2_visual")
 theme_kind = "mine"
 room_size = Vector2(960, 640)
+visible = false
+
+[node name="InteriorTilemap" parent="." instance=ExtResource("12_tiles")]
+
+[node name="InteriorMining" type="Node2D" parent="."]
+y_sort_enabled = true
+metadata/authored_mining_nodes = "scene-authored mining spots; no runtime placement"
+
+[node name="MineRock_1" type="StaticBody2D" parent="InteriorMining"]
+position = Vector2(-300, -190)
+script = ExtResource("13_mining")
+ore_type = "iron_ore"
+ore_name = "Iron Ore"
+ore_count = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteriorMining/MineRock_1"]
+shape = SubResource("CircleShape_mine_rock")
+
+[node name="MineRock_2" type="StaticBody2D" parent="InteriorMining"]
+position = Vector2(300, -190)
+script = ExtResource("13_mining")
+ore_type = "iron_ore"
+ore_name = "Iron Ore"
+ore_count = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteriorMining/MineRock_2"]
+shape = SubResource("CircleShape_mine_rock")
+
+[node name="MineRock_3" type="StaticBody2D" parent="InteriorMining"]
+position = Vector2(-300, 25)
+script = ExtResource("13_mining")
+ore_type = "iron_ore"
+ore_name = "Iron Ore"
+ore_count = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteriorMining/MineRock_3"]
+shape = SubResource("CircleShape_mine_rock")
+
+[node name="MineRock_4" type="StaticBody2D" parent="InteriorMining"]
+position = Vector2(300, 25)
+script = ExtResource("13_mining")
+ore_type = "iron_ore"
+ore_name = "Iron Ore"
+ore_count = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteriorMining/MineRock_4"]
+shape = SubResource("CircleShape_mine_rock")
+
+[node name="MineRock_5" type="StaticBody2D" parent="InteriorMining"]
+position = Vector2(0, -250)
+script = ExtResource("13_mining")
+ore_type = "coal"
+ore_name = "Coal"
+ore_count = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteriorMining/MineRock_5"]
+shape = SubResource("CircleShape_mine_rock")
 
 [node name="Player" parent="." instance=ExtResource("4_player")]
 position = Vector2(0, 180)

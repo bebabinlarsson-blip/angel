@@ -9,6 +9,12 @@ var structures: TileMapLayer
 var decor: TileMapLayer
 var water_layer: TileMapLayer
 var farm_layer: TileMapLayer
+var buildings: TileMapLayer
+var caves: TileMapLayer
+var landmarks: TileMapLayer
+var materials: TileMapLayer
+var objects: TileMapLayer
+var _layer_sets: Dictionary = {}
 var map_texture: ImageTexture
 var authored_map_texture: ImageTexture
 var bounds := Rect2(-3520, -3520, 7040, 7040)
@@ -27,17 +33,91 @@ var village_center: Vector2 = Vector2.ZERO
 var village_radius: float = 500.0
 const VILLAGE_BOUNDARY_MARGIN: float = 24.0
 
+func _collect_world_layers(world: Node, layer_name: String) -> Array:
+    var result: Array = []
+    var direct := world.get_node_or_null(layer_name) as TileMapLayer
+    if direct != null:
+        result.append(direct)
+    var authored_root := world.get_node_or_null("AuthoredEnvironment")
+    if authored_root != null:
+        var authored := authored_root.get_node_or_null(layer_name) as TileMapLayer
+        if authored != null and not result.has(authored):
+            result.append(authored)
+    return result
+
+func _primary_world_layer(world: Node, layer_name: String) -> TileMapLayer:
+    var authored_root := world.get_node_or_null("AuthoredEnvironment")
+    if authored_root != null:
+        var authored := authored_root.get_node_or_null(layer_name) as TileMapLayer
+        if authored != null:
+            return authored
+    return world.get_node_or_null(layer_name) as TileMapLayer
+
+func _append_unique_layers(target: Array, additions: Array) -> void:
+    for layer_value in additions:
+        if layer_value is TileMapLayer and not target.has(layer_value):
+            target.append(layer_value)
+
+func get_layer_cells(layer_key: String) -> Array:
+    var cells: Array = []
+    var seen: Dictionary = {}
+    var layers: Array = _layer_sets.get(layer_key, [])
+    for layer_value in layers:
+        if not (layer_value is TileMapLayer):
+            continue
+        var layer := layer_value as TileMapLayer
+        if not is_instance_valid(layer):
+            continue
+        for cell in layer.get_used_cells():
+            if cell is Vector2i and not seen.has(cell):
+                seen[cell] = true
+                cells.append(cell)
+    return cells
+
+func _has_layer_cell(layer_key: String, cell: Vector2i) -> bool:
+    var layers: Array = _layer_sets.get(layer_key, [])
+    for layer_value in layers:
+        if layer_value is TileMapLayer and is_instance_valid(layer_value):
+            var layer := layer_value as TileMapLayer
+            if layer.get_cell_source_id(cell) != -1:
+                return true
+    return false
+
 func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     z_index = -200
     add_to_group("island_world")
-    ground = world.get_node_or_null("GroundLayer")
-    paths = world.get_node_or_null("PathLayer")
-    trees = world.get_node_or_null("TreeLayer")
-    bridge = world.get_node_or_null("BridgeLayer")
-    structures = world.get_node_or_null("StructuresLayer")
-    decor = world.get_node_or_null("DecorLayer")
-    water_layer = world.get_node_or_null("WaterLayer")
-    farm_layer = world.get_node_or_null("FarmLayer")
+    ground = _primary_world_layer(world, "GroundLayer")
+    paths = _primary_world_layer(world, "PathLayer")
+    trees = _primary_world_layer(world, "TreeLayer")
+    bridge = _primary_world_layer(world, "BridgeLayer")
+    structures = _primary_world_layer(world, "StructuresLayer")
+    decor = _primary_world_layer(world, "DecorLayer")
+    water_layer = _primary_world_layer(world, "WaterLayer")
+    farm_layer = _primary_world_layer(world, "FarmLayer")
+    buildings = _primary_world_layer(world, "BuildingLayer")
+    caves = _primary_world_layer(world, "CaveLayer")
+    landmarks = _primary_world_layer(world, "LandmarkLayer")
+    materials = _primary_world_layer(world, "MaterialLayer")
+    objects = _primary_world_layer(world, "ObjectLayer")
+
+    _layer_sets.clear()
+    _layer_sets["ground"] = _collect_world_layers(world, "GroundLayer")
+    _layer_sets["paths"] = _collect_world_layers(world, "PathLayer")
+    _layer_sets["trees"] = _collect_world_layers(world, "TreeLayer")
+    _layer_sets["bridge"] = _collect_world_layers(world, "BridgeLayer")
+    _layer_sets["decor"] = _collect_world_layers(world, "DecorLayer")
+    _layer_sets["water"] = _collect_world_layers(world, "WaterLayer")
+    _layer_sets["farm"] = _collect_world_layers(world, "FarmLayer")
+    var structure_layers: Array = _collect_world_layers(world, "StructuresLayer")
+    _append_unique_layers(structure_layers, _collect_world_layers(world, "BuildingLayer"))
+    _append_unique_layers(structure_layers, _collect_world_layers(world, "CaveLayer"))
+    _append_unique_layers(structure_layers, _collect_world_layers(world, "LandmarkLayer"))
+    _layer_sets["structures"] = structure_layers
+    _layer_sets["buildings"] = _collect_world_layers(world, "BuildingLayer")
+    _layer_sets["caves"] = _collect_world_layers(world, "CaveLayer")
+    _layer_sets["landmarks"] = _collect_world_layers(world, "LandmarkLayer")
+    _layer_sets["materials"] = _collect_world_layers(world, "MaterialLayer")
+    _layer_sets["objects"] = _collect_world_layers(world, "ObjectLayer")
     y_sort_enabled = true
 
     var village_data: Dictionary = config.get("village", {})
@@ -110,8 +190,10 @@ func is_water(p: Vector2) -> bool:
     if not is_instance_valid(ground):
         return false
     var cell: Vector2i = ground.local_to_map(ground.to_local(p))
-    if is_instance_valid(bridge) and bridge.get_cell_source_id(cell) != -1:
+    if _has_layer_cell("bridge", cell):
         return false
+    if _has_layer_cell("water", cell):
+        return true
     return not land.has(cell)
 
 func is_inside_playable_area(p: Vector2) -> bool:
@@ -155,9 +237,9 @@ func is_clear(p: Vector2, clearance: float = 36.0) -> bool:
     if not is_instance_valid(ground):
         return is_inside_playable_area(p)
     var cell: Vector2i = ground.local_to_map(ground.to_local(p))
-    if authored_bounds.grow(64.0).has_point(p) and is_instance_valid(paths) and paths.get_cell_source_id(cell) != -1:
+    if authored_bounds.grow(64.0).has_point(p) and _has_layer_cell("paths", cell):
         return false
-    if authored_bounds.grow(64.0).has_point(p) and is_instance_valid(structures) and structures.get_cell_source_id(cell) != -1:
+    if authored_bounds.grow(64.0).has_point(p) and _has_layer_cell("structures", cell):
         return false
     for spot: Vector2 in reserved:
         if p.distance_to(spot) < clearance + 72.0:
@@ -165,10 +247,10 @@ func is_clear(p: Vector2, clearance: float = 36.0) -> bool:
     for offset: Vector2 in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:
         if is_water(p + offset * clearance):
             return false
-    if authored_bounds.grow(64.0).has_point(p) and is_instance_valid(trees):
+    if authored_bounds.grow(64.0).has_point(p):
         for dx in range(-2, 3):
             for dy in range(-2, 3):
-                if trees.get_cell_source_id(cell + Vector2i(dx, dy)) != -1:
+                if _has_layer_cell("trees", cell + Vector2i(dx, dy)):
                     return false
     return true
 
@@ -323,15 +405,27 @@ func _build_map_texture(target_bounds: Rect2, include_outer_land: bool, _water: 
 
     # 2. Decorative terrain, then the authored water, farms, paths and bridge.
     # Each layer is painted in the same order used by the world visual.
-    _paint_map_layer(img, decor, Color("#476e3b"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "decor", Color("#476e3b"), target_bounds, MAP_SIZE, stamp_radius)
     _paint_ocean_map_layer(img, target_bounds, MAP_SIZE, Color("#276b80"))
-    _paint_map_layer(img, farm, Color("#673e1e"), target_bounds, MAP_SIZE, stamp_radius)
-    _paint_map_layer(img, paths, Color("#c39e68"), target_bounds, MAP_SIZE, stamp_radius)
-    _paint_map_layer(img, bridge, Color("#835327"), target_bounds, MAP_SIZE, stamp_radius)
-    _paint_map_layer(img, trees, Color("#264c2f"), target_bounds, MAP_SIZE, stamp_radius)
-    _paint_map_layer(img, structures, Color("#8b8277"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "water", Color("#2f879b"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "farm", Color("#673e1e"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "paths", Color("#c39e68"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "bridge", Color("#835327"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "trees", Color("#264c2f"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "structures", Color("#8b8277"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "buildings", Color("#c9a269"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "caves", Color("#435d45"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "landmarks", Color("#b0a68b"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "materials", Color("#c88a4d"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_map_layers(img, "objects", Color("#c17a43"), target_bounds, MAP_SIZE, stamp_radius)
 
     return ImageTexture.create_from_image(img)
+
+func _paint_map_layers(image: Image, layer_key: String, color: Color, target_bounds: Rect2, map_size: int, stamp_radius: int) -> void:
+    var layers: Array = _layer_sets.get(layer_key, [])
+    for layer_value in layers:
+        if layer_value is TileMapLayer:
+            _paint_map_layer(image, layer_value as TileMapLayer, color, target_bounds, map_size, stamp_radius)
 
 func _paint_map_layer(image: Image, layer: TileMapLayer, color: Color, target_bounds: Rect2, map_size: int, stamp_radius: int) -> void:
     if layer == null or not is_instance_valid(layer):

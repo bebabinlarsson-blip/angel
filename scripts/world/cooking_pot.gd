@@ -2,6 +2,7 @@ class_name CookingPot
 extends StaticBody2D
 
 const ITEM_ICON_SCRIPT = preload("res://scripts/ui/item_icon.gd")
+const ENVIRONMENT_TILESET = preload("res://assets/tilesets/angel_environment_tileset.tres")
 
 var interaction_label: Label = null
 
@@ -9,7 +10,7 @@ var cooking_ui_layer: CanvasLayer = null
 var recipe_list: VBoxContainer = null
 var close_btn: Button = null
 var cooking_system: CookingSystem = null
-var visual: CustomDraw2D = null
+var visual: Sprite2D = null
 
 func _ready() -> void:
 	# The recipe panel pauses gameplay, but must still receive Escape and button
@@ -26,13 +27,21 @@ func _ready() -> void:
 		collision.shape = shape
 		add_child(collision)
 
-	var sprite := AnimatedSprite2D.new()
-	sprite.name = "CampfireSprite"
-	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	sprite.sprite_frames = load("res://assets/sprites/world/campfire_frames.tres")
-	sprite.animation = "idle"
-	sprite.play("idle")
-	add_child(sprite)
+	# The normal overworld hearth is a placed source-27 tile in
+	# AuthoredEnvironment/ObjectLayer. Minimal/test scenes still receive the
+	# same tile-backed sprite as a fallback.
+	var authored_objects := get_parent().get_node_or_null("AuthoredEnvironment/ObjectLayer") as TileMapLayer
+	if authored_objects == null or authored_objects.get_cell_source_id(Vector2i.ZERO) == -1:
+		var sprite := Sprite2D.new()
+		sprite.name = "CampfireSprite"
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		var campfire_source := ENVIRONMENT_TILESET.get_source(27) as TileSetAtlasSource
+		if campfire_source != null:
+			sprite.texture = campfire_source.texture
+			sprite.region_enabled = true
+			sprite.region_rect = Rect2(0, 0, 32, 32)
+		visual = sprite
+		add_child(sprite)
 	
 	if not has_node("Embers"):
 		VFX.campfire_embers(self)
