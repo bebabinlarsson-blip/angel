@@ -1,17 +1,42 @@
 class_name ItemIcon
 extends Control
 
-## Small procedural item artwork used by every inventory and cooking recipe slot.
-## It keeps the UI readable even when a new material has no imported texture yet.
-@export var item_id: String = ""
+const TILESET_VISUAL_SCRIPT = preload("res://scripts/world/tileset_visual.gd")
+
+## Atlas-backed item artwork with a procedural fallback for dishes and tools
+## that do not have a matching imported tile.
+var _item_id: String = ""
+@export var item_id: String:
+	get:
+		return _item_id
+	set(value):
+		_item_id = value
+		if is_node_ready():
+			call_deferred("_sync_atlas_visual")
 @export var item_type: int = 0
+var atlas_visual: TextureRect = null
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if size.x <= 0.0 or size.y <= 0.0:
 		size = Vector2(48.0, 48.0)
+	_sync_atlas_visual()
 	queue_redraw()
+
+
+func _sync_atlas_visual() -> void:
+	if atlas_visual == null:
+		atlas_visual = TextureRect.new()
+		atlas_visual.name = "TileSetItemVisual"
+		atlas_visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		atlas_visual.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		atlas_visual.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		add_child(atlas_visual)
+	atlas_visual.position = Vector2.ZERO
+	atlas_visual.size = size
+	atlas_visual.texture = TILESET_VISUAL_SCRIPT.texture_for_item(item_id)
+	atlas_visual.visible = atlas_visual.texture != null
 
 func _draw() -> void:
 	var draw_size: float = minf(size.x, size.y)
@@ -20,6 +45,9 @@ func _draw() -> void:
 	var icon_scale: float = draw_size / 64.0
 	draw_set_transform(size * 0.5, 0.0, Vector2.ONE * icon_scale)
 	draw_circle(Vector2(0.0, 24.0), 15.0, Color(0.01, 0.03, 0.05, 0.42))
+	if atlas_visual != null and atlas_visual.visible and atlas_visual.texture != null:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
 
 	if item_type == 1:
 		_draw_sword()
