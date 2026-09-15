@@ -2,6 +2,7 @@ class_name CollectableItem
 extends Area2D
 
 const ITEM_ICON_SCRIPT = preload("res://scripts/ui/item_icon.gd")
+const TILESET_VISUAL_SCRIPT = preload("res://scripts/world/tileset_visual.gd")
 
 @export var item_id: String = "wood"
 @export var item_name: String = "Wood"
@@ -60,6 +61,17 @@ func _ready() -> void:
 			add_child(icon)
 			visual = icon
 
+
+func _apply_tile_visual() -> void:
+    var texture := TILESET_VISUAL_SCRIPT.texture_for_item(item_id)
+    if texture == null or not (visual is Sprite2D):
+        return
+    var sprite := visual as Sprite2D
+    sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+    sprite.texture = texture
+    sprite.scale = Vector2.ONE * TILESET_VISUAL_SCRIPT.scale_for_item(item_id)
+
+	_apply_tile_visual()
 	pickup_label = Label.new()
 	pickup_label.name = "PickupLabel"
 	pickup_label.custom_minimum_size = Vector2(144, 24)
