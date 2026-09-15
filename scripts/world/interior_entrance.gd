@@ -62,70 +62,70 @@ func hide_interaction_hint() -> void:
 
 
 func _tile_source_for_kind() -> int:
-    match interior_kind:
-        "cook":
-            return 30 # house_chef from the shared atlas
-        "smith":
-            return 34 # house_stone from the shared atlas
-        "market":
-            return 29 # house_carpenter from the shared atlas
-        "church":
-            return 36 # cottage_stone from the shared atlas
-        "mine":
-            return 39 # rock_cluster from the shared atlas
-        _:
-            return 28 # house_blue from the shared atlas
+	match interior_kind:
+		"cook":
+			return 30 # house_chef from the shared atlas
+		"smith":
+			return 34 # house_stone from the shared atlas
+		"market":
+			return 29 # house_carpenter from the shared atlas
+		"church":
+			return 36 # cottage_stone from the shared atlas
+		"mine":
+			return 39 # rock_cluster from the shared atlas
+		_:
+			return 28 # house_blue from the shared atlas
 
 func _ensure_tile_visual() -> void:
-    if tile_visual == null:
-        tile_visual = Sprite2D.new()
-        tile_visual.name = "TileSetVisual"
-        tile_visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-        tile_visual.z_index = -1
-        add_child(tile_visual)
-    var world_tileset := load("res://assets/tilesets/angel_world_tileset.tres") as TileSet
-    if world_tileset == null:
-        return
-    var source := world_tileset.get_source(_tile_source_for_kind()) as TileSetAtlasSource
-    if source == null or source.texture == null:
-        return
-    var atlas_texture := AtlasTexture.new()
-    atlas_texture.atlas = source.texture
-    atlas_texture.region = Rect2(Vector2.ZERO, source.texture.get_size())
-    tile_visual.texture = atlas_texture
-    if interior_kind == "mine":
-        tile_visual.position = Vector2(0.0, -8.0)
-        tile_visual.scale = Vector2(2.1, 2.1)
-    else:
-        tile_visual.position = Vector2(0.0, -40.0)
-        tile_visual.scale = Vector2(0.72, 0.72)
-    tile_visual.visible = true
+	if tile_visual == null:
+		tile_visual = Sprite2D.new()
+		tile_visual.name = "TileSetVisual"
+		tile_visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		tile_visual.z_index = -1
+		add_child(tile_visual)
+	var world_tileset := load("res://assets/tilesets/angel_world_tileset.tres") as TileSet
+	if world_tileset == null:
+		return
+	var source := world_tileset.get_source(_tile_source_for_kind()) as TileSetAtlasSource
+	if source == null or source.texture == null:
+		return
+	var atlas_texture := AtlasTexture.new()
+	atlas_texture.atlas = source.texture
+	atlas_texture.region = Rect2(Vector2.ZERO, source.texture.get_size())
+	tile_visual.texture = atlas_texture
+	if interior_kind == "mine":
+		tile_visual.position = Vector2(0.0, -8.0)
+		tile_visual.scale = Vector2(2.1, 2.1)
+	else:
+		tile_visual.position = Vector2(0.0, -40.0)
+		tile_visual.scale = Vector2(0.72, 0.72)
+	tile_visual.visible = true
 
 func _draw() -> void:
-    if interior_kind == "mine":
-        draw_ellipse_shadow(Vector2(0.0, 20.0), Vector2(42.0, 12.0), Color(0.02, 0.04, 0.06, 0.40))
-        draw_colored_polygon(PackedVector2Array([
-            Vector2(-34.0, 16.0), Vector2(-30.0, -10.0), Vector2(-18.0, -30.0),
-            Vector2(0.0, -38.0), Vector2(18.0, -30.0), Vector2(30.0, -10.0),
-            Vector2(34.0, 16.0)
-        ]), Color("#242b39"))
-        draw_arc(Vector2(0.0, 12.0), 29.0, PI, TAU, 24, Color("#b98651"), 4.0)
-        draw_rect(Rect2(-18.0, 8.0, 36.0, 20.0), Color("#10161d"))
-        draw_circle(Vector2(0.0, -14.0), 5.0, Color("#f6c84f"))
-        return
-    if tile_visual == null or not tile_visual.visible:
-        # Keep a visible fallback for minimal/test scenes if an imported
-        # atlas cannot be loaded.
-        draw_ellipse_shadow(Vector2(0.0, 16.0), Vector2(30.0, 10.0), Color(0.02, 0.04, 0.06, 0.34))
-        draw_rect(Rect2(-24.0, -26.0, 48.0, 44.0), Color("#6b432f"))
-        draw_rect(Rect2(-20.0, -22.0, 40.0, 40.0), Color("#a86b42"))
-        draw_rect(Rect2(-21.0, -23.0, 42.0, 42.0), Color("#f0cb77"), false, 2.0)
-        var roof := PackedVector2Array([Vector2(-31.0, -23.0), Vector2(0.0, -48.0), Vector2(31.0, -23.0)])
-        draw_colored_polygon(roof, Color("#8d4d45"))
-        draw_polyline(PackedVector2Array([roof[0], roof[1], roof[2], roof[0]]), Color("#492d2a"), 2.0)
-    draw_ellipse_shadow(Vector2(0.0, 14.0), Vector2(27.0, 8.0), Color(0.02, 0.04, 0.06, 0.30))
-    draw_rect(Rect2(-8.0, -9.0, 16.0, 18.0), Color("#51352d"))
-    draw_circle(Vector2(4.0, -1.0), 2.0, Color("#ffe18a"))
+	if interior_kind == "mine":
+		draw_ellipse_shadow(Vector2(0.0, 20.0), Vector2(42.0, 12.0), Color(0.02, 0.04, 0.06, 0.40))
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(-34.0, 16.0), Vector2(-30.0, -10.0), Vector2(-18.0, -30.0),
+			Vector2(0.0, -38.0), Vector2(18.0, -30.0), Vector2(30.0, -10.0),
+			Vector2(34.0, 16.0)
+		]), Color("#242b39"))
+		draw_arc(Vector2(0.0, 12.0), 29.0, PI, TAU, 24, Color("#b98651"), 4.0)
+		draw_rect(Rect2(-18.0, 8.0, 36.0, 20.0), Color("#10161d"))
+		draw_circle(Vector2(0.0, -14.0), 5.0, Color("#f6c84f"))
+		return
+	if tile_visual == null or not tile_visual.visible:
+		# Keep a visible fallback for minimal/test scenes if an imported
+		# atlas cannot be loaded.
+		draw_ellipse_shadow(Vector2(0.0, 16.0), Vector2(30.0, 10.0), Color(0.02, 0.04, 0.06, 0.34))
+		draw_rect(Rect2(-24.0, -26.0, 48.0, 44.0), Color("#6b432f"))
+		draw_rect(Rect2(-20.0, -22.0, 40.0, 40.0), Color("#a86b42"))
+		draw_rect(Rect2(-21.0, -23.0, 42.0, 42.0), Color("#f0cb77"), false, 2.0)
+		var roof := PackedVector2Array([Vector2(-31.0, -23.0), Vector2(0.0, -48.0), Vector2(31.0, -23.0)])
+		draw_colored_polygon(roof, Color("#8d4d45"))
+		draw_polyline(PackedVector2Array([roof[0], roof[1], roof[2], roof[0]]), Color("#492d2a"), 2.0)
+	draw_ellipse_shadow(Vector2(0.0, 14.0), Vector2(27.0, 8.0), Color(0.02, 0.04, 0.06, 0.30))
+	draw_rect(Rect2(-8.0, -9.0, 16.0, 18.0), Color("#51352d"))
+	draw_circle(Vector2(4.0, -1.0), 2.0, Color("#ffe18a"))
 func draw_ellipse_shadow(center: Vector2, radii: Vector2, color: Color) -> void:
 	var points := PackedVector2Array()
 	for i in range(24):
