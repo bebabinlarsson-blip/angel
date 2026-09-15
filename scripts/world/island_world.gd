@@ -17,6 +17,7 @@ var authored_bounds := Rect2(-3520, -3520, 7040, 7040)
 var authored_radius: float = 3500.0
 var expanded_radius: float = 350000.0
 const EXPANSION_MULTIPLIER: float = 100.0
+const OCEAN_WORLD_RECT := Rect2(-7200.0, -8128.0, 27744.0, 14400.0)
 const VILLAGE_RING_SCRIPT = preload("res://scripts/world/village_safe_ring.gd")
 var revision: int = 0
 var reserved: Array[Vector2] = []
@@ -28,6 +29,7 @@ const VILLAGE_BOUNDARY_MARGIN: float = 24.0
 
 func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     z_index = -200
+    add_to_group("island_world")
     ground = world.get_node_or_null("GroundLayer")
     paths = world.get_node_or_null("PathLayer")
     trees = world.get_node_or_null("TreeLayer")
@@ -79,6 +81,11 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     var mining := world.get_node_or_null("MiningArea")
     if mining:
         for child in mining.get_children():
+            if child is Node2D:
+                reserved.append(child.global_position)
+    var interiors := world.get_node_or_null("Interiors")
+    if interiors:
+        for child in interiors.get_children():
             if child is Node2D:
                 reserved.append(child.global_position)
 
@@ -180,6 +187,9 @@ func get_map_locations() -> Array:
     # existing array avoids a deep copy every renderer refresh.
     return map_locations
 
+func get_ocean_world_rect() -> Rect2:
+    return OCEAN_WORLD_RECT
+
 func _point_from_data(data: Variant, fallback: Vector2 = Vector2.ZERO) -> Vector2:
     if data is Dictionary:
         var point: Dictionary = data
@@ -192,32 +202,41 @@ func _has_map_location(location_id: String) -> bool:
             return true
     return false
 
-func _add_map_location(location_id: String, display_name: String, position: Vector2, kind: String, priority: int = 1, label_zoom: float = 1.4) -> void:
+func _add_map_location(location_id: String, display_name: String, world_position: Vector2, kind: String, priority: int = 1, label_zoom: float = 1.4) -> void:
     map_locations.append({
         "id": location_id,
         "name": display_name,
-        "pos": position,
+        "pos": world_position,
         "kind": kind,
         "priority": priority,
         "label_zoom": label_zoom
     })
 
-func _add_map_location_if_missing(location_id: String, display_name: String, position: Vector2, kind: String, priority: int = 1, label_zoom: float = 1.4) -> void:
+func _add_map_location_if_missing(location_id: String, display_name: String, world_position: Vector2, kind: String, priority: int = 1, label_zoom: float = 1.4) -> void:
     if not _has_map_location(location_id):
-        _add_map_location(location_id, display_name, position, kind, priority, label_zoom)
+        _add_map_location(location_id, display_name, world_position, kind, priority, label_zoom)
 
 func _build_map_locations(config: Dictionary) -> void:
     map_locations.clear()
 
     var village_data: Dictionary = config.get("village", {})
-    var village_center := _point_from_data(village_data.get("center", {}), Vector2.ZERO)
-    _add_map_location("village", "Village", village_center, "village", 5, 0.5)
+    var map_village_center := _point_from_data(village_data.get("center", {}), Vector2.ZERO)
+    _add_map_location("village", "Village", map_village_center, "village", 5, 0.5)
 
     for house: Dictionary in village_data.get("houses", []):
         var house_id := str(house.get("id", "house_%d" % map_locations.size()))
         var house_name := str(house.get("name", "Village House"))
-        var house_pos := _point_from_data(house.get("pos", {}), village_center)
+        var house_pos := _point_from_data(house.get("pos", {}), map_village_center)
         _add_map_location(house_id, house_name, house_pos, "house", 1, 12.0)
+
+    for entry in get_tree().get_nodes_in_group("interior_entries"):
+        if not (entry is Node2D):
+            continue
+        var entry_id_value: Variant = entry.get("interior_id")
+        var entry_name_value: Variant = entry.get("display_name")
+        var entry_id := str(entry_id_value) if entry_id_value != null else "interior"
+        var entry_name := str(entry_name_value) if entry_name_value != null else entry_id.capitalize()
+        _add_map_location_if_missing(entry_id, entry_name, (entry as Node2D).global_position, "landmark", 3, 1.0)
 
     var landmark_names := {
         "northwest_highlands": "Northwest Highlands",
@@ -250,7 +269,7 @@ func _refresh_map(water: TileMapLayer = null, farm: TileMapLayer = null) -> void
     authored_map_texture = _build_map_texture(authored_bounds, false, water, farm)
     queue_redraw()
 
-func _build_map_texture(target_bounds: Rect2, include_outer_land: bool, water: TileMapLayer = null, farm: TileMapLayer = null) -> ImageTexture:
+func _build_map_texture(target_bounds: Rect2, include_outer_land: bool, _water: TileMapLayer = null, farm: TileMapLayer = null) -> ImageTexture:
     const MAP_SIZE: int = 1024
     var img := Image.create(MAP_SIZE, MAP_SIZE, false, Image.FORMAT_RGBA8)
     img.fill(Color("#244853")) # Ocean
@@ -289,7 +308,7 @@ func _build_map_texture(target_bounds: Rect2, include_outer_land: bool, water: T
 
     # 1. The real ground footprint also defines the authored island's ocean
     # edge. This makes the chart a faithful copy of the playable land shape.
-    for cell in land.keys():
+    for cell in land:
         if not (cell is Vector2i):
             continue
         var cell_pos: Vector2i = cell
@@ -305,7 +324,7 @@ func _build_map_texture(target_bounds: Rect2, include_outer_land: bool, water: T
     # 2. Decorative terrain, then the authored water, farms, paths and bridge.
     # Each layer is painted in the same order used by the world visual.
     _paint_map_layer(img, decor, Color("#476e3b"), target_bounds, MAP_SIZE, stamp_radius)
-    _paint_map_layer(img, water, Color("#276b80"), target_bounds, MAP_SIZE, stamp_radius)
+    _paint_ocean_map_layer(img, target_bounds, MAP_SIZE, Color("#276b80"))
     _paint_map_layer(img, farm, Color("#673e1e"), target_bounds, MAP_SIZE, stamp_radius)
     _paint_map_layer(img, paths, Color("#c39e68"), target_bounds, MAP_SIZE, stamp_radius)
     _paint_map_layer(img, bridge, Color("#835327"), target_bounds, MAP_SIZE, stamp_radius)
@@ -324,6 +343,30 @@ func _paint_map_layer(image: Image, layer: TileMapLayer, color: Color, target_bo
         var world_p := Vector2(cell_pos) * 32.0 + Vector2(16.0, 16.0)
         if target_bounds.grow(32.0).has_point(world_p):
             _paint_map_cell(image, _world_to_map_pixel(world_p, map_size, map_size, target_bounds), color, stamp_radius)
+
+func _paint_ocean_map_layer(image: Image, target_bounds: Rect2, map_size: int, color: Color) -> void:
+    # The authored ocean uses one repeated tile. Keep its exact silhouette in
+    # the chart without asking the minimap or editor to retain 289k TileMap
+    # cells. The compact run list is shared with OceanBackdrop.
+    var runs := OceanBackdrop.WATER_RUNS
+    for i in range(0, runs.size(), 3):
+        var cell_x := float(runs[i])
+        var cell_y := float(runs[i + 1])
+        var cell_width := float(runs[i + 2])
+        var world_rect := Rect2(
+            Vector2(cell_x, cell_y) * 32.0,
+            Vector2(cell_width, 1.0) * 32.0,
+        )
+        var clipped := world_rect.intersection(target_bounds)
+        if clipped.size.x <= 0.0 or clipped.size.y <= 0.0:
+            continue
+        var top_left := _world_to_map_pixel(clipped.position, map_size, map_size, target_bounds)
+        var bottom_right := _world_to_map_pixel(clipped.end - Vector2.ONE, map_size, map_size, target_bounds)
+        var rect_size := Vector2i(
+            maxi(1, bottom_right.x - top_left.x + 1),
+            maxi(1, bottom_right.y - top_left.y + 1),
+        )
+        image.fill_rect(Rect2i(top_left, rect_size), color)
 
 func _paint_map_cell(image: Image, pixel: Vector2i, color: Color, stamp_radius: int) -> void:
     for dy in range(-stamp_radius, stamp_radius + 1):

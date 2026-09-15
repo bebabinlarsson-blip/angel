@@ -290,11 +290,8 @@ func cook(recipe_id: String, inventory: PlayerInventory) -> Dictionary:
 	EventBus.cooking_finished.emit(result)
 	EventBus.show_notification.emit("Cooked: %s!" % str(result.get("name", "Dish")))
 
-	var quest_system_node := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
-	if quest_system_node:
-		quest_system_node.update_quest_progress("cook", str(result.get("id", "")), 1)
-
 	return result
+
 func get_available_recipes(inventory: PlayerInventory) -> Array[Dictionary]:
 	var available: Array[Dictionary] = []
 	for recipe_id in recipes:

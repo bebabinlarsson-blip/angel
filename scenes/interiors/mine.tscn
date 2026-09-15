@@ -1,0 +1,56 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/interior_scene.gd" id="1_interior"]
+[ext_resource type="Script" path="res://scripts/world/interior_visual.gd" id="2_visual"]
+[ext_resource type="Script" path="res://scripts/world/interior_exit.gd" id="3_exit"]
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="4_player"]
+[ext_resource type="Script" path="res://scripts/systems/quest_system.gd" id="5_quests"]
+[ext_resource type="Script" path="res://scripts/systems/cooking_system.gd" id="6_cooking"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="7_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="8_pause"]
+[ext_resource type="PackedScene" path="res://scenes/ui/inventory.tscn" id="9_inventory"]
+[ext_resource type="PackedScene" path="res://scenes/ui/quest_menu.tscn" id="10_quest_menu"]
+[ext_resource type="PackedScene" path="res://scenes/ui/game_over.tscn" id="11_game_over"]
+
+[sub_resource type="CircleShape2D" id="CircleShape_exit"]
+radius = 36.0
+
+[node name="MineInterior" type="Node2D"]
+script = ExtResource("1_interior")
+interior_id = "mine"
+display_name = "Highland Mine"
+theme_kind = "mine"
+room_size = Vector2(960, 640)
+
+[node name="InteriorVisual" type="Node2D" parent="."]
+script = ExtResource("2_visual")
+theme_kind = "mine"
+room_size = Vector2(960, 640)
+
+[node name="Player" parent="." instance=ExtResource("4_player")]
+position = Vector2(0, 180)
+
+[node name="Exit" type="Area2D" parent="."]
+position = Vector2(0, 270)
+script = ExtResource("3_exit")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Exit"]
+shape = SubResource("CircleShape_exit")
+
+[node name="QuestSystem" type="Node" parent="."]
+script = ExtResource("5_quests")
+
+[node name="CookingSystem" type="Node" parent="."]
+script = ExtResource("6_cooking")
+
+[node name="HUD" parent="." instance=ExtResource("7_hud")]
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+
+[node name="PauseMenu" parent="UILayer" instance=ExtResource("8_pause")]
+
+[node name="InventoryUI" parent="UILayer" instance=ExtResource("9_inventory")]
+
+[node name="QuestMenu" parent="UILayer" instance=ExtResource("10_quest_menu")]
+
+[node name="GameOver" parent="UILayer" instance=ExtResource("11_game_over")]

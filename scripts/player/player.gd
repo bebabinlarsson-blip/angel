@@ -82,6 +82,7 @@ func _ready() -> void:
 	
 	stats.current_hp = stats.get_max_hp()
 	stats.current_stamina = stats.get_max_stamina()
+	GameManager.consume_player_transfer(self)
 	
 	if attack_area:
 		attack_area.monitoring = false
@@ -91,10 +92,14 @@ func _ready() -> void:
 		interaction_area.body_exited.connect(_on_interaction_area_body_exited)
 		interaction_area.area_entered.connect(_on_interaction_area_area_entered)
 		interaction_area.area_exited.connect(_on_interaction_area_area_exited)
-	
+
 	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
 	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
 	EventBus.player_money_changed.emit(stats.money)
+
+func _exit_tree() -> void:
+	if GameManager.player == self:
+		GameManager.player = null
 
 func _physics_process(delta: float) -> void:
 	if current_state == State.DEAD:
@@ -394,11 +399,21 @@ func die() -> void:
 func respawn() -> void:
 	stats.current_hp = stats.get_max_hp()
 	stats.current_stamina = stats.get_max_stamina()
+	velocity = Vector2.ZERO
+	direction = Vector2.ZERO
+	dash_timer = 0.0
+	attack_timer = 0.0
+	charge_timer = 0.0
+	is_charging = false
 	current_state = State.IDLE
 	is_swimming = false
 	swim_zone_count = 0
 	attack_is_charged = false
 	attack_hit_confirmed = false
+	nearby_interactables.clear()
+	nearby_interactable = null
+	if attack_area:
+		attack_area.monitoring = false
 	EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
 	EventBus.player_stamina_changed.emit(stats.current_stamina, stats.get_max_stamina())
 
@@ -467,11 +482,21 @@ func get_save_data() -> Dictionary:
 	return data
 
 func load_save_data(data: Dictionary) -> void:
+	if data.is_empty():
+		return
 	stats.load_save_data(data)
 	if data.has("inventory"):
-		inventory.load_save_data(data["inventory"])
-	if data.has("position"):
-		global_position = Vector2(data["position"]["x"], data["position"]["y"])
+		var inventory_data: Variant = data["inventory"]
+		if inventory_data is Dictionary:
+			inventory.load_save_data(inventory_data)
+	var position_data: Variant = data.get("position", {})
+	if position_data is Dictionary:
+		var saved_position: Dictionary = position_data
+		if saved_position.has("x") and saved_position.has("y"):
+			var saved_x := float(saved_position.get("x", global_position.x))
+			var saved_y := float(saved_position.get("y", global_position.y))
+			if not is_nan(saved_x) and not is_inf(saved_x) and not is_nan(saved_y) and not is_inf(saved_y):
+				global_position = Vector2(saved_x, saved_y)
 	var terrain := get_tree().get_first_node_in_group("island_world") as IslandWorld
 	if terrain:
 		global_position = terrain.clamp_to_playable_area(global_position)

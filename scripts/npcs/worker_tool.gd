@@ -39,6 +39,10 @@ func _draw() -> void:
 		"miner":
 			draw_line(Vector2(2, 1), Vector2(18, -15), tool_color, 4.0)
 			draw_line(Vector2(13, -18), Vector2(23, -12), metal, 3.0)
+		"blacksmith":
+			draw_line(Vector2(2, 2), Vector2(17, -14), tool_color, 4.0)
+			draw_rect(Rect2(12, -20, 11, 6), metal)
+			draw_line(Vector2(8, 5), Vector2(24, 5), Color("#6f7a80"), 4.0)
 		"fisher":
 			draw_line(Vector2(1, 1), Vector2(18, -22), tool_color, 2.0)
 			draw_arc(Vector2(18, -22), 5.0, 0.0, PI, 8, Color("#dcecf1"), 1.5)

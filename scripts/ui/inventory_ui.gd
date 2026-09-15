@@ -59,6 +59,13 @@ func _ready() -> void:
 	_create_detail_icon()
 	UITheme.style_recursive(self)
 
+func _input(event: InputEvent) -> void:
+	# Inventory remains processable while the tree is paused. Close it during
+	# the early input phase so a focused child Control cannot swallow Escape.
+	if visible and event.is_action_pressed("pause"):
+		_toggle()
+		get_viewport().set_input_as_handled()
+
 func _create_detail_icon() -> void:
 	var detail_vbox := get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/BodySplit/ItemInfo/MarginContainer/DetailVBox") as VBoxContainer
 	if detail_vbox == null:
@@ -110,11 +117,6 @@ func _hide_overlay(node_name: String) -> void:
 	elif overlay is CanvasLayer:
 		(overlay as CanvasLayer).visible = false
 
-func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause") and visible:
-		_toggle()
-		get_viewport().set_input_as_handled()
-
 func _refresh() -> void:
 	if grid_container == null:
 		return
@@ -159,8 +161,23 @@ func _refresh() -> void:
 		icon.position = Vector2(18.0, 3.0)
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		slot.add_child(icon)
-		slot.text = "\n" + name_str
-		slot.add_theme_font_size_override("font_size", 10)
+
+		var item_label := Label.new()
+		item_label.name = "ItemLabel"
+		item_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		item_label.offset_left = 4.0
+		item_label.offset_top = -28.0
+		item_label.offset_right = -4.0
+		item_label.offset_bottom = -2.0
+		item_label.text = name_str
+		item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		item_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		item_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		item_label.add_theme_font_size_override("font_size", 9)
+		item_label.add_theme_color_override("font_outline_color", Color(0.02, 0.03, 0.05, 0.95))
+		item_label.add_theme_constant_override("outline_size", 3)
+		slot.add_child(item_label)
 		slot.pressed.connect(_on_item_selected.bind(item))
 		UITheme.style_button(slot)
 		grid_container.add_child(slot)

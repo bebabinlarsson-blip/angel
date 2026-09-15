@@ -14,6 +14,8 @@ extends CanvasLayer
 @onready var interaction_hint: Label = $InteractionHint
 var controls_hint: Label = null
 var buff_label: Label = null
+var quest_tracker: QuestTracker = null
+var _interior_context: bool = false
 
 var notification_timer: float = 0.0
 var _notif_tween: Tween = null
@@ -112,6 +114,7 @@ func _ready() -> void:
 		interaction_hint.visible = false
 	_create_controls_hint()
 	_create_buff_label()
+	_create_quest_tracker()
 	_on_inventory_changed()
 	_apply_theme()
 
@@ -141,6 +144,12 @@ func _create_buff_label() -> void:
 	buff_label.add_theme_font_size_override("font_size", 13)
 	add_child(buff_label)
 
+func _create_quest_tracker() -> void:
+	quest_tracker = QuestTracker.new()
+	quest_tracker.name = "QuestTracker"
+	quest_tracker.position = Vector2(16, 318)
+	add_child(quest_tracker)
+
 
 func _apply_theme() -> void:
 	UITheme.style_bar(health_bar, UITheme.HP_FILL)
@@ -159,6 +168,26 @@ func _apply_theme() -> void:
 	if big_map and big_map is Panel:
 		(big_map as Panel).add_theme_stylebox_override("panel", UITheme.panel_style(UITheme.EDGE, Color(0.05, 0.07, 0.12, 0.85)))
 
+func set_interior_context(location_name: String) -> void:
+	_interior_context = true
+	if minimap_container:
+		minimap_container.visible = false
+	if big_map:
+		big_map.visible = false
+	if quest_tracker:
+		quest_tracker.set_interior_context(true)
+	if controls_hint:
+		controls_hint.text = "WASD  Move    E  Backpack\nF  Interact    LMB / Space  Sword\n%s  ·  Q  Quest Journal" % location_name
+
+func _restore_overworld_context() -> void:
+	_interior_context = false
+	if minimap_container:
+		minimap_container.visible = true
+	if controls_hint:
+		controls_hint.text = "WASD  Move    E  Backpack\nF  Interact    LMB / Space  Sword\nShift  Dash    Q  Quest Journal    M  Map"
+	if quest_tracker:
+		quest_tracker.set_interior_context(false)
+
 func set_map_open(open: bool) -> void:
 	# The HUD can receive an input event during a scene transition. Keep the
 	# map toggle harmless until its panel has been created.
@@ -172,6 +201,14 @@ func set_map_open(open: bool) -> void:
 		_hide_overlay("QuestMenu")
 		_hide_overlay("PauseMenu")
 		_hide_overlay("CookingUILayer")
+		if minimap_container:
+			minimap_container.visible = false
+		if controls_hint:
+			controls_hint.visible = false
+		if buff_label:
+			buff_label.visible = false
+		if quest_tracker:
+			quest_tracker.visible = false
 		big_map.visible = true
 		get_tree().paused = true
 		GameManager.is_paused = true
@@ -182,10 +219,23 @@ func set_map_open(open: bool) -> void:
 		if is_instance_valid(big_draw_node):
 			big_draw_node.grab_focus()
 	else:
+		if is_instance_valid(big_draw_node):
+			big_draw_node.release_focus()
 		big_map.visible = false
+		if not _interior_context and minimap_container:
+			minimap_container.visible = true
+		if controls_hint:
+			controls_hint.visible = true
+		_refresh_buff_label()
+		if quest_tracker:
+			quest_tracker.refresh_now()
 		if GameManager.current_state != GameManager.GameState.GAME_OVER and not _has_visible_overlay():
 			get_tree().paused = false
 			GameManager.is_paused = false
+
+func close_map_modal() -> void:
+	if big_map != null and big_map.visible:
+		set_map_open(false)
 
 func _hide_overlay(node_name: String) -> void:
 	var overlay := get_tree().root.find_child(node_name, true, false)
@@ -206,15 +256,18 @@ func _has_visible_overlay() -> bool:
 func _input(event: InputEvent) -> void:
 	if big_map == null:
 		return
+	if _interior_context and event.is_action_pressed("toggle_map"):
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("toggle_map") and (big_map.visible or not get_tree().paused):
 		set_map_open(not big_map.visible)
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_cancel") and big_map.visible:
-		set_map_open(false)
 		get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
 	_refresh_buff_label()
+	if quest_tracker and big_map:
+		if big_map.visible:
+			quest_tracker.visible = false
 	if notification_timer > 0:
 		notification_timer -= delta
 		if notification_timer <= 0 and notification_label:
@@ -236,7 +289,7 @@ func _refresh_buff_label() -> void:
 	if buff_label == null:
 		return
 	var current_player: Variant = GameManager.player
-	if current_player == null or current_player.stats == null:
+	if current_player == null or not is_instance_valid(current_player) or current_player.stats == null:
 		buff_label.visible = false
 		return
 	var active_text: String = current_player.stats.get_active_buff_text()
@@ -291,7 +344,7 @@ func _on_show_notification(text: String) -> void:
 
 func _on_inventory_changed() -> void:
 	var player := GameManager.player
-	if weapon_label and player and player.inventory:
+	if weapon_label and player != null and is_instance_valid(player) and player.inventory != null:
 		var w: Dictionary = player.inventory.equipped_weapon
 		if w.is_empty():
 			weapon_label.text = "Weapon: Fist"
@@ -325,6 +378,10 @@ func _on_interaction_available(_interactable: Node) -> void:
 		label = "Collect " + _interactable.item_name
 	elif _interactable is CollectableItem:
 		label = "Collect " + _interactable.item_name
+	elif _interactable is InteriorEntry:
+		label = "Enter " + _interactable.display_name
+	elif _interactable is InteriorExit:
+		label = "Return to Angel Island"
 	elif _interactable.is_in_group("supply_caches"):
 		label = "Open supply cache"
 

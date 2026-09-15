@@ -53,7 +53,9 @@ func _physics_process(delta: float) -> void:
         if p and is_instance_valid(p) and global_position.distance_squared_to((p as Node2D).global_position) < 2250000.0:
             jump_lunge_timer -= delta
             velocity = jump_lunge_dir * jump_force
-            move_and_slide()
+            # BaseMonster already performed this frame's movement. Keeping the
+            # lunge velocity for the next physics tick avoids moving twice per
+            # frame, which made every jump cover roughly double its intended range.
         else:
             jump_lunge_timer = 0.0
 

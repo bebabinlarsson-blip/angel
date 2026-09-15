@@ -1,5 +1,6 @@
-@warning_ignore("unused_signal")
 extends Node
+
+@warning_ignore_start("unused_signal")
 
 # Player signals
 signal player_health_changed(new_health: float, max_health: float)
@@ -47,3 +48,5 @@ signal game_loaded()
 # Fast travel
 signal waystone_activated(waystone_id: String)
 signal fast_travel_requested(destination_id: String)
+
+@warning_ignore_restore("unused_signal")

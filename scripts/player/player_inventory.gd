@@ -7,6 +7,7 @@ var items: Array[Dictionary] = []
 var equipped_weapon: Dictionary = {}
 var equipped_armor: Dictionary = {}
 var max_slots: int = 30
+const MAX_ITEM_QUANTITY := 999999999
 
 func _find_item_index(item_id: String) -> int:
 	for i in range(items.size()):
@@ -14,20 +15,26 @@ func _find_item_index(item_id: String) -> int:
 			return i
 	return -1
 
+func _find_stackable_item_index(item_id: String) -> int:
+	for i in range(items.size()):
+		if str(items[i].get("id", "")) == item_id and bool(items[i].get("stackable", true)):
+			return i
+	return -1
+
 func can_add_item(item_data: Dictionary) -> bool:
 	var item_id: String = str(item_data.get("id", ""))
-	var quantity: int = int(item_data.get("quantity", 1))
+	var quantity: int = clampi(int(item_data.get("quantity", 1)), 1, MAX_ITEM_QUANTITY)
 	if item_id.is_empty() or quantity <= 0:
 		return false
 	var stackable: bool = bool(item_data.get("stackable", true))
-	if stackable and _find_item_index(item_id) >= 0:
+	if stackable and _find_stackable_item_index(item_id) >= 0:
 		return true
 	return items.size() < max_slots
 
 func add_item(item_data: Dictionary, emit_collection_signal: bool = true) -> bool:
 	var item: Dictionary = item_data.duplicate(true)
 	var item_id: String = str(item.get("id", ""))
-	var quantity: int = int(item.get("quantity", 1))
+	var quantity: int = clampi(int(item.get("quantity", 1)), 1, MAX_ITEM_QUANTITY)
 	if item_id.is_empty() or quantity <= 0:
 		return false
 	item["id"] = item_id
@@ -35,9 +42,12 @@ func add_item(item_data: Dictionary, emit_collection_signal: bool = true) -> boo
 	item["stackable"] = bool(item.get("stackable", true))
 
 	if item["stackable"]:
-		var existing_index: int = _find_item_index(item_id)
+		var existing_index: int = _find_stackable_item_index(item_id)
 		if existing_index >= 0:
-			items[existing_index]["quantity"] = int(items[existing_index].get("quantity", 1)) + quantity
+			items[existing_index]["quantity"] = mini(
+				MAX_ITEM_QUANTITY,
+				int(items[existing_index].get("quantity", 1)) + quantity,
+			)
 			if emit_collection_signal:
 				EventBus.item_collected.emit(item.duplicate(true))
 			EventBus.inventory_changed.emit()
@@ -73,10 +83,13 @@ func has_item(item_id: String, quantity: int = 1) -> bool:
 	return get_item_count(item_id) >= quantity
 
 func get_item_count(item_id: String) -> int:
-	var index: int = _find_item_index(item_id)
-	if index < 0:
+	if item_id.is_empty():
 		return 0
-	return maxi(0, int(items[index].get("quantity", 1)))
+	var total := 0
+	for item: Dictionary in items:
+		if str(item.get("id", "")) == item_id:
+			total += maxi(0, int(item.get("quantity", 1)))
+	return total
 
 func get_items_by_type(type: ItemType) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
@@ -122,6 +135,8 @@ func _restore_equipped(value: Variant, expected_type: int) -> Dictionary:
 
 func load_save_data(data: Dictionary) -> void:
 	items.clear()
+	equipped_weapon = {}
+	equipped_armor = {}
 	var saved_items: Variant = data.get("items", [])
 	if saved_items is Array:
 		for raw_item in saved_items:
@@ -129,12 +144,22 @@ func load_save_data(data: Dictionary) -> void:
 				continue
 			var item: Dictionary = raw_item.duplicate(true)
 			var item_id: String = str(item.get("id", ""))
-			var quantity: int = int(item.get("quantity", 1))
+			var quantity: int = clampi(int(item.get("quantity", 1)), 1, MAX_ITEM_QUANTITY)
 			if item_id.is_empty() or quantity <= 0:
 				continue
 			item["id"] = item_id
 			item["quantity"] = quantity
 			item["stackable"] = bool(item.get("stackable", true))
+			if item["stackable"]:
+				var existing_index := _find_stackable_item_index(item_id)
+				if existing_index >= 0:
+					items[existing_index]["quantity"] = mini(
+						MAX_ITEM_QUANTITY,
+						int(items[existing_index].get("quantity", 1)) + quantity,
+					)
+					continue
+			if items.size() >= max_slots:
+				break
 			items.append(item)
 
 	equipped_weapon = _restore_equipped(data.get("equipped_weapon", {}), ItemType.WEAPON)

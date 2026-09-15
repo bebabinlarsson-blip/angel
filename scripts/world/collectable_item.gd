@@ -95,11 +95,11 @@ func _player_from_body(body: Node) -> CharacterBody2D:
 	return null
 
 func interact(player: CharacterBody2D) -> void:
-	if not is_collected and player and player.inventory:
+	if not is_collected and player != null and is_instance_valid(player) and player.inventory != null:
 		_give_to_player(player)
 
 func _give_to_player(player: CharacterBody2D) -> void:
-	if player == null or player.inventory == null or is_collected:
+	if player == null or not is_instance_valid(player) or player.inventory == null or is_collected:
 		return
 	var item_data := {
 		"id": item_id,

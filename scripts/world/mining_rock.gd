@@ -16,6 +16,14 @@ var visual: CanvasItem = null
 var sprite: Sprite2D = null
 
 func _ready() -> void:
+	add_to_group("mining_rocks")
+	if collision == null:
+		collision = CollisionShape2D.new()
+		collision.name = "CollisionShape2D"
+		var shape := CircleShape2D.new()
+		shape.radius = 24.0
+		collision.shape = shape
+		add_child(collision)
 	sprite = get_node_or_null("Sprite2D") as Sprite2D
 	if sprite == null:
 		sprite = Sprite2D.new()
@@ -57,6 +65,26 @@ func interact(_player: CharacterBody2D) -> void:
 		EventBus.show_notification.emit("Mined " + ore_name + " rock!")
 
 func _deplete() -> void:
+	# Do not consume a rock until its loot is safely accepted. This prevents a
+	# full backpack (or a scene-transition race) from permanently losing ore.
+	var player := GameManager.player
+	if player == null or not is_instance_valid(player) or player.inventory == null:
+		current_hits = maxi(0, max_hits - 1)
+		EventBus.show_notification.emit("No backpack available for the mined ore.")
+		return
+	var item_data := {
+		"id": ore_type,
+		"name": ore_name,
+		"type": 0, # MATERIAL
+		"quantity": ore_count,
+		"stackable": true,
+		"description": "Raw ore mined from rocks. Used in crafting and cooking."
+	}
+	if not player.inventory.can_add_item(item_data) or not player.inventory.add_item(item_data):
+		current_hits = maxi(0, max_hits - 1)
+		EventBus.show_notification.emit("Inventory full — make room before mining.")
+		return
+
 	is_depleted = true
 	respawn_timer = respawn_time
 	set_process(true)
@@ -64,19 +92,7 @@ func _deplete() -> void:
 		visual.visible = false
 	if collision:
 		collision.set_deferred("disabled", true)
-	
-	# Give loot to player
-	if GameManager.player and GameManager.player.inventory:
-		var item_data := {
-			"id": ore_type,
-			"name": ore_name,
-			"type": 0, # MATERIAL
-			"quantity": ore_count,
-			"stackable": true,
-			"description": "Raw ore mined from rocks. Used in crafting and cooking."
-		}
-		GameManager.player.inventory.add_item(item_data)
-		EventBus.show_notification.emit("Obtained %s x%d!" % [ore_name, ore_count])
+	EventBus.show_notification.emit("Obtained %s x%d!" % [ore_name, ore_count])
 		
 
 
