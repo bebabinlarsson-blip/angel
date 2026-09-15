@@ -39,6 +39,9 @@ const INK := Color("#f3e7ce")
 const OCEAN := Color("#244853")
 const MAP_PANEL_WIDTH: float = 210.0
 const MAX_MAP_ZOOM: float = 96.0
+# The HUD minimap intentionally uses the same authored-island texture and
+# transform as the large chart, with a tighter player-centred crop.
+const MINI_MAP_ZOOM: float = 2.0
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
@@ -173,27 +176,45 @@ func _map_panel_center() -> Vector2:
 func _display_bounds() -> Rect2:
     if not is_instance_valid(_terrain):
         return Rect2(-1.0, -1.0, 2.0, 2.0)
-    if is_big_map and _focus_authored:
+    # Both charts use the authored bounds by default. The full procedural
+    # border is available only after the large chart's "Full World / Ocean"
+    # action switches that chart to world focus.
+    if _focus_authored and _terrain.authored_bounds.size != Vector2.ZERO:
         return _terrain.authored_bounds
     return _terrain.bounds
 
 func _active_map_texture() -> Texture2D:
     if not is_instance_valid(_terrain):
         return null
-    if is_big_map and _focus_authored and _terrain.authored_map_texture != null:
+    if _focus_authored and _terrain.authored_map_texture != null:
         return _terrain.authored_map_texture
     return _terrain.map_texture
+
+func _big_map_projection_scale() -> float:
+    if not is_instance_valid(_terrain):
+        return 1.0
+    var available := _map_view_rect().size
+    if not is_big_map:
+        # Match the large chart's fit-to-island scale, then zoom the small
+        # window around the player. This keeps every road, tree, house, river
+        # and ocean pixel on the same world coordinate system.
+        var viewport_size := get_viewport_rect().size
+        available = Vector2(
+            maxf(viewport_size.x - MAP_PANEL_WIDTH, 1.0),
+            maxf(viewport_size.y - 92.0, 1.0)
+        )
+    return minf(available.x, available.y) / maxf(_terrain.authored_bounds.size.x, 1.0)
 
 func _map_scale() -> float:
     if not is_instance_valid(_terrain):
         return 1.0
     if not is_big_map:
-        # The world can now be much larger than the authored village. Keep the
-        # minimap useful by showing a generous local area around the player.
-        return minf(size.x, size.y - 22.0) / 8000.0
-    var available := _map_view_rect().size
+        return _big_map_projection_scale() * MINI_MAP_ZOOM
     var display_bounds := _display_bounds()
-    return minf(available.x, available.y) / maxf(display_bounds.size.x, 1.0) * map_zoom
+    if not _focus_authored:
+        var available := _map_view_rect().size
+        return minf(available.x, available.y) / maxf(display_bounds.size.x, 1.0) * map_zoom
+    return _big_map_projection_scale() * map_zoom
 
 func _center() -> Vector2:
     if is_big_map:
@@ -459,6 +480,9 @@ func _draw_named_locations(center: Vector2, factor: float) -> void:
         var show_label := kind == "village"
         if is_big_map and kind != "village":
             show_label = map_zoom >= label_zoom
+        elif not is_big_map:
+            # The mini chart is a zoomed crop of the same named projection.
+            show_label = factor >= 0.12 or kind == "village"
         if not show_label:
             continue
         var label_pos := p + Vector2(16, 5)
@@ -666,7 +690,7 @@ func _draw() -> void:
         # Minimap header
         draw_rect(Rect2(0, 0, size.x, 22), Color("#12202a"))
         draw_line(Vector2(0, 22), Vector2(size.x, 22), Color("#8a7143"), 1.0)
-        _label(Vector2(8, 16), "Nearby [M]", 11, Color("#ffe08a"))
+        _label(Vector2(8, 16), "Island detail [M]", 11, Color("#ffe08a"))
         var comp_x: float = size.x - 22.0
         draw_colored_polygon(PackedVector2Array([Vector2(comp_x, 4), Vector2(comp_x + 3, 11), Vector2(comp_x - 3, 11)]), Color("#e84a4a"))
         draw_colored_polygon(PackedVector2Array([Vector2(comp_x, 18), Vector2(comp_x + 3, 11), Vector2(comp_x - 3, 11)]), Color("#c8d0d6"))
