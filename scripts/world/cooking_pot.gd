@@ -12,6 +12,10 @@ var cooking_system: CookingSystem = null
 var visual: CustomDraw2D = null
 
 func _ready() -> void:
+	# The recipe panel pauses gameplay, but must still receive Escape and button
+	# input while the scene tree is paused.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_to_group("cooking_places")
 	# The authored game scene already has this collider, but create one for
 	# minimal/test scenes too so the village hearth is always interactable.
 	if get_node_or_null("CollisionShape2D") == null:
@@ -120,6 +124,9 @@ func _create_cooking_ui() -> void:
 	cooking_ui_layer.visible = false
 
 func interact(player: CharacterBody2D) -> void:
+	if player == null or not is_instance_valid(player) or player.inventory == null:
+		EventBus.show_notification.emit("You need a backpack to cook.")
+		return
 	cooking_system = get_tree().root.find_child("CookingSystem", true, false) as CookingSystem
 	if cooking_system == null:
 		EventBus.show_notification.emit("No cooking system found!")
@@ -158,7 +165,7 @@ func _find_panel(node: Node) -> Control:
 	return null
 
 func _refresh_recipes(player: CharacterBody2D) -> void:
-	if recipe_list == null or cooking_system == null:
+	if recipe_list == null or cooking_system == null or player == null or not is_instance_valid(player) or player.inventory == null:
 		return
 	
 	for child in recipe_list.get_children():
@@ -225,7 +232,7 @@ func _recipe_effect_text(result: Dictionary) -> String:
 
 
 func _on_cook(recipe_id: String, player: CharacterBody2D) -> void:
-	if cooking_system:
+	if cooking_system and player != null and is_instance_valid(player) and player.inventory != null:
 		cooking_system.cook(recipe_id, player.inventory)
 		_refresh_recipes(player)
 
@@ -251,12 +258,6 @@ func _has_other_overlay() -> bool:
 		if overlay is CanvasLayer and (overlay as CanvasLayer).visible:
 			return true
 	return false
-
-func _input(event: InputEvent) -> void:
-	if cooking_ui_layer and cooking_ui_layer.visible:
-		if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
-			_close_cooking()
-			get_viewport().set_input_as_handled()
 
 func show_interaction_hint() -> void:
 	if interaction_label:

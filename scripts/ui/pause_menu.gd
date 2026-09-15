@@ -129,11 +129,8 @@ func _toggle() -> void:
 			settings_panel.visible = false
 
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause") and visible:
-		if settings_panel and settings_panel.visible:
-			settings_panel.visible = false
-		else:
-			_toggle()
+	if event.is_action_pressed("pause") and visible and settings_panel and settings_panel.visible:
+		settings_panel.visible = false
 		get_viewport().set_input_as_handled()
 
 func _on_resume() -> void:

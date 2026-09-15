@@ -59,6 +59,16 @@ func _on_visibility_changed() -> void:
     if is_visible_in_tree():
         queue_redraw()
 
+func _input(event: InputEvent) -> void:
+    # BigMapDrawer keeps keyboard focus while the chart is open, so handle
+    # Escape during the early input phase before focused-Control routing can
+    # consume the event.
+    if is_big_map and is_visible_in_tree() and event.is_action_pressed("pause"):
+        var hud := get_tree().root.find_child("HUD", true, false)
+        if hud and hud.has_method("set_map_open"):
+            hud.call("set_map_open", false)
+        get_viewport().set_input_as_handled()
+
 func _process(delta: float) -> void:
     if not is_visible_in_tree():
         return
@@ -97,7 +107,10 @@ func _refresh_layer_cache() -> void:
         for location in _terrain.get_map_locations():
             if location is Dictionary:
                 _locations.append(location)
-    _water_cells = _layer_cells(_terrain.water_layer)
+    # Water is a single repeated tile over a compact authored silhouette.
+    # OceanBackdrop and IslandWorld keep that silhouette without retaining a
+    # 289k-cell TileMap array in every minimap instance.
+    _water_cells.clear()
     _farm_cells = _layer_cells(_terrain.farm_layer)
     _path_cells = _layer_cells(_terrain.paths)
     _bridge_cells = _layer_cells(_terrain.bridge)
@@ -248,6 +261,15 @@ func _open_big_map() -> void:
         hud.call_deferred("set_map_open", true)
 
 func _on_gui_input(event: InputEvent) -> void:
+    # The big map owns keyboard focus while it is open. Handle Escape here so
+    # the focused Control cannot swallow the modal-close input before the
+    # global GameManager unhandled-input route sees it.
+    if is_big_map and is_visible_in_tree() and event.is_action_pressed("pause"):
+        var hud := get_tree().root.find_child("HUD", true, false)
+        if hud and hud.has_method("set_map_open"):
+            hud.call("set_map_open", false)
+        accept_event()
+        return
     if event is InputEventMouseButton:
         if event.button_index == MOUSE_BUTTON_LEFT:
             if not is_big_map and event.pressed:
@@ -347,12 +369,41 @@ func _draw_layer_details(center: Vector2, factor: float) -> void:
     # rivers, trees, houses, farms and roads resolve instead of becoming one
     # indistinguishable pixel.
     var view := _map_view_rect()
-    _draw_layer_cells(_water_index, center, factor, Color("#2f879b"), view)
+    _draw_water_details(center, factor, view)
     _draw_layer_cells(_farm_index, center, factor, Color("#8d5727"), view)
     _draw_layer_cells(_path_index, center, factor, Color("#d1aa75"), view)
     _draw_layer_cells(_bridge_index, center, factor, Color("#9a6235"), view)
     _draw_layer_cells(_tree_index, center, factor, Color("#2f653b"), view)
     _draw_layer_cells(_structure_index, center, factor, Color("#c9a269"), view)
+
+func _draw_water_details(center: Vector2, factor: float, view: Rect2) -> void:
+    var cell_px: float = 32.0 * factor
+    var detail_threshold: float = 8.0 if is_big_map else 4.0
+    if cell_px < detail_threshold:
+        return
+
+    var safe_view := view.grow(cell_px * 2.0)
+    var inverse_factor: float = 1.0 / maxf(factor, 0.0001)
+    var world_view := Rect2(
+        (safe_view.position - center) * inverse_factor,
+        safe_view.size * inverse_factor,
+    )
+    var runs := OceanBackdrop.WATER_RUNS
+    for i in range(0, runs.size(), 3):
+        var cell_x := float(runs[i])
+        var cell_y := float(runs[i + 1])
+        var cell_width := float(runs[i + 2])
+        var world_rect := Rect2(
+            Vector2(cell_x, cell_y) * 32.0,
+            Vector2(cell_width, 1.0) * 32.0,
+        )
+        if not world_rect.intersects(world_view):
+            continue
+        var screen_rect := Rect2(
+            center + world_rect.position * factor,
+            world_rect.size * factor,
+        )
+        draw_rect(screen_rect, Color("#2f879b"))
 
 func _draw_named_locations(center: Vector2, factor: float) -> void:
     var view := _map_view_rect()
@@ -394,6 +445,60 @@ func _draw_named_locations(center: Vector2, factor: float) -> void:
         if label_pos.x < view.position.x or label_pos.x > view.end.x - 4.0:
             continue
         _label(label_pos, str(location.get("name", "Unknown Place")), 13 if is_big_map else 10, Color("#ffe08a"))
+
+func _draw_quest_waypoint(center: Vector2, factor: float, view: Rect2) -> void:
+    var quest_system := get_tree().root.find_child("QuestSystem", true, false) as QuestSystem
+    if quest_system == null or not quest_system.has_method("get_active_waypoint"):
+        return
+    var waypoint: Dictionary = quest_system.get_active_waypoint()
+    var raw_position: Variant = waypoint.get("position", Vector2.ZERO)
+    var waypoint_valid := bool(waypoint.get("valid", false))
+    if not waypoint.has("valid"):
+        waypoint_valid = raw_position is Vector2 and raw_position != Vector2.ZERO
+    if not (raw_position is Vector2) or not waypoint_valid:
+        return
+    var target_world: Vector2 = raw_position
+    var target_screen := center + target_world * factor
+    var player_screen := target_screen
+    if is_instance_valid(GameManager.player):
+        player_screen = center + GameManager.player.global_position * factor
+    var visible_target := view.has_point(target_screen)
+    var marker_position := target_screen
+    if not visible_target:
+        var direction := target_screen - player_screen
+        if direction.length_squared() <= 0.001:
+            return
+        var half := view.size * 0.5 - Vector2(20.0, 20.0)
+        var normalized := direction.normalized()
+        var scale_x := absf(half.x / maxf(absf(normalized.x), 0.001))
+        var scale_y := absf(half.y / maxf(absf(normalized.y), 0.001))
+        marker_position = view.get_center() + normalized * minf(scale_x, scale_y)
+        var arrow_side := normalized.orthogonal() * 7.0
+        draw_colored_polygon(PackedVector2Array([
+            marker_position + normalized * 11.0,
+            marker_position - normalized * 7.0 + arrow_side,
+            marker_position - normalized * 7.0 - arrow_side,
+        ]), Color("#101c24"))
+        draw_colored_polygon(PackedVector2Array([
+            marker_position + normalized * 8.0,
+            marker_position - normalized * 5.0 + arrow_side * 0.65,
+            marker_position - normalized * 5.0 - arrow_side * 0.65,
+        ]), Color("#ef8ac7"))
+        if is_big_map:
+            _label(marker_position + Vector2(14, 4), str(waypoint.get("label", "Quest target")), 12, Color("#f4afd5"))
+        return
+
+    var kind := str(waypoint.get("kind", "objective"))
+    var marker_color := Color("#ffd36a") if kind == "return" else Color("#ef8ac7")
+    draw_circle(marker_position, 11.0, Color("#101c24"))
+    draw_circle(marker_position, 8.0, Color(marker_color, 0.30))
+    draw_colored_polygon(PackedVector2Array([
+        marker_position + Vector2(0, -8), marker_position + Vector2(8, 0),
+        marker_position + Vector2(0, 8), marker_position + Vector2(-8, 0)
+    ]), marker_color)
+    draw_circle(marker_position, 2.5, Color("#fff5ce"))
+    if is_big_map:
+        _label(marker_position + Vector2(12, 4), str(waypoint.get("label", "Quest target")), 12, marker_color)
 
 func _draw() -> void:
     if size.x <= 0.0 or size.y <= 0.0:
@@ -441,9 +546,13 @@ func _draw() -> void:
                     draw_line(Vector2(0, start_y), Vector2(size.x - MAP_PANEL_WIDTH, start_y), Color(0.12, 0.22, 0.28, 0.35), 1.0)
                 start_y += grid_step
 
-    # 4. Waystones markers
+    # 4. Quest target marker. It is drawn before world beacons so the active
+    # objective remains the highest-priority navigation signal.
     var map_view_rect: Rect2 = _map_view_rect()
     var marker_view: Rect2 = map_view_rect.grow(32.0)
+    _draw_quest_waypoint(center, factor, map_view_rect)
+
+    # 5. Waystones markers
     for stone: Node in _stones:
         if not is_instance_valid(stone) or not (stone is Node2D):
             continue
@@ -460,7 +569,7 @@ func _draw() -> void:
         if is_big_map and (map_zoom >= 1.8 or unlocked):
             _label(p + Vector2(10, 4), str(stone.get("display_name")).replace(" Waystone", ""), 12, Color("#eef3f6"))
 
-    # 5. NPC markers
+    # 6. NPC markers
     for npc: Node in _npcs:
         if is_instance_valid(npc) and npc is Node2D and (not is_big_map or map_zoom >= 1.6):
             var p: Vector2 = center + (npc as Node2D).global_position * factor
@@ -469,7 +578,7 @@ func _draw() -> void:
             draw_circle(p, 4.0, Color("#101c24"))
             draw_circle(p, 2.5, Color("#ffcf48"))
 
-    # 6. Player marker
+    # 7. Player marker
     if is_instance_valid(GameManager.player):
         var p: Vector2 = center + GameManager.player.global_position * factor
         var facing: Vector2 = GameManager.player.look_direction.normalized()
@@ -493,7 +602,7 @@ func _draw() -> void:
         draw_colored_polygon(pts_inner, Color("#1b394f"))
         draw_circle(p + facing * 2, 2.0, Color("#ffd448"))
 
-    # 7. Framing and overlays
+    # 8. Framing and overlays
     if is_big_map:
         # Top header banner
         draw_rect(Rect2(0, 0, size.x, 56), Color("#12202a"))

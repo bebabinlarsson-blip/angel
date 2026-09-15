@@ -22,6 +22,13 @@ func _ready() -> void:
 		)
 	UITheme.style_recursive(self)
 
+func _input(event: InputEvent) -> void:
+	# Quest Journal is a paused modal; close it before focused child Controls
+	# can consume Escape and leave gameplay paused.
+	if visible and event.is_action_pressed("pause"):
+		_toggle()
+		get_viewport().set_input_as_handled()
+
 func _toggle() -> void:
 	visible = !visible
 	if visible:
@@ -53,14 +60,6 @@ func _hide_overlay(node_name: String) -> void:
 		(overlay as Control).visible = false
 	elif overlay is CanvasLayer:
 		(overlay as CanvasLayer).visible = false
-
-func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("quest") and visible:
-		_toggle()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("pause") and visible:
-		_toggle()
-		get_viewport().set_input_as_handled()
 
 func _refresh() -> void:
 	if quest_list == null:
@@ -212,6 +211,8 @@ func _npc_display_name(npc_id: String) -> String:
 			return "Chef Maria"
 		"miner":
 			return "Miner Torvald"
+		"blacksmith":
+			return "Gunnar the Blacksmith"
 		"farmer":
 			return "Anika the Farmer"
 		"guard":
@@ -237,26 +238,7 @@ func _npc_job(npc_id: String) -> String:
 			return "carpenter"
 		"miner":
 			return "miner"
-		"farmer", "guard", "merchant", "fisher", "herbalist", "builder":
+		"farmer", "guard", "merchant", "fisher", "herbalist", "builder", "blacksmith":
 			return npc_id
 		_:
 			return "villager"
-	visible = !visible
-	if visible:
-		var inv := get_tree().root.find_child("InventoryUI", true, false)
-		if inv and inv.visible:
-			inv.visible = false
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
-		if p_menu and p_menu.visible:
-			p_menu.visible = false
-		
-		_refresh()
-		get_tree().paused = true
-		var card := get_node_or_null("CenterContainer/PanelContainer")
-		if card is Control:
-			UIAnim.pop_in(card as Control, 0.2)
-	else:
-		var p_menu := get_tree().root.find_child("PauseMenu", true, false)
-		var inv := get_tree().root.find_child("InventoryUI", true, false)
-		if (p_menu == null or not p_menu.visible) and (inv == null or not inv.visible):
-			get_tree().paused = false

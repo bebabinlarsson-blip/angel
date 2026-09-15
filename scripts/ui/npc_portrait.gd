@@ -87,6 +87,13 @@ func _draw() -> void:
 				Vector2(-22.0, -33.0)
 			]), Color("#e4b84f"))
 			draw_line(Vector2(-18.0, -24.0), Vector2(18.0, -24.0), Color("#6a4b37"), 3.0)
+		"blacksmith":
+			draw_arc(Vector2(0.0, -12.0), 28.0, PI, TAU, 24, Color("#3b4654"), 9.0)
+			draw_line(Vector2(-22.0, 22.0), Vector2(22.0, 22.0), Color("#d47d4d"), 4.0)
+			draw_colored_polygon(PackedVector2Array([
+				Vector2(16.0, 16.0), Vector2(31.0, 8.0), Vector2(35.0, 14.0),
+				Vector2(21.0, 24.0)
+			]), Color("#c8d2d4"))
 		"cook", "chef":
 			draw_arc(Vector2(0.0, -18.0), 25.0, PI, TAU, 24, Color("#f3f0e8"), 10.0)
 			draw_circle(Vector2(0.0, 23.0), 6.0, Color("#db5b55"))
@@ -105,6 +112,8 @@ func _palette() -> Dictionary:
 			return {"skin": Color("#efb68b"), "hair": Color("#8f4538"), "clothes": Color("#d55f59"), "accent": Color("#f3e7cc")}
 		"miner":
 			return {"skin": Color("#b77b5f"), "hair": Color("#342f39"), "clothes": Color("#596a78"), "accent": Color("#edc65b")}
+		"blacksmith":
+			return {"skin": Color("#c58a68"), "hair": Color("#2f2c35"), "clothes": Color("#4b5664"), "accent": Color("#db8051")}
 		"farmer":
 			return {"skin": Color("#d7956d"), "hair": Color("#5c3b29"), "clothes": Color("#668c57"), "accent": Color("#e1b555")}
 		"guard":

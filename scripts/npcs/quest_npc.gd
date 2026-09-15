@@ -11,7 +11,7 @@ const NPC_PORTRAIT_SCRIPT = preload("res://scripts/ui/npc_portrait.gd")
 @export var quest_active_text: String = "How's the task going?"
 @export var quest_complete_text: String = "Wonderful! Here's your reward."
 @export var quest_done_text: String = "Thank you for your help!"
-@export_enum("idle", "farmer", "guard", "merchant", "fisher", "herbalist", "carpenter", "miner", "builder", "cook") var job: String = "idle"
+@export_enum("idle", "farmer", "guard", "merchant", "fisher", "herbalist", "carpenter", "miner", "builder", "cook", "blacksmith") var job: String = "idle"
 @export var dialogue_lines: Array[String] = []
 @export var work_position: Vector2 = Vector2.ZERO
 @export var work_speed: float = 42.0
@@ -50,6 +50,9 @@ var village_radius: float = 500.0
 var _village_bounds_ready: bool = false
 
 func _ready() -> void:
+	# Dialogue is a modal screen-space UI, so the NPC must still receive Escape
+	# while the gameplay tree is paused.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	add_to_group("npcs")
 	if job == "idle":
 		job = _job_from_npc_id()
@@ -61,6 +64,12 @@ func _ready() -> void:
 	if has_node("NameLabel"):
 		name_label = get_node("NameLabel") as Label
 		name_label.text = npc_name
+		name_label.custom_minimum_size = Vector2(132, 18)
+		name_label.position = Vector2(-66, -46)
+		name_label.add_theme_font_size_override("font_size", 9)
+		name_label.add_theme_constant_override("outline_size", 3)
+		name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		name_label.visible = false
 	_create_activity_label()
 	
 	_create_dialogue_ui()
@@ -92,13 +101,13 @@ func _configure_village_bounds() -> void:
 	schedule_destination = _clamp_to_village(schedule_destination)
 	_village_bounds_ready = true
 
-func _clamp_to_village(position: Vector2) -> Vector2:
+func _clamp_to_village(target_position: Vector2) -> Vector2:
 	if not stays_in_village:
-		return position
-	var offset: Vector2 = position - village_center
+		return target_position
+	var offset: Vector2 = target_position - village_center
 	var allowed_radius: float = maxf(32.0, village_radius - village_boundary_margin)
 	if offset.length_squared() <= allowed_radius * allowed_radius:
-		return position
+		return target_position
 	if offset.length_squared() <= 0.001:
 		return village_center
 	return village_center + offset.normalized() * allowed_radius
@@ -109,6 +118,7 @@ func _job_from_npc_id() -> String:
 		"elder": return "guard"
 		"carpenter": return "carpenter"
 		"miner": return "miner"
+		"blacksmith": return "blacksmith"
 		_: return "idle"
 
 func _create_activity_label() -> void:
@@ -258,13 +268,15 @@ func _find_quest_system() -> QuestSystem:
 		return node
 	return null
 
-func interact(_player: CharacterBody2D) -> void:
+func interact(player: CharacterBody2D) -> void:
 	if is_dialogue_open:
 		_close_dialogue()
 		return
 	
+	for overlay_name: String in ["BigMap", "InventoryUI", "QuestMenu", "PauseMenu", "CookingUILayer", "FastTravelLayer"]:
+		_hide_overlay(overlay_name)
 	is_dialogue_open = true
-	_dialogue_player = _player
+	_dialogue_player = player
 	interaction_count += 1
 	if dialogue_panel:
 		dialogue_panel.visible = true
@@ -273,13 +285,9 @@ func interact(_player: CharacterBody2D) -> void:
 	if quest_system == null:
 		quest_system = _find_quest_system()
 	
+	get_tree().paused = true
+	GameManager.is_paused = true
 	_update_dialogue()
-
-func _input(event: InputEvent) -> void:
-	if is_dialogue_open:
-		if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
-			_close_dialogue()
-			get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
 	if stays_in_village and not _village_bounds_ready:
@@ -296,7 +304,7 @@ func _process(delta: float) -> void:
 	if is_dialogue_open and _dialogue_player and is_instance_valid(_dialogue_player):
 		if (_dialogue_player as Node2D).global_position.distance_to(global_position) > 160.0:
 			_close_dialogue()
-	if not is_dialogue_open:
+	if not is_dialogue_open and not get_tree().paused:
 		_run_daily_routine(delta)
 	_update_facing()
 	_update_worker_animation()
@@ -354,7 +362,7 @@ func _default_work_offset() -> Vector2:
 		"merchant": return Vector2(-120, 70)
 		"fisher": return Vector2(170, 210)
 		"herbalist": return Vector2(-190, 180)
-		"carpenter", "builder": return Vector2(120, 70)
+		"carpenter", "builder", "blacksmith": return Vector2(120, 70)
 		"miner": return Vector2(96, 48)
 		"cook": return Vector2(-30, 58)
 		_: return home_position
@@ -432,6 +440,8 @@ func _update_activity_label() -> void:
 	if GameManager.player and is_instance_valid(GameManager.player):
 		player_near = global_position.distance_squared_to(GameManager.player.global_position) <= 57600.0
 	activity_label.visible = player_near and not is_dialogue_open
+	if name_label:
+		name_label.visible = player_near and not is_dialogue_open
 	activity_label.text = activity
 
 
@@ -443,6 +453,7 @@ func _job_activity() -> String:
 		"fisher": return "Fishing by the lake"
 		"herbalist": return "Gathering medicinal herbs"
 		"carpenter", "builder": return "Building and repairing"
+		"blacksmith": return "Forging and sharpening"
 		"miner": return "Working the quarry"
 		"cook": return "Preparing the evening meal"
 		_: return "Working"
@@ -451,7 +462,10 @@ func _update_worker_animation() -> void:
 	if worker_tool:
 		worker_tool.set_active(is_working)
 	if name_label and not npc_name.is_empty():
-		name_label.text = npc_name + ("\n" + activity if is_working else "")
+		# Keep the nameplate compact; the separate activity label carries the
+		# schedule state and avoids multi-line world-space text becoming huge at
+		# the player's camera zoom.
+		name_label.text = npc_name
 
 func _update_dialogue() -> void:
 	if quest_id.is_empty() or quest_system == null:
@@ -477,8 +491,12 @@ func _update_dialogue() -> void:
 		if accept_btn: accept_btn.visible = false
 		if complete_btn: complete_btn.visible = false
 	else:
-		_show_text("%s\n\n[color=#9fb6c5]%s[/color]" % [quest_offer_text, activity])
-		if accept_btn: accept_btn.visible = true
+		if quest_system.has_active_other_than(quest_id):
+			_show_text("A different quest is already active. Finish it before taking this one.\n\n[color=#9fb6c5]%s[/color]" % activity)
+			if accept_btn: accept_btn.visible = false
+		else:
+			_show_text("%s\n\n[color=#9fb6c5]%s[/color]" % [quest_offer_text, activity])
+			if accept_btn: accept_btn.visible = true
 		if complete_btn: complete_btn.visible = false
 
 func _show_text(text: String) -> void:
@@ -526,6 +544,25 @@ func _close_dialogue() -> void:
 	_dialogue_player = null
 	if dialogue_panel:
 		dialogue_panel.visible = false
+	if GameManager.current_state == GameManager.GameState.PLAYING and not _has_other_overlay():
+		get_tree().paused = false
+		GameManager.is_paused = false
+
+func _hide_overlay(node_name: String) -> void:
+	var overlay := get_tree().root.find_child(node_name, true, false)
+	if overlay is Control:
+		(overlay as Control).visible = false
+	elif overlay is CanvasLayer:
+		(overlay as CanvasLayer).visible = false
+
+func _has_other_overlay() -> bool:
+	for node_name: String in ["BigMap", "InventoryUI", "QuestMenu", "PauseMenu", "CookingUILayer", "FastTravelLayer"]:
+		var overlay := get_tree().root.find_child(node_name, true, false)
+		if overlay is Control and (overlay as Control).visible:
+			return true
+		if overlay is CanvasLayer and (overlay as CanvasLayer).visible:
+			return true
+	return false
 
 func show_interaction_hint() -> void:
 	if interaction_label:

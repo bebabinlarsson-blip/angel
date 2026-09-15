@@ -41,6 +41,8 @@ DISCONNECT_EXCEPTIONS = (
 class ThreadingGodotServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
+    request_queue_size = 16
+    block_on_close = False
 
     def handle_error(self, request, client_address):
         """Silences normal browser disconnects and socket abortions."""
@@ -186,28 +188,53 @@ class GodotWebRequestHandler(SimpleHTTPRequestHandler):
 def get_lan_ip():
     """Detects primary network IP address."""
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(0.25)
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except (OSError, TimeoutError):
         return "127.0.0.1"
 
 
 def find_available_port(starting_port, max_tries=10):
-    for port in range(starting_port, starting_port + max_tries):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            if s.connect_ex(("127.0.0.1", port)) != 0:
-                return port
-    return starting_port
+    """Return a free port, or None when the bounded range is exhausted."""
+    if not isinstance(starting_port, int) or not 1 <= starting_port <= 65535:
+        return None
+    if not isinstance(max_tries, int) or max_tries < 1:
+        return None
+    end_port = min(65536, starting_port + max_tries)
+    for port in range(starting_port, end_port):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                if s.connect_ex(("127.0.0.1", port)) != 0:
+                    return port
+        except OSError:
+            continue
+    return None
+
+
+def _create_server(port):
+    try:
+        return ThreadingGodotServer(("0.0.0.0", port), GodotWebRequestHandler)
+    except OSError as exc:
+        print(f"Error: Could not bind Web server to port {port}: {exc}")
+        return None
 
 
 def main():
     parser = argparse.ArgumentParser(description="Host the Angel Godot Web build.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to host on (default: 8060)")
     parser.add_argument("--no-browser", action="store_true", help="Do not automatically open browser")
+    # start_server.bat consumes this flag for its optional export step, but
+    # Windows batch files cannot portably rewrite %* after SHIFT. Accept it
+    # here as a hidden no-op so `start_server.bat --reexport --no-browser`
+    # still reaches the server instead of failing argparse.
+    parser.add_argument("--reexport", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
+
+    if not 1 <= args.port <= 65535:
+        parser.error("--port must be between 1 and 65535")
 
     if not os.path.exists(os.path.join(WEB_DIR, "index.html")):
         print(f"Error: Web build not found at {WEB_DIR}")
@@ -215,10 +242,14 @@ def main():
         sys.exit(1)
 
     port = find_available_port(args.port)
+    if port is None:
+        print(f"Error: No available port in the range {args.port}-{min(65535, args.port + 9)}")
+        sys.exit(1)
     lan_ip = get_lan_ip()
 
-    server_address = ("0.0.0.0", port)
-    httpd = ThreadingGodotServer(server_address, GodotWebRequestHandler)
+    httpd = _create_server(port)
+    if httpd is None:
+        sys.exit(1)
 
     local_url = f"http://localhost:{port}/"
     lan_url = f"http://{lan_ip}:{port}/"

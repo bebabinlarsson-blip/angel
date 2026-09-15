@@ -3,4 +3,7 @@
 /android/
 .fennara/
 __pycache__/
+/build/
+/footage/
+/tools/
 *.py[cod]

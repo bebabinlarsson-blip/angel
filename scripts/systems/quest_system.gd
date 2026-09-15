@@ -4,9 +4,15 @@ extends Node
 var all_quests: Dictionary = {}
 var active_quests: Dictionary = {}
 var completed_quests: Dictionary = {}
+const MAX_SAVED_QUESTS := 32
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_to_group("quest_system")
 	_init_quests()
+	_connect_once(EventBus.monster_killed, _on_monster_killed)
+	_connect_once(EventBus.item_collected, _on_item_collected)
+	_connect_once(EventBus.cooking_finished, _on_cooking_finished)
 
 func _init_quests() -> void:
 	# Define starter quests
@@ -64,34 +70,43 @@ func _init_quests() -> void:
 func accept_quest(quest_id: String) -> bool:
 	if not all_quests.has(quest_id) or active_quests.has(quest_id) or completed_quests.has(quest_id):
 		return false
+	if not active_quests.is_empty():
+		var current_id := get_active_quest_id()
+		var current: Dictionary = get_active_quest()
+		EventBus.show_notification.emit("Finish '%s' before taking another quest." % str(current.get("title", current_id)))
+		return false
 	var quest_value: Variant = all_quests.get(quest_id, {})
 	if not (quest_value is Dictionary):
 		return false
-	active_quests[quest_id] = (quest_value as Dictionary).duplicate(true)
+	active_quests[quest_id] = _normalize_quest(quest_value as Dictionary)
 	EventBus.quest_accepted.emit(quest_id)
 	EventBus.show_notification.emit("Quest accepted: " + str(active_quests[quest_id].get("title", "Quest")))
 	return true
+
 func update_quest_progress(quest_type: String, target: String, amount: int = 1) -> void:
 	if amount <= 0:
 		return
-	for quest_id in active_quests:
-		var quest_value: Variant = active_quests.get(quest_id, {})
-		if not (quest_value is Dictionary):
-			continue
-		var quest: Dictionary = quest_value
-		if str(quest.get("type", "")) != quest_type:
-			continue
-		var q_target: String = str(quest.get("target", ""))
-		var is_wildcard: bool = q_target == "any_dish" and quest_type == "cook"
-		if q_target != target and not is_wildcard:
-			continue
-		var target_count: int = maxi(1, int(quest.get("target_count", 1)))
-		var old_count: int = clampi(int(quest.get("current_count", 0)), 0, target_count)
-		var new_count: int = mini(target_count, old_count + amount)
-		quest["current_count"] = new_count
-		EventBus.quest_updated.emit(str(quest_id))
-		if old_count < target_count and new_count >= target_count:
-			EventBus.show_notification.emit("Quest ready to complete: " + str(quest.get("title", "Quest")))
+	var quest_id := get_active_quest_id()
+	if quest_id.is_empty():
+		return
+	var quest_value: Variant = active_quests.get(quest_id, {})
+	if not (quest_value is Dictionary):
+		return
+	var quest: Dictionary = quest_value
+	if str(quest.get("type", "")) != quest_type:
+		return
+	var q_target: String = str(quest.get("target", ""))
+	var is_wildcard: bool = q_target == "any_dish" and quest_type == "cook"
+	if q_target != target and not is_wildcard:
+		return
+	var target_count: int = maxi(1, int(quest.get("target_count", 1)))
+	var old_count: int = clampi(int(quest.get("current_count", 0)), 0, target_count)
+	var new_count: int = mini(target_count, old_count + amount)
+	quest["current_count"] = new_count
+	EventBus.quest_updated.emit(quest_id)
+	if old_count < target_count and new_count >= target_count:
+		EventBus.show_notification.emit("Quest ready to complete: " + str(quest.get("title", "Quest")))
+
 func try_complete_quest(quest_id: String) -> bool:
 	if not active_quests.has(quest_id):
 		return false
@@ -106,17 +121,21 @@ func try_complete_quest(quest_id: String) -> bool:
 
 	var rewards_value: Variant = quest.get("rewards", {})
 	var rewards: Dictionary = rewards_value if rewards_value is Dictionary else {}
-	if GameManager.player and GameManager.player.stats:
+	var player := GameManager.player
+	if player != null and is_instance_valid(player) and player.stats != null:
 		if rewards.has("money"):
-			GameManager.player.stats.add_money(int(rewards.get("money", 0)))
+			player.stats.add_money(int(rewards.get("money", 0)))
 		if rewards.has("exp"):
-			GameManager.player.stats.add_exp(int(rewards.get("exp", 0)))
+			player.stats.add_exp(int(rewards.get("exp", 0)))
 
-	completed_quests[quest_id] = quest.duplicate(true)
+	var completed_quest := quest.duplicate(true)
+	completed_quest["completed"] = true
+	completed_quests[quest_id] = completed_quest
 	active_quests.erase(quest_id)
 	EventBus.quest_completed.emit(quest_id)
 	EventBus.show_notification.emit("Quest completed: " + str(quest.get("title", "Quest")))
 	return true
+
 func is_quest_active(quest_id: String) -> bool:
 	return active_quests.has(quest_id)
 func is_quest_complete(quest_id: String) -> bool:
@@ -130,22 +149,213 @@ func is_quest_complete(quest_id: String) -> bool:
 func is_quest_done(quest_id: String) -> bool:
 	return quest_id in completed_quests
 
+func get_active_quest_id() -> String:
+	for quest_id in active_quests:
+		return str(quest_id)
+	return ""
+
+func get_active_quest() -> Dictionary:
+	var quest_id := get_active_quest_id()
+	var value: Variant = active_quests.get(quest_id, {})
+	return value as Dictionary if value is Dictionary else {}
+
+func has_active_other_than(quest_id: String) -> bool:
+	var active_id := get_active_quest_id()
+	return not active_id.is_empty() and active_id != quest_id
+
+func get_active_status_text() -> String:
+	var quest := get_active_quest()
+	if quest.is_empty():
+		return ""
+	var current := int(quest.get("current_count", 0))
+	var required := maxi(1, int(quest.get("target_count", 1)))
+	return "%s  %d/%d" % [str(quest.get("objective", "Track your objective")), current, required]
+
+func get_active_waypoint() -> Dictionary:
+	var quest := get_active_quest()
+	if quest.is_empty():
+		return {}
+	var quest_id := get_active_quest_id()
+	var target_position := _find_quest_target_position(quest)
+	var is_complete := is_quest_complete(quest_id)
+	var label := "Return to " + _quest_giver_name(str(quest.get("npc_id", ""))) if is_complete else str(quest.get("title", "Quest target"))
+	return {
+		"position": target_position,
+		"valid": _has_quest_target(quest, target_position),
+		"label": label,
+		"kind": "return" if is_complete else "objective",
+		"quest_id": quest_id,
+	}
+
+func _has_quest_target(quest: Dictionary, target_position: Vector2) -> bool:
+	if target_position != Vector2.ZERO:
+		return true
+	var quest_id := str(quest.get("id", ""))
+	if str(quest.get("type", "")) == "cook" and not get_tree().get_nodes_in_group("cooking_places").is_empty():
+		return true
+	if is_quest_complete(quest_id):
+		var npc_id := str(quest.get("npc_id", ""))
+		for npc in get_tree().get_nodes_in_group("npcs"):
+			if is_instance_valid(npc) and npc is Node2D and str(npc.get("npc_id")) == npc_id:
+				return true
+	return false
+
+func _find_quest_target_position(quest: Dictionary) -> Vector2:
+	var quest_id := str(quest.get("id", ""))
+	var quest_type := str(quest.get("type", ""))
+	var target := str(quest.get("target", ""))
+	if is_quest_complete(quest_id):
+		return _find_npc_position(str(quest.get("npc_id", "")), Vector2.ZERO)
+	if quest_type == "cook":
+		var cooking_places := get_tree().get_nodes_in_group("cooking_places")
+		var nearest := _nearest_node_position(cooking_places)
+		return nearest if nearest != Vector2.ZERO else Vector2.ZERO
+	if quest_type == "kill":
+		var monsters := get_tree().get_nodes_in_group("monsters")
+		var nearest_monster := _nearest_living_position(monsters)
+		return nearest_monster if nearest_monster != Vector2.ZERO else Vector2(-760.0, -520.0)
+	if quest_type == "collect":
+		var candidates := get_tree().get_nodes_in_group("collectables")
+		var nearest_collectable := _nearest_matching_position(candidates, target)
+		if nearest_collectable != Vector2.ZERO:
+			return nearest_collectable
+		if target == "iron_ore":
+			return Vector2(-2080.0, -2240.0)
+		if target == "wood":
+			return Vector2(-1664.0, 1024.0)
+	return Vector2.ZERO
+
+func _find_npc_position(npc_id: String, fallback: Vector2) -> Vector2:
+	for npc in get_tree().get_nodes_in_group("npcs"):
+		if str(npc.get("npc_id")) == npc_id and npc is Node2D:
+			return (npc as Node2D).global_position
+	return fallback
+
+func _quest_giver_name(npc_id: String) -> String:
+	for npc in get_tree().get_nodes_in_group("npcs"):
+		if str(npc.get("npc_id")) == npc_id:
+			var name_value: Variant = npc.get("npc_name")
+			return str(name_value) if name_value != null else npc_id.capitalize()
+	return npc_id.capitalize()
+
+func _nearest_node_position(nodes: Array) -> Vector2:
+	var best := Vector2.ZERO
+	var best_distance := INF
+	var player := GameManager.player
+	for node in nodes:
+		if not (node is Node2D) or not is_instance_valid(node):
+			continue
+		var pos := (node as Node2D).global_position
+		var distance := player.global_position.distance_squared_to(pos) if player and is_instance_valid(player) else pos.length_squared()
+		if distance < best_distance:
+			best_distance = distance
+			best = pos
+	return best
+
+func _nearest_living_position(nodes: Array) -> Vector2:
+	var best := Vector2.ZERO
+	var best_distance := INF
+	var player := GameManager.player
+	for node in nodes:
+		if not (node is BaseMonster) or not is_instance_valid(node):
+			continue
+		if (node as BaseMonster).current_state == BaseMonster.State.DEAD:
+			continue
+		var pos := (node as Node2D).global_position
+		var distance := player.global_position.distance_squared_to(pos) if player and is_instance_valid(player) else pos.length_squared()
+		if distance < best_distance:
+			best_distance = distance
+			best = pos
+	return best
+
+func _nearest_matching_position(nodes: Array, target: String) -> Vector2:
+	var best := Vector2.ZERO
+	var best_distance := INF
+	var player := GameManager.player
+	for node in nodes:
+		if not (node is Node2D) or not is_instance_valid(node):
+			continue
+		if bool(node.get("is_collected")):
+			continue
+		var item_id_value: Variant = node.get("item_id")
+		if item_id_value != null and str(item_id_value) == target:
+			var pos := (node as Node2D).global_position
+			var distance := player.global_position.distance_squared_to(pos) if player and is_instance_valid(player) else pos.length_squared()
+			if distance < best_distance:
+				best_distance = distance
+				best = pos
+	return best
+
 func get_save_data() -> Dictionary:
 	return {
-		"active": active_quests.duplicate(true),
+		"active": {get_active_quest_id(): get_active_quest().duplicate(true)} if not get_active_quest_id().is_empty() else {},
 		"completed": completed_quests.duplicate(true),
 	}
+
+func _normalize_quest(quest: Dictionary, base: Dictionary = {}) -> Dictionary:
+	var result := base.duplicate(true)
+	for key in quest:
+		result[key] = quest[key]
+	result["id"] = str(result.get("id", ""))
+	result["type"] = str(result.get("type", ""))
+	result["target"] = str(result.get("target", ""))
+	var target_count := maxi(1, int(result.get("target_count", 1)))
+	result["target_count"] = target_count
+	result["current_count"] = clampi(int(result.get("current_count", 0)), 0, target_count)
+	if bool(result.get("completed", false)):
+		result["completed"] = true
+	var rewards: Variant = result.get("rewards", {})
+	result["rewards"] = rewards.duplicate(true) if rewards is Dictionary else {}
+	return result
 func _copy_quest_map(value: Variant) -> Dictionary:
 	var result: Dictionary = {}
 	if not (value is Dictionary):
 		return result
 	var source: Dictionary = value
+	var copied_count := 0
 	for quest_id in source:
+		if copied_count >= MAX_SAVED_QUESTS:
+			break
 		var quest_value: Variant = source.get(quest_id, {})
 		if quest_value is Dictionary:
 			result[str(quest_id)] = (quest_value as Dictionary).duplicate(true)
+			copied_count += 1
 	return result
 
 func load_save_data(data: Dictionary) -> void:
-	active_quests = _copy_quest_map(data.get("active", {}))
-	completed_quests = _copy_quest_map(data.get("completed", {}))
+	active_quests.clear()
+	completed_quests.clear()
+	var saved_completed := _copy_quest_map(data.get("completed", {}))
+	for quest_id in saved_completed:
+		if all_quests.has(quest_id):
+			var completed_quest := _normalize_quest(saved_completed[quest_id], all_quests[quest_id])
+			completed_quest["completed"] = true
+			completed_quests[quest_id] = completed_quest
+	var saved_active := _copy_quest_map(data.get("active", {}))
+	# Legacy saves could contain several active quests. Keep only the first
+	# stable dictionary entry so the current design remains single-objective.
+	for quest_id in saved_active:
+		if all_quests.has(quest_id) and not completed_quests.has(quest_id):
+			active_quests[quest_id] = _normalize_quest(saved_active[quest_id], all_quests[quest_id])
+			break
+
+func _connect_once(signal_value: Signal, handler: Callable) -> void:
+	if not signal_value.is_connected(handler):
+		signal_value.connect(handler)
+
+func _on_monster_killed(monster: Node, _position: Vector2) -> void:
+	var target := "monster"
+	if monster and monster.has_meta("quest_target"):
+		target = str(monster.get_meta("quest_target"))
+	elif monster is SlimeMonster:
+		# Moss, ember and crystal variants are still slimes for quest purposes.
+		target = "slime"
+	elif monster and monster.has_meta("variant"):
+		target = str(monster.get_meta("variant"))
+	update_quest_progress("kill", target, 1)
+
+func _on_item_collected(item_data: Dictionary) -> void:
+	update_quest_progress("collect", str(item_data.get("id", "")), int(item_data.get("quantity", 1)))
+
+func _on_cooking_finished(result: Dictionary) -> void:
+	update_quest_progress("cook", str(result.get("id", "dish")), 1)

@@ -9,6 +9,7 @@ extends Control
 
 var settings_panel: Control = null
 var controls_panel: Control = null
+var _transitioning: bool = false
 
 func _ready() -> void:
 	_ensure_audio_manager()
@@ -32,6 +33,19 @@ func _ready() -> void:
 	_create_controls_modal()
 	UITheme.style_recursive(self)
 	_play_entrance()
+
+func _input(event: InputEvent) -> void:
+	# Settings and controls are independent main-menu modals. Close the active
+	# one on Escape before a focused slider/button can consume the event.
+	if not event.is_action_pressed("pause"):
+		return
+	if controls_panel != null and controls_panel.visible:
+		controls_panel.visible = false
+		get_viewport().set_input_as_handled()
+		return
+	if settings_panel != null and settings_panel.visible:
+		settings_panel.visible = false
+		get_viewport().set_input_as_handled()
 
 func _ensure_audio_manager() -> void:
 	if get_tree().root.get_node_or_null("AudioManager") == null:
@@ -175,7 +189,7 @@ func _create_controls_modal() -> void:
 		["Hold [Space] / Click", "Power Whirlwind Nova (Hold & Release)"],
 		["Mouse Cursor", "Aim Direction"],
 		["[F]", "Interact / Talk to NPCs / Campfire"],
-		["[I] or [Tab]", "Open Inventory & Equipment"],
+		["[E] or [Tab]", "Open Inventory & Equipment"],
 		["[Q]", "Open Quest Journal"],
 		["[M] or Click Map", "Toggle Big Map"],
 		["[Esc]", "Pause Menu & Save Game"]
@@ -207,26 +221,74 @@ func _create_controls_modal() -> void:
 	add_child(controls_panel)
 
 func _on_new_game() -> void:
+	if _transitioning:
+		return
+	_set_transitioning(true)
+	var scene_tree := get_tree()
+	if scene_tree == null:
+		_set_transitioning(false)
+		return
 	GameManager.opened_caches.clear()
 	GameManager.unlocked_waystones.clear()
+	GameManager.pending_waystone_ids.clear()
+	GameManager.pending_player_data.clear()
+	GameManager.pending_quest_data.clear()
+	GameManager.pending_world_data.clear()
+	GameManager.is_interior = false
+	GameManager.current_interior_id = ""
+	GameManager.current_location_name = "Angel Village"
+	GameManager.return_scene_path = "res://scenes/game.tscn"
+	GameManager.return_position = Vector2.ZERO
 	GameManager.game_time_hours = 8.0
 	GameManager.day_count = 1
-	GameManager.current_state = GameManager.GameState.PLAYING
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
+	GameManager.is_night = false
+	GameManager._last_emit_hour = -1
+	GameManager._last_emit_minute = -1
+	GameManager.set_state(GameManager.GameState.LOADING)
+	var change_error := scene_tree.change_scene_to_file("res://scenes/game.tscn")
+	if change_error != OK:
+		GameManager.set_state(GameManager.GameState.MAIN_MENU)
+		_set_transitioning(false)
+		push_error("MainMenu: failed to start a new game (%s)" % error_string(change_error))
 
 func _on_continue() -> void:
-	GameManager.current_state = GameManager.GameState.PLAYING
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
-	# Was fixed 0.2s (racy on slow/web loads). Wait for the new scene + player.
-	for i in range(60):
-		await get_tree().process_frame
-		var p := get_tree().root.find_child("Player", true, false)
-		if p:
+	if _transitioning:
+		return
+	_set_transitioning(true)
+	var scene_tree := get_tree()
+	if scene_tree == null:
+		_set_transitioning(false)
+		return
+	GameManager.set_state(GameManager.GameState.LOADING)
+	var change_error := scene_tree.change_scene_to_file("res://scenes/game.tscn")
+	if change_error != OK:
+		GameManager.set_state(GameManager.GameState.MAIN_MENU)
+		_set_transitioning(false)
+		push_error("MainMenu: failed to continue into the game (%s)" % error_string(change_error))
+		return
+	# Wait for the new scene's gameplay systems, not just the player. This keeps
+	# the quest/world snapshots from a save from racing scene initialization.
+	for i in range(120):
+		await scene_tree.process_frame
+		var p := scene_tree.root.find_child("Player", true, false)
+		var q := scene_tree.root.find_child("QuestSystem", true, false)
+		var director := scene_tree.root.find_child("WorldDirector", true, false)
+		if p and q and director:
 			break
 	SaveManager.load_game(0)
 
+func _set_transitioning(value: bool) -> void:
+	_transitioning = value
+	for button in [new_game_btn, continue_btn, controls_btn, settings_btn, quit_btn]:
+		if button is Button:
+			button.disabled = value
+	if not value and continue_btn:
+		continue_btn.disabled = not SaveManager.has_save(0)
+
 func _on_controls() -> void:
 	if controls_panel:
+		if settings_panel:
+			settings_panel.visible = false
 		controls_panel.visible = true
 		var card := controls_panel.get_node_or_null("CenterContainer/PanelContainer")
 		if card == null:
@@ -236,6 +298,8 @@ func _on_controls() -> void:
 
 func _on_settings() -> void:
 	if settings_panel:
+		if controls_panel:
+			controls_panel.visible = false
 		settings_panel.visible = true
 		var card := settings_panel.get_node_or_null("CenterContainer/PanelContainer")
 		if card == null:
