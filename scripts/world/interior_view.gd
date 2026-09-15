@@ -13,6 +13,7 @@ var mine_button: Button = null
 var mine_status: Label = null
 var mine_veins_remaining: int = 3
 var mine_result: bool = false
+signal mine_requested(ore_type: String, amount: int)
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -31,7 +32,6 @@ func configure(new_id: String, new_name: String, new_kind: String) -> void:
 	_ensure_mine_controls()
 	queue_redraw()
 
-signal mine_requested(ore_type: String, amount: int)
 
 func _draw_atlas_floor(floor_rect: Rect2) -> void:
 	if world_tileset == null:
