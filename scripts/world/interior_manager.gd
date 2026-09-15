@@ -9,7 +9,7 @@ var entrance_parent: Node2D = null
 var definitions: Array[Dictionary] = []
 var interior_layer: CanvasLayer = null
 var interior_panel: PanelContainer = null
-var interior_view: Control = null
+var interior_view: InteriorView = null
 var title_label: Label = null
 var description_label: Label = null
 var exit_button: Button = null
@@ -153,9 +153,11 @@ func _create_ui() -> void:
 	header.add_child(tag)
 	vbox.add_child(header)
 
-	interior_view = INTERIOR_VIEW_SCRIPT.new() as Control
+	interior_view = INTERIOR_VIEW_SCRIPT.new() as InteriorView
 	interior_view.name = "InteriorView"
 	interior_view.custom_minimum_size = Vector2(672.0, 300.0)
+	if not interior_view.mine_requested.is_connected(_on_interior_mine_requested):
+		interior_view.mine_requested.connect(_on_interior_mine_requested)
 	interior_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	interior_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(interior_view)
@@ -239,6 +241,31 @@ func _exit_interior() -> void:
 		interior_layer.visible = false
 	if GameManager.current_state != GameManager.GameState.GAME_OVER and GameManager.current_state != GameManager.GameState.MAIN_MENU:
 		GameManager.set_state(GameManager.GameState.PLAYING)
+
+
+func _on_interior_mine_requested(ore_type: String, amount: int) -> void:
+	if active_interior_id != "highland_mine" or interior_view == null:
+		return
+	var player_value: Variant = GameManager.player
+	if not (player_value is Player) or not is_instance_valid(player_value):
+		return
+	var player := player_value as Player
+	if player.inventory == null:
+		return
+	var item_data := {
+		"id": ore_type,
+		"name": "Iron Ore",
+		"type": 0,
+		"quantity": maxi(1, amount),
+		"stackable": true,
+		"description": "Raw ore mined from the Highland Mine."
+	}
+	if not player.inventory.can_add_item(item_data) or not player.inventory.add_item(item_data):
+		EventBus.show_notification.emit("Inventory full — make room for ore.")
+		return
+	interior_view.mine_result = true
+	EventBus.item_collected.emit(item_data)
+	EventBus.show_notification.emit("Mined Iron Ore x%d." % item_data["quantity"])
 
 func _input(event: InputEvent) -> void:
 	if not inside_interior:
