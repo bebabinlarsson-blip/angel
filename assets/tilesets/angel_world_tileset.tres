@@ -1871,6 +1871,43 @@ texture_region_size = Vector2i(32, 32)
 0:0/size_in_atlas = Vector2i(4, 4)
 0:0/0 = 0
 
+[ext_resource type="Texture2D" path="res://assets/sprites/world/rock_boulder.png" id="extra_rockboulder"]
+[ext_resource type="Texture2D" path="res://assets/sprites/world/rock_cluster.png" id="extra_rockcluster"]
+[ext_resource type="Texture2D" path="res://assets/sprites/world/ruin_pillar.png" id="extra_ruinpillar"]
+[ext_resource type="Texture2D" path="res://assets/sprites/world/campfire.png" id="extra_campfire"]
+[ext_resource type="Texture2D" path="res://assets/sprites/world/waystone.png" id="extra_waystone"]
+[ext_resource type="Texture2D" path="res://assets/sprites/world/ore_vein.png" id="extra_orevein"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_rockboulder"]
+texture = ExtResource("extra_rockboulder")
+texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(1, 1)
+0:0/0 = 0
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_rockcluster"]
+texture = ExtResource("extra_rockcluster")
+texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(1, 1)
+0:0/0 = 0
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_ruinpillar"]
+texture = ExtResource("extra_ruinpillar")
+texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(1, 1)
+0:0/0 = 0
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_campfire"]
+texture = ExtResource("extra_campfire")
+texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(4, 1)
+0:0/0 = 0
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_waystone"]
+texture = ExtResource("extra_waystone")
+texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(2, 2)
+0:0/0 = 0
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_orevein"]
+texture = ExtResource("extra_orevein")
+texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(1, 1)
+0:0/0 = 0
 [resource]
 resource_name = "Angel World Atlas"
 tile_size = Vector2i(32, 32)
@@ -1924,3 +1961,9 @@ sources/34 = SubResource("TileSetAtlasSource_extra_housestone")
 sources/35 = SubResource("TileSetAtlasSource_extra_cottageorange")
 sources/36 = SubResource("TileSetAtlasSource_extra_cottagestone")
 sources/37 = SubResource("TileSetAtlasSource_extra_cottagewood")
+sources/38 = SubResource("TileSetAtlasSource_extra_rockboulder")
+sources/39 = SubResource("TileSetAtlasSource_extra_rockcluster")
+sources/40 = SubResource("TileSetAtlasSource_extra_ruinpillar")
+sources/41 = SubResource("TileSetAtlasSource_extra_campfire")
+sources/42 = SubResource("TileSetAtlasSource_extra_waystone")
+sources/43 = SubResource("TileSetAtlasSource_extra_orevein")
