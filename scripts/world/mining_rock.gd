@@ -1,6 +1,8 @@
 class_name MiningRock
 extends StaticBody2D
 
+const TILESET_VISUAL_SCRIPT = preload("res://scripts/world/tileset_visual.gd")
+
 @export var max_hits: int = 4
 @export var ore_type: String = "iron_ore"
 @export var ore_name: String = "Iron Ore"
@@ -27,6 +29,9 @@ func _ready() -> void:
 		else:
 			sprite.modulate = Color(0.9, 1.0, 1.1)
 		add_child(sprite)
+	var atlas_texture := TILESET_VISUAL_SCRIPT.texture_for_item("ore_vein")
+	if atlas_texture != null:
+		sprite.texture = atlas_texture
 	visual = sprite
 
 	# Minimal/test scenes may omit the authored collider. Keep the interaction
