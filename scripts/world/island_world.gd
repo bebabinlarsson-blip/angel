@@ -36,6 +36,7 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     decor = world.get_node_or_null("DecorLayer") as TileMapLayer
     water_layer = world.get_node_or_null("WaterLayer") as TileMapLayer
     farm_layer = world.get_node_or_null("FarmLayer") as TileMapLayer
+    _apply_world_tileset()
     y_sort_enabled = true
 
     var village_data: Dictionary = config.get("village", {})
@@ -92,6 +93,20 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     _build_map_locations(config)
     _refresh_map(water_layer, farm_layer)
     revision += 1
+
+func _apply_world_tileset() -> void:
+    # Every authored map layer shares one atlas so terrain, roads, structures,
+    # foliage and material tiles remain editable together in the 2D editor.
+    var authored_layers: Array[TileMapLayer] = [
+        ground, paths, trees, bridge, structures, decor, water_layer, farm_layer
+    ]
+    var world_tileset: TileSet = load("res://assets/tilesets/angel_world_tileset.tres") as TileSet
+    if world_tileset == null:
+        push_warning("Angel: unified world tileset could not be loaded.")
+        return
+    for layer: TileMapLayer in authored_layers:
+        if layer != null and is_instance_valid(layer):
+            layer.tile_set = world_tileset
 
 func is_water(p: Vector2) -> bool:
     if not is_inside_playable_area(p):
