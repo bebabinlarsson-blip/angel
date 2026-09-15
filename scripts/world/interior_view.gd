@@ -12,6 +12,7 @@ var world_tileset: TileSet = null
 var mine_button: Button = null
 var mine_status: Label = null
 var mine_veins_remaining: int = 3
+var mine_result: bool = false
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -26,6 +27,7 @@ func configure(new_id: String, new_name: String, new_kind: String) -> void:
 	display_name = new_name
 	interior_kind = new_kind
 	mine_veins_remaining = 3
+	mine_result = false
 	_ensure_mine_controls()
 	queue_redraw()
 
@@ -62,6 +64,8 @@ func _ensure_mine_controls() -> void:
 		mine_status.add_theme_constant_override("outline_size", 3)
 		add_child(mine_status)
 	mine_button.visible = interior_kind == "mine"
+	mine_button.disabled = false
+	mine_button.text = "Mine iron vein"
 	mine_status.visible = interior_kind == "mine"
 	_layout_mine_controls()
 
@@ -75,11 +79,15 @@ func _layout_mine_controls() -> void:
 func _on_mine_pressed() -> void:
 	if interior_kind != "mine" or mine_veins_remaining <= 0:
 		return
+	mine_result = false
+	mine_requested.emit("iron_ore", 2)
+	if not mine_result:
+		mine_status.text = "Inventory full — clear a slot first"
+		return
 	mine_veins_remaining -= 1
 	mine_button.disabled = mine_veins_remaining <= 0
 	mine_status.text = "%d veins remain" % mine_veins_remaining
 	mine_button.text = "Mine iron vein" if mine_veins_remaining > 0 else "Mine exhausted"
-	mine_requested.emit("iron_ore", 2)
 	queue_redraw()
 
 func _draw() -> void:
