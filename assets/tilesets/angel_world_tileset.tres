@@ -1778,22 +1778,27 @@ texture_region_size = Vector2i(16, 16)
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_itemwood"]
 texture = ExtResource("extra_itemwood")
 texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(1, 1)
 0:0/0 = 0
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_itemherb"]
 texture = ExtResource("extra_itemherb")
 texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(1, 1)
 0:0/0 = 0
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_itemmushroom"]
 texture = ExtResource("extra_itemmushroom")
 texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(1, 1)
 0:0/0 = 0
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_itemore"]
 texture = ExtResource("extra_itemore")
 texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(1, 1)
 0:0/0 = 0
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_wildflower"]
 texture = ExtResource("extra_wildflower")
 texture_region_size = Vector2i(32, 32)
+0:0/size_in_atlas = Vector2i(1, 1)
 0:0/0 = 0
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_extra_appletree"]
 texture = ExtResource("extra_appletree")
