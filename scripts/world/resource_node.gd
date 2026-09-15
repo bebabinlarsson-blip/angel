@@ -1,7 +1,9 @@
 class_name ResourceNode
 extends Area2D
 
-## Procedural ground material. It can be collected by walking close to it or
+const TILESET_VISUAL_SCRIPT = preload("res://scripts/world/tileset_visual.gd")
+
+## Atlas-backed ground material. It can be collected by walking close to it or
 ## by pressing the normal interaction key, with a lightweight nearby prompt.
 
 @export var item_id: String = "wood"
@@ -23,6 +25,7 @@ var near_player: bool = false
 var camera_visible: bool = false
 var collision: CollisionShape2D = null
 var pickup_label: Label = null
+var tile_visual: Sprite2D = null
 
 func _ready() -> void:
     add_to_group("resource_nodes")
@@ -36,12 +39,29 @@ func _ready() -> void:
         shape.radius = 18.0
         collision.shape = shape
         add_child(collision)
+    _ensure_tile_visual()
 
     # Labels are created only while the player is close enough to read them.
     # Keeping dormant resources as lightweight Area2Ds removes hundreds of
     # idle Control nodes without changing the pickup experience.
 
     queue_redraw()
+
+
+func _ensure_tile_visual() -> void:
+    var texture := TILESET_VISUAL_SCRIPT.texture_for_item(item_id)
+    if texture == null:
+        return
+    if tile_visual == null:
+        tile_visual = Sprite2D.new()
+        tile_visual.name = "TileSetMaterial"
+        tile_visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+        tile_visual.position = Vector2(0.0, -2.0)
+        tile_visual.z_index = 1
+        add_child(tile_visual)
+    tile_visual.texture = texture
+    tile_visual.scale = Vector2.ONE * TILESET_VISUAL_SCRIPT.scale_for_item(item_id)
+    tile_visual.visible = not is_collected
 
 func _ensure_pickup_label() -> void:
     if pickup_label != null:
@@ -152,6 +172,8 @@ func _give_to_player(player: Player) -> void:
         VFX.pickup_sparkle(self)
         is_collected = true
         near_player = false
+        if tile_visual:
+            tile_visual.visible = false
         if respawn_enabled:
             respawn_timer = respawn_time
         else:
@@ -166,6 +188,8 @@ func _give_to_player(player: Player) -> void:
 func _respawn() -> void:
     is_collected = false
     near_player = false
+    if tile_visual:
+        tile_visual.visible = true
     set_deferred("monitoring", true)
     if collision:
         collision.set_deferred("disabled", false)
@@ -180,6 +204,8 @@ func _draw() -> void:
         draw_arc(Vector2(0, 5), 24.0 + pulse * 4.0, 0.0, TAU, 24, Color(1.0, 0.88, 0.45, 0.75), 2.0)
     var bob := sin(bob_time * 2.4) * 1.5
     _draw_ground_ellipse(Vector2(0, 10), Vector2(14, 5), Color(0.04, 0.10, 0.08, 0.28))
+    if tile_visual != null and tile_visual.texture != null:
+        return
     draw_set_transform(Vector2(0, bob))
     match item_id:
         "wood":
