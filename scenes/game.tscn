@@ -1,7 +1,7 @@
 [gd_scene format=4 uid="uid://f4plvadsq1vd"]
 
 [ext_resource type="Script" uid="uid://jbyoa1864v6r" path="res://scripts/game.gd" id="1_ssvqc"]
-[ext_resource type="TileSet" uid="uid://be3kkygdic263" path="res://assets/tilesets/master_tileset.tres" id="2_kvpfn"]
+[ext_resource type="TileSet" path="res://assets/tilesets/angel_world_tileset.tres" id="2_kvpfn"]
 [ext_resource type="Script" uid="uid://cungptn5dwedf" path="res://scripts/world/cooking_pot.gd" id="3_e1j6l"]
 [ext_resource type="Script" uid="uid://ehf2ikkcfbdb" path="res://scripts/npcs/quest_npc.gd" id="4_pl11u"]
 [ext_resource type="SpriteFrames" uid="uid://bod7cdgjnvhda" path="res://assets/sprites/npc_cook_frames.tres" id="5_bhx41"]
