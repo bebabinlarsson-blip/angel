@@ -22,6 +22,7 @@ signal time_changed(hour: int, minute: int)
 # UI signals
 signal inventory_toggled()
 signal pause_toggled()
+signal admin_panel_requested()
 signal quest_menu_toggled()
 signal show_notification(text: String)
 signal interaction_available(interactable: Node)

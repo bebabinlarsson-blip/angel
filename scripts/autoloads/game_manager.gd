@@ -53,6 +53,13 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if current_state not in [GameState.PLAYING, GameState.PAUSED]:
 		return
+	if event.is_action_pressed("admin_panel"):
+		# Alt+P is available during gameplay and while paused. PauseMenu owns
+		# the visual transition and the existing Angel Oath gate still protects
+		# the developer controls.
+		EventBus.admin_panel_requested.emit()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause"):
 		if _close_modal_overlay():
 			if current_state == GameState.PLAYING:
