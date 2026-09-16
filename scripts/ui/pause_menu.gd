@@ -13,6 +13,7 @@ extends Control
 
 func _ready() -> void:
 	EventBus.pause_toggled.connect(_toggle)
+	EventBus.admin_panel_requested.connect(_on_admin_hotkey)
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	
@@ -164,6 +165,16 @@ func _on_admin() -> void:
 		(card as Control).visible = false
 	if admin_panel:
 		admin_panel.show_from_pause()
+
+func _on_admin_hotkey() -> void:
+	if admin_panel == null:
+		return
+	if admin_panel.visible:
+		admin_panel.close_panel()
+		return
+	if not visible:
+		_toggle()
+	_on_admin()
 
 func _on_admin_closed() -> void:
 	var card := get_node_or_null("CenterContainer/PanelContainer")
