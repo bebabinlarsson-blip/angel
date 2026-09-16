@@ -134,21 +134,21 @@ func _ensure_village_content(world_node: Node2D) -> void:
 			"id": "mine",
 			"name": "Northern Mine",
 			"scene": "res://scenes/interiors/mine.tscn",
-				"position": Vector2(-2160.0, -2344.0),
+			"position": Vector2(-2160.0, -2344.0),
 			"spawn": Vector2(0.0, 180.0),
 		},
 		{
 			"id": "abandoned_church",
 			"name": "Abandoned Church",
 			"scene": "res://scenes/interiors/abandoned_church.tscn",
-				"position": Vector2(528.0, -616.0),
+			"position": Vector2(528.0, -616.0),
 			"spawn": Vector2(0.0, 180.0),
 		},
 		{
 			"id": "village_house",
 			"name": "Guest House",
 			"scene": "res://scenes/interiors/generic_house.tscn",
-				"position": Vector2(256.0, -72.0),
+			"position": Vector2(256.0, -72.0),
 			"spawn": Vector2(0.0, 180.0),
 		},
 	]
@@ -163,6 +163,8 @@ func _ensure_village_content(world_node: Node2D) -> void:
 		entry.display_name = str(data["name"])
 		entry.interior_scene_path = str(data["scene"])
 		entry.destination_spawn = data["spawn"]
+		entry.linked_house_id = str(data["id"])
+		entry.linked_layer_name = "CaveLayer" if str(data["id"]) == "mine" else "HouseLayer"
 		entry.position = data["position"]
 
 

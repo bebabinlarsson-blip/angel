@@ -5,12 +5,21 @@ extends Area2D
 @export var display_name: String = "Interior"
 @export_file("*.tscn") var interior_scene_path: String = ""
 @export var destination_spawn: Vector2 = Vector2(0, 180)
+@export_group("Authored Door Link")
+@export var linked_layer_name: String = "HouseLayer"
+@export var linked_house_id: String = ""
 
 var prompt_label: Label = null
 var _pulse: float = 0.0
+var _redraw_timer: float = 0.0
+var _near_player: bool = false
 
 func _ready() -> void:
     add_to_group("interior_entries")
+    add_to_group("authored_door_entrances")
+    set_meta("linked_layer_name", linked_layer_name)
+    set_meta("linked_house_id", linked_house_id)
+    set_meta("door_anchor", "This node origin is the authored door center; ring and collision share it.")
     monitoring = true
     collision_layer = 1
     collision_mask = 1
@@ -34,16 +43,80 @@ func _ready() -> void:
     prompt_label.visible = false
     add_child(prompt_label)
     z_index = 8
+    z_as_relative = false
+    call_deferred("_attach_to_authored_layer")
     queue_redraw()
 
 func _process(delta: float) -> void:
-    _pulse += delta
     var player := GameManager.player
     var near: bool = player != null and is_instance_valid(player) and player.global_position.distance_squared_to(global_position) <= 19600.0
+    var prompt_should_show := near and GameManager.current_state == GameManager.GameState.PLAYING
     if prompt_label:
-        prompt_label.visible = near and GameManager.current_state == GameManager.GameState.PLAYING
-        prompt_label.text = "[F] Enter  %s" % display_name
+        if prompt_label.visible != prompt_should_show:
+            prompt_label.visible = prompt_should_show
+        if prompt_label.text.is_empty():
+            prompt_label.text = "[F] Enter  %s" % display_name
+
+    # Door rings retain their authored look, but distant entrances do not
+    # rebuild their draw command every frame. Nearby doors keep a smooth 30 Hz
+    # pulse, which is visually indistinguishable from a full-frame pulse.
+    if near:
+        _pulse += delta
+        _redraw_timer -= delta
+        if _redraw_timer <= 0.0:
+            _redraw_timer = 1.0 / 30.0
+            queue_redraw()
+    elif _near_player:
+        queue_redraw()
+    _near_player = near
+
+func _attach_to_authored_layer() -> void:
+    if linked_layer_name.is_empty() or not is_inside_tree():
+        return
+    var world := _find_world_node()
+    if world == null:
+        return
+    var layer := _find_linked_layer(world)
+    if layer == null or get_parent() == layer:
+        return
+
+    # Keep the exact authored world-space door position while making the
+    # trigger/ring a child of the layer that owns the visible house or cave.
+    # The registry node in interior_entries.tscn remains as a compatibility
+    # anchor for minimal scenes and legacy fallback creation.
+    var authored_position := global_position
+    reparent(layer, true)
+    global_position = authored_position
+    z_as_relative = false
+    z_index = 8
+    set_meta("authored_layer_path", str(layer.get_path()))
     queue_redraw()
+
+func _find_world_node() -> Node:
+    var scene_root := get_tree().current_scene
+    if scene_root != null:
+        var world := scene_root.get_node_or_null("World")
+        if world != null:
+            return world
+    return get_tree().root.find_child("World", true, false)
+
+func _find_linked_layer(world: Node) -> TileMapLayer:
+    var candidates: Array[String] = [linked_layer_name]
+    if linked_layer_name == "HouseLayer":
+        candidates.append("BuildingLayer")
+    elif linked_layer_name == "RoadLayer":
+        candidates.append("PathLayer")
+    var authored_root := world.get_node_or_null("AuthoredEnvironment")
+    if authored_root != null:
+        for candidate: String in candidates:
+            var authored_layer := authored_root.get_node_or_null(candidate) as TileMapLayer
+            if authored_layer != null:
+                return authored_layer
+    for candidate: String in candidates:
+        var direct_layer := world.get_node_or_null(candidate) as TileMapLayer
+        if direct_layer != null:
+            return direct_layer
+    return null
 
 func interact(player: CharacterBody2D) -> void:
     if player == null or not is_instance_valid(player) or interior_scene_path.is_empty():

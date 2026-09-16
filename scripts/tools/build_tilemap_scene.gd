@@ -29,7 +29,7 @@ func _init():
     ground_layer.owner = scene_root
     
     var path_layer = TileMapLayer.new()
-    path_layer.name = "PathLayer"
+    path_layer.name = "RoadLayer"
     path_layer.tile_set = tileset
     scene_root.add_child(path_layer)
     path_layer.owner = scene_root

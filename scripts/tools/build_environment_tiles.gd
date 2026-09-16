@@ -86,6 +86,10 @@ func _new_layer(root: Node2D, layer_name: String, z: int, y_sort: bool = false) 
 	layer.z_index = z
 	layer.y_sort_enabled = y_sort
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if layer_name == "RoadLayer":
+		layer.set_meta("layer_role", "Authored road tiles; edit roads here")
+	elif layer_name == "HouseLayer":
+		layer.set_meta("layer_role", "Authored houses and building tiles; door triggers attach here")
 	layer.tile_set = load(TILESET_OUTPUT) as TileSet
 	root.add_child(layer)
 	layer.owner = root
@@ -97,12 +101,12 @@ func _build_overworld_scene(tileset: TileSet) -> void:
 	root.set_meta("authored_tileset", TILESET_OUTPUT)
 	root.set_meta("placement_mode", "TileMapLayer cells; no runtime environment drawing")
 
-	var path_layer := _new_layer(root, "PathLayer", -92, false)
+	var path_layer := _new_layer(root, "RoadLayer", -92, false)
 	var water_layer := _new_layer(root, "WaterLayer", -111, false)
 	var farm_layer := _new_layer(root, "FarmLayer", -86, false)
 	var decor_layer := _new_layer(root, "DecorLayer", -84, true)
 	var tree_layer := _new_layer(root, "TreeLayer", -54, true)
-	var building_layer := _new_layer(root, "BuildingLayer", -52, true)
+	var building_layer := _new_layer(root, "HouseLayer", -52, true)
 	var cave_layer := _new_layer(root, "CaveLayer", -51, true)
 	var landmark_layer := _new_layer(root, "LandmarkLayer", -50, true)
 	var material_layer := _new_layer(root, "MaterialLayer", -42, true)

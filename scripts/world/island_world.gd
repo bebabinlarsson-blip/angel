@@ -17,6 +17,7 @@ var objects: TileMapLayer
 var _layer_sets: Dictionary = {}
 var map_texture: ImageTexture
 var authored_map_texture: ImageTexture
+var _map_refresh_queued: bool = false
 var bounds := Rect2(-3520, -3520, 7040, 7040)
 var radius: float = 3500.0
 var authored_bounds := Rect2(-3520, -3520, 7040, 7040)
@@ -33,25 +34,41 @@ var village_center: Vector2 = Vector2.ZERO
 var village_radius: float = 500.0
 const VILLAGE_BOUNDARY_MARGIN: float = 24.0
 
+func _layer_name_candidates(layer_name: String) -> Array:
+    # RoadLayer and HouseLayer are the canonical editor-facing names. Keep the
+    # previous names as read-only aliases so older test scenes and saved maps
+    # continue to load without moving or deleting any tile data.
+    if layer_name == "RoadLayer" or layer_name == "PathLayer":
+        return ["RoadLayer", "PathLayer"]
+    if layer_name == "HouseLayer" or layer_name == "BuildingLayer":
+        return ["HouseLayer", "BuildingLayer"]
+    return [layer_name]
+
 func _collect_world_layers(world: Node, layer_name: String) -> Array:
     var result: Array = []
-    var direct := world.get_node_or_null(layer_name) as TileMapLayer
-    if direct != null:
-        result.append(direct)
     var authored_root := world.get_node_or_null("AuthoredEnvironment")
-    if authored_root != null:
-        var authored := authored_root.get_node_or_null(layer_name) as TileMapLayer
-        if authored != null and not result.has(authored):
-            result.append(authored)
+    for candidate: String in _layer_name_candidates(layer_name):
+        var direct := world.get_node_or_null(candidate) as TileMapLayer
+        if direct != null and not result.has(direct):
+            result.append(direct)
+        if authored_root != null:
+            var authored := authored_root.get_node_or_null(candidate) as TileMapLayer
+            if authored != null and not result.has(authored):
+                result.append(authored)
     return result
 
 func _primary_world_layer(world: Node, layer_name: String) -> TileMapLayer:
     var authored_root := world.get_node_or_null("AuthoredEnvironment")
     if authored_root != null:
-        var authored := authored_root.get_node_or_null(layer_name) as TileMapLayer
-        if authored != null:
-            return authored
-    return world.get_node_or_null(layer_name) as TileMapLayer
+        for candidate: String in _layer_name_candidates(layer_name):
+            var authored := authored_root.get_node_or_null(candidate) as TileMapLayer
+            if authored != null:
+                return authored
+    for candidate: String in _layer_name_candidates(layer_name):
+        var direct := world.get_node_or_null(candidate) as TileMapLayer
+        if direct != null:
+            return direct
+    return null
 
 func _append_unique_layers(target: Array, additions: Array) -> void:
     for layer_value in additions:
@@ -87,14 +104,14 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     z_index = -200
     add_to_group("island_world")
     ground = _primary_world_layer(world, "GroundLayer")
-    paths = _primary_world_layer(world, "PathLayer")
+    paths = _primary_world_layer(world, "RoadLayer")
     trees = _primary_world_layer(world, "TreeLayer")
     bridge = _primary_world_layer(world, "BridgeLayer")
     structures = _primary_world_layer(world, "StructuresLayer")
     decor = _primary_world_layer(world, "DecorLayer")
     water_layer = _primary_world_layer(world, "WaterLayer")
     farm_layer = _primary_world_layer(world, "FarmLayer")
-    buildings = _primary_world_layer(world, "BuildingLayer")
+    buildings = _primary_world_layer(world, "HouseLayer")
     caves = _primary_world_layer(world, "CaveLayer")
     landmarks = _primary_world_layer(world, "LandmarkLayer")
     materials = _primary_world_layer(world, "MaterialLayer")
@@ -102,18 +119,18 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
 
     _layer_sets.clear()
     _layer_sets["ground"] = _collect_world_layers(world, "GroundLayer")
-    _layer_sets["paths"] = _collect_world_layers(world, "PathLayer")
+    _layer_sets["paths"] = _collect_world_layers(world, "RoadLayer")
     _layer_sets["trees"] = _collect_world_layers(world, "TreeLayer")
     _layer_sets["bridge"] = _collect_world_layers(world, "BridgeLayer")
     _layer_sets["decor"] = _collect_world_layers(world, "DecorLayer")
     _layer_sets["water"] = _collect_world_layers(world, "WaterLayer")
     _layer_sets["farm"] = _collect_world_layers(world, "FarmLayer")
     var structure_layers: Array = _collect_world_layers(world, "StructuresLayer")
-    _append_unique_layers(structure_layers, _collect_world_layers(world, "BuildingLayer"))
+    _append_unique_layers(structure_layers, _collect_world_layers(world, "HouseLayer"))
     _append_unique_layers(structure_layers, _collect_world_layers(world, "CaveLayer"))
     _append_unique_layers(structure_layers, _collect_world_layers(world, "LandmarkLayer"))
     _layer_sets["structures"] = structure_layers
-    _layer_sets["buildings"] = _collect_world_layers(world, "BuildingLayer")
+    _layer_sets["buildings"] = _collect_world_layers(world, "HouseLayer")
     _layer_sets["caves"] = _collect_world_layers(world, "CaveLayer")
     _layer_sets["landmarks"] = _collect_world_layers(world, "LandmarkLayer")
     _layer_sets["materials"] = _collect_world_layers(world, "MaterialLayer")
@@ -168,6 +185,12 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
         for child in interiors.get_children():
             if child is Node2D:
                 reserved.append(child.global_position)
+    # Entries are reparented under their authored tile layer after the first
+    # frame. Reserve them by group as well so streaming never places a resource
+    # or enemy over a doorway during that handoff.
+    for entry in get_tree().get_nodes_in_group("interior_entries"):
+        if entry is Node2D:
+            reserved.append((entry as Node2D).global_position)
 
     for house: Dictionary in village_data.get("houses", []):
         var pos_dict: Dictionary = house.get("pos", {})
@@ -177,7 +200,13 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
         reserved.append(Vector2(float(pos_dict.get("x", 0.0)), float(pos_dict.get("y", 0.0))))
 
     _build_map_locations(config)
-    _refresh_map(water_layer, farm_layer)
+    # The map is a cached presentation asset, not a gameplay dependency.
+    # Bake it after the first frame so the player can see the authored world
+    # immediately on low-end CPUs; MinimapDrawer already handles a null cache
+    # with a short "Charting island..." state.
+    if not _map_refresh_queued:
+        _map_refresh_queued = true
+        call_deferred("_refresh_map_when_idle")
     revision += 1
 
 func is_water(p: Vector2) -> bool:
@@ -351,6 +380,12 @@ func _refresh_map(water: TileMapLayer = null, farm: TileMapLayer = null) -> void
     authored_map_texture = _build_map_texture(authored_bounds, false, water, farm)
     queue_redraw()
 
+func _refresh_map_when_idle() -> void:
+    _map_refresh_queued = false
+    if not is_inside_tree():
+        return
+    _refresh_map(water_layer, farm_layer)
+
 func _build_map_texture(target_bounds: Rect2, include_outer_land: bool, _water: TileMapLayer = null, farm: TileMapLayer = null) -> ImageTexture:
     const MAP_SIZE: int = 1024
     var img := Image.create(MAP_SIZE, MAP_SIZE, false, Image.FORMAT_RGBA8)
@@ -463,11 +498,20 @@ func _paint_ocean_map_layer(image: Image, target_bounds: Rect2, map_size: int, c
         image.fill_rect(Rect2i(top_left, rect_size), color)
 
 func _paint_map_cell(image: Image, pixel: Vector2i, color: Color, stamp_radius: int) -> void:
-    for dy in range(-stamp_radius, stamp_radius + 1):
-        for dx in range(-stamp_radius, stamp_radius + 1):
-            var p := pixel + Vector2i(dx, dy)
-            if p.x >= 0 and p.y >= 0 and p.x < image.get_width() and p.y < image.get_height():
-                image.set_pixelv(p, color)
+    # Image.fill_rect is implemented natively and produces the same square
+    # stamp as the old per-pixel loops, but avoids millions of GDScript calls
+    # while the two map textures are baked during scene startup.
+    var start := Vector2i(
+        maxi(0, pixel.x - stamp_radius),
+        maxi(0, pixel.y - stamp_radius),
+    )
+    var end := Vector2i(
+        mini(image.get_width() - 1, pixel.x + stamp_radius),
+        mini(image.get_height() - 1, pixel.y + stamp_radius),
+    )
+    if end.x < start.x or end.y < start.y:
+        return
+    image.fill_rect(Rect2i(start, end - start + Vector2i.ONE), color)
 
 func _world_to_map_pixel(world_p: Vector2, width: int, height: int, target_bounds: Rect2) -> Vector2i:
     var nx := clampf((world_p.x - target_bounds.position.x) / maxf(target_bounds.size.x, 1.0), 0.0, 0.999999)
