@@ -21,6 +21,15 @@ var current_hp: float = BASE_HP
 var current_stamina: float = BASE_STAMINA
 var money: int = 0
 
+# Session-only developer overrides. They intentionally stay outside save data
+# so an admin/debug session cannot silently alter a normal save file.
+var admin_max_hp_override: float = -1.0
+var admin_attack_override: float = -1.0
+var admin_max_stamina_override: float = -1.0
+var admin_speed_multiplier: float = 1.0
+var admin_weapon_upgrade_level: int = 0
+var admin_armor_upgrade_level: int = 0
+
 # Timed food effects. Eating a new buff replaces the previous food effect so
 # the active result is always clear to the player.
 var active_buff_name: String = ""
@@ -37,12 +46,18 @@ const STAMINA_REGEN_RATE := 8.0 # per second
 const STAMINA_REGEN_DELAY := 1.0 # seconds after use
 
 func get_max_hp() -> float:
+	if admin_max_hp_override > 0.0:
+		return admin_max_hp_override
 	return BASE_HP + (_safe_level() * HP_PER_LEVEL)
 
 func get_max_stamina() -> float:
+	if admin_max_stamina_override > 0.0:
+		return admin_max_stamina_override
 	return BASE_STAMINA + (_safe_level() * STAMINA_PER_LEVEL)
 
 func get_attack() -> float:
+	if admin_attack_override >= 0.0:
+		return admin_attack_override
 	return BASE_ATTACK + (_safe_level() * ATTACK_PER_LEVEL)
 
 func get_exp_required() -> int:
@@ -145,7 +160,47 @@ func get_defense_buff() -> float:
 	return buff_defense
 
 func get_speed_multiplier() -> float:
-	return maxf(0.25, 1.0 + buff_speed)
+	return maxf(0.25, admin_speed_multiplier + buff_speed)
+
+func set_admin_max_hp(value: float) -> void:
+	admin_max_hp_override = maxf(1.0, value)
+	current_hp = clampf(current_hp, 0.0, get_max_hp())
+
+func set_admin_attack(value: float) -> void:
+	admin_attack_override = maxf(0.0, value)
+
+func set_admin_max_stamina(value: float) -> void:
+	admin_max_stamina_override = maxf(1.0, value)
+	current_stamina = clampf(current_stamina, 0.0, get_max_stamina())
+
+func set_admin_speed_multiplier(value: float) -> void:
+	admin_speed_multiplier = clampf(value, 0.25, 8.0)
+
+func set_admin_level(value: int) -> void:
+	level = clampi(value, 0, MAX_LEVEL)
+	current_exp = clampi(current_exp, 0, get_exp_required() - 1)
+	current_hp = clampf(current_hp, 0.0, get_max_hp())
+	current_stamina = clampf(current_stamina, 0.0, get_max_stamina())
+
+func set_admin_weapon_upgrade_level(value: int) -> void:
+	admin_weapon_upgrade_level = clampi(value, 0, 100)
+
+func set_admin_armor_upgrade_level(value: int) -> void:
+	admin_armor_upgrade_level = clampi(value, 0, 100)
+
+func get_admin_weapon_upgrade_bonus() -> float:
+	return float(admin_weapon_upgrade_level * 5)
+
+func get_admin_armor_upgrade_bonus() -> float:
+	return float(admin_armor_upgrade_level * 3)
+
+func clear_admin_overrides() -> void:
+	admin_max_hp_override = -1.0
+	admin_attack_override = -1.0
+	admin_max_stamina_override = -1.0
+	admin_speed_multiplier = 1.0
+	admin_weapon_upgrade_level = 0
+	admin_armor_upgrade_level = 0
 
 func get_active_buff_text() -> String:
 	if active_buff_remaining <= 0.0 or active_buff_name.is_empty():

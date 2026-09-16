@@ -10,6 +10,10 @@ var game_time_hours: float = 8.0  # Start at 8 AM
 var day_count: int = 1
 var time_scale: float = 60.0  # 1 real second = 1 game minute
 var is_night: bool = false
+var admin_freeze_time: bool = false
+var admin_god_mode: bool = false
+var admin_no_clip: bool = false
+var admin_free_camera: bool = false
 
 # Player reference
 var player: CharacterBody2D = null
@@ -117,7 +121,21 @@ func _process(delta: float) -> void:
 		return
 	if get_tree().paused:
 		return
+	if admin_freeze_time:
+		return
 	_update_time(delta)
+
+func set_admin_time(hours: float) -> void:
+	game_time_hours = fposmod(hours, 24.0)
+	var hour := int(game_time_hours)
+	var minute := int((game_time_hours - hour) * 60.0)
+	_last_emit_hour = hour
+	_last_emit_minute = minute
+	time_changed.emit(hour, minute)
+	var was_night := is_night
+	is_night = hour >= 20 or hour < 6
+	if was_night != is_night:
+		day_night_changed.emit(is_night)
 
 func _update_time(delta: float) -> void:
 	game_time_hours += (delta * time_scale) / 3600.0

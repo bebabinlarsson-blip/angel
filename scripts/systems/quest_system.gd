@@ -136,6 +136,33 @@ func try_complete_quest(quest_id: String) -> bool:
 	EventBus.show_notification.emit("Quest completed: " + str(quest.get("title", "Quest")))
 	return true
 
+func debug_force_complete_active() -> bool:
+	var quest_id := get_active_quest_id()
+	if quest_id.is_empty():
+		return false
+	var quest_value: Variant = active_quests.get(quest_id, {})
+	if not (quest_value is Dictionary):
+		return false
+	var quest: Dictionary = quest_value
+	quest["current_count"] = maxi(1, int(quest.get("target_count", 1)))
+	return try_complete_quest(quest_id)
+
+func debug_skip_active_objective() -> bool:
+	var quest_id := get_active_quest_id()
+	if quest_id.is_empty():
+		return false
+	var quest_value: Variant = active_quests.get(quest_id, {})
+	if not (quest_value is Dictionary):
+		return false
+	var quest: Dictionary = quest_value.duplicate(true)
+	quest["completed"] = true
+	completed_quests[quest_id] = quest
+	active_quests.erase(quest_id)
+	EventBus.quest_completed.emit(quest_id)
+	EventBus.quest_updated.emit(quest_id)
+	EventBus.show_notification.emit("Skipped quest objective: %s" % str(quest.get("title", quest_id)))
+	return true
+
 func is_quest_active(quest_id: String) -> bool:
 	return active_quests.has(quest_id)
 func is_quest_complete(quest_id: String) -> bool:

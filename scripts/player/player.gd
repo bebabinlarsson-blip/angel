@@ -42,6 +42,13 @@ var stamina_regen_cooldown: float = 0.0
 # Interaction
 var nearby_interactable: Node = null
 
+# Admin/debug state is kept on the player so every damage and movement path
+# observes the same toggles, including streamed and interior gameplay.
+var admin_god_mode: bool = false
+var admin_no_clip: bool = false
+var admin_free_camera: bool = false
+var free_camera: Camera2D = null
+
 @onready var sprite: AnimatedSprite2D = get_node_or_null("Sprite2D")
 @onready var collision_shape: CollisionShape2D = get_node_or_null("CollisionShape")
 @onready var attack_area: Area2D = get_node_or_null("AttackArea")
@@ -83,6 +90,11 @@ func _ready() -> void:
 	stats.current_hp = stats.get_max_hp()
 	stats.current_stamina = stats.get_max_stamina()
 	GameManager.consume_player_transfer(self)
+	# Preserve developer toggles when the player is rebuilt during an interior
+	# transfer. These are still session-only because GameManager never saves them.
+	set_admin_god_mode(GameManager.admin_god_mode)
+	set_admin_no_clip(GameManager.admin_no_clip)
+	set_admin_free_camera(GameManager.admin_free_camera)
 	
 	if attack_area:
 		attack_area.monitoring = false
@@ -118,6 +130,13 @@ func _physics_process(delta: float) -> void:
 	_update_animation()
 	_update_camera_shake(delta)
 	move_and_slide()
+
+func _process(delta: float) -> void:
+	if not admin_free_camera or free_camera == null or not is_instance_valid(free_camera):
+		return
+	var camera_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if camera_direction != Vector2.ZERO:
+		free_camera.global_position += camera_direction.normalized() * 650.0 * delta
 
 func _handle_input() -> void:
 	# Movement direction
@@ -267,14 +286,14 @@ var nearby_interactables: Array[Node] = []
 func get_effective_attack() -> float:
 	var base_atk := stats.get_attack()
 	var weapon_bonus: float = inventory.equipped_weapon.get("attack_bonus", 0.0)
-	return base_atk + weapon_bonus + stats.get_attack_buff()
+	return base_atk + weapon_bonus + stats.get_admin_weapon_upgrade_bonus() + stats.get_attack_buff()
 
 func get_effective_defense() -> float:
 	# Supports both "defense" and legacy "defense_bonus" keys, plus food buffs.
 	var armor_defense: float = 0.0
 	if not inventory.equipped_armor.is_empty():
 		armor_defense = float(inventory.equipped_armor.get("defense", inventory.equipped_armor.get("defense_bonus", 0.0)))
-	return armor_defense + stats.get_defense_buff()
+	return armor_defense + stats.get_admin_armor_upgrade_bonus() + stats.get_defense_buff()
 
 func enter_water() -> void:
 	swim_zone_count += 1
@@ -373,7 +392,7 @@ func _deal_damage_to_area(damage: float, is_charge: bool = false) -> int:
 	return hit_count
 
 func take_damage(amount: float, knockback: Vector2 = Vector2.ZERO) -> void:
-	if current_state == State.DASHING or current_state == State.DEAD:
+	if admin_god_mode or current_state == State.DASHING or current_state == State.DEAD:
 		return # Invincible while dashing
 	var defense: float = get_effective_defense()
 	var final_dmg := maxf(1.0, amount - defense)
@@ -425,6 +444,43 @@ func set_swimming(swimming: bool) -> void:
 		current_state = State.SWIMMING
 	elif not swimming and current_state == State.SWIMMING:
 		current_state = State.IDLE
+
+func set_admin_god_mode(enabled: bool) -> void:
+	admin_god_mode = enabled
+	GameManager.admin_god_mode = enabled
+	if admin_god_mode and stats != null:
+		stats.current_hp = stats.get_max_hp()
+		EventBus.player_health_changed.emit(stats.current_hp, stats.get_max_hp())
+
+func set_admin_no_clip(enabled: bool) -> void:
+	admin_no_clip = enabled
+	GameManager.admin_no_clip = enabled
+	if collision_shape and is_instance_valid(collision_shape):
+		collision_shape.set_deferred("disabled", enabled)
+	collision_layer = 0 if enabled else 1
+	collision_mask = 0 if enabled else 14
+
+func set_admin_free_camera(enabled: bool) -> void:
+	admin_free_camera = enabled
+	GameManager.admin_free_camera = enabled
+	if enabled:
+		if free_camera == null or not is_instance_valid(free_camera):
+			free_camera = Camera2D.new()
+			free_camera.name = "AdminFreeCamera"
+			free_camera.process_mode = Node.PROCESS_MODE_ALWAYS
+			free_camera.position_smoothing_enabled = false
+			free_camera.global_position = global_position
+			get_parent().add_child(free_camera)
+		if camera and is_instance_valid(camera):
+			camera.enabled = false
+		free_camera.enabled = true
+	else:
+		if free_camera and is_instance_valid(free_camera):
+			free_camera.queue_free()
+		free_camera = null
+		if camera and is_instance_valid(camera):
+			camera.enabled = true
+			camera.reset_smoothing()
 
 func _update_active_interactable() -> void:
 	nearby_interactables = nearby_interactables.filter(func(n): return is_instance_valid(n))
