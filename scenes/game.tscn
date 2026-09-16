@@ -114,9 +114,10 @@ z_index = -110
 texture_filter = 1
 tile_set = ExtResource("2_kvpfn")
 
-[node name="PathLayer" type="TileMapLayer" parent="World" unique_id=2104483168]
+[node name="RoadLayer" type="TileMapLayer" parent="World" unique_id=2104483168]
 z_index = -90
 texture_filter = 1
+metadata/layer_role = "Compatibility slot; authored road tiles are in World/AuthoredEnvironment/RoadLayer"
 tile_set = ExtResource("2_kvpfn")
 
 [node name="DecorLayer" type="TileMapLayer" parent="World" unique_id=1804884904]
@@ -160,6 +161,7 @@ tile_set = ExtResource("2_kvpfn")
 y_sort_enabled = true
 texture_filter = 1
 scale = Vector2(1.5, 1.5)
+metadata/layer_role = "Compatibility slot; authored houses are in World/AuthoredEnvironment/HouseLayer"
 tile_set = ExtResource("2_kvpfn")
 
 [node name="Campfire" type="StaticBody2D" parent="World" unique_id=207834038]

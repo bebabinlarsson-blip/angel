@@ -28,6 +28,7 @@ const MAX_RESOURCE_QUANTITY := 999999999
 @export var stream_padding: float = 260.0
 @export var stream_update_interval: float = 0.35
 @export var enemy_respawn_time: float = 45.0
+const SEED_BATCH_SIZE := 24
 
 var terrain: IslandWorld = null
 var resource_parent: Node2D = null
@@ -132,6 +133,13 @@ func _initialize() -> void:
 		if resource_pos != Vector2.ZERO:
 			if _register_resource_record(resource_pos, _pick_resource_at(resource_pos)).is_empty():
 				_release_occupied_position(resource_pos)
+		if i > 0 and i % SEED_BATCH_SIZE == 0:
+			# Give the first playable frame back to the renderer between batches.
+			# Records remain deterministic; only their bookkeeping is spread over
+			# several frames so low-end CPUs do not look hung during scene entry.
+			await get_tree().process_frame
+			if not is_inside_tree():
+				return
 
 	# Guarantee a useful first foraging loop just outside the village. These
 	# records are still streamed like every other resource, but the player can
@@ -150,6 +158,10 @@ func _initialize() -> void:
 		if enemy_pos != Vector2.ZERO:
 			if _register_enemy_record(enemy_pos).is_empty():
 				_release_occupied_position(enemy_pos)
+		if i > 0 and i % SEED_BATCH_SIZE == 0:
+			await get_tree().process_frame
+			if not is_inside_tree():
+				return
 
 	# Keep remote content as records instead of constructing off-screen
 	# Area2D/CharacterBody2D trees at startup.
@@ -158,11 +170,19 @@ func _initialize() -> void:
 		if remote_resource_pos != Vector2.ZERO:
 			if _register_resource_record(remote_resource_pos, _pick_resource_at(remote_resource_pos)).is_empty():
 				_release_occupied_position(remote_resource_pos)
+		if i > 0 and i % SEED_BATCH_SIZE == 0:
+			await get_tree().process_frame
+			if not is_inside_tree():
+				return
 	for i in range(remote_enemies):
 		var remote_enemy_pos := _find_position(10000.0, terrain.expanded_radius * 0.88, 82.0)
 		if remote_enemy_pos != Vector2.ZERO:
 			if _register_enemy_record(remote_enemy_pos).is_empty():
 				_release_occupied_position(remote_enemy_pos)
+		if i > 0 and i % SEED_BATCH_SIZE == 0:
+			await get_tree().process_frame
+			if not is_inside_tree():
+				return
 
 	initialized = true
 	if not GameManager.pending_world_data.is_empty():

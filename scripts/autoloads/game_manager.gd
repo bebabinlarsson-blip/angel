@@ -131,11 +131,11 @@ func set_admin_time(hours: float) -> void:
 	var minute := int((game_time_hours - hour) * 60.0)
 	_last_emit_hour = hour
 	_last_emit_minute = minute
-	time_changed.emit(hour, minute)
+	EventBus.time_changed.emit(hour, minute)
 	var was_night := is_night
 	is_night = hour >= 20 or hour < 6
 	if was_night != is_night:
-		day_night_changed.emit(is_night)
+		EventBus.day_night_changed.emit(is_night)
 
 func _update_time(delta: float) -> void:
 	game_time_hours += (delta * time_scale) / 3600.0
