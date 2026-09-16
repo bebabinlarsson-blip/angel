@@ -50,4 +50,7 @@ signal game_loaded()
 signal waystone_activated(waystone_id: String)
 signal fast_travel_requested(destination_id: String)
 
+signal npc_ambient_event_started(event_id: String, participant_count: int)
+signal npc_ambient_event_finished(event_id: String)
+
 @warning_ignore_restore("unused_signal")
