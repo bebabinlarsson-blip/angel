@@ -149,23 +149,23 @@ func _build_overworld_scene(tileset: TileSet) -> void:
 	_place(tree_layer, Vector2i(57, -37), 0, Vector2i(8, 45))
 	_place(tree_layer, Vector2i(-47, 18), 0, Vector2i(4, 45))
 
-	# Four village buildings use the master atlas's full 4x4 house tiles. Each
-	# cell is written into HouseLayer so the scene stays editable in Godot and
-	# the complete sprite (not only its anchor) is visible in the map.
-	_place_rect(building_layer, Vector2i(-14, -6), 0, Vector2i(0, 36), Vector2i(4, 4))
-	_place_rect(building_layer, Vector2i(6, -6), 0, Vector2i(4, 36), Vector2i(4, 4))
-	_place_rect(building_layer, Vector2i(-14, 1), 0, Vector2i(8, 36), Vector2i(4, 4))
-	_place_rect(building_layer, Vector2i(6, 1), 0, Vector2i(12, 36), Vector2i(4, 4))
-	# The church is a 5x5 authored building and remains on HouseLayer so its
-	# entry trigger and visible door share the same editor-facing layer.
-	_place_rect(building_layer, Vector2i(14, -24), 0, Vector2i(11, 40), Vector2i(5, 5))
+	# The atlas defines each house as one 4x4 multi-cell TileSet tile. Place its
+	# origin once; Godot renders the complete footprint and its authored physics
+	# polygon from that one HouseLayer cell.
+	_place_multicell(building_layer, Vector2i(-14, -6), 0, Vector2i(0, 36))
+	_place_multicell(building_layer, Vector2i(6, -6), 0, Vector2i(4, 36))
+	_place_multicell(building_layer, Vector2i(-14, 1), 0, Vector2i(8, 36))
+	_place_multicell(building_layer, Vector2i(6, 1), 0, Vector2i(12, 36))
+	# The church is a 5x5 multi-cell atlas tile and remains on HouseLayer so
+	# its entry trigger and visible door share the same editor-facing layer.
+	_place_multicell(building_layer, Vector2i(14, -24), 0, Vector2i(11, 40))
 
 	# The green ruin tile has a dark open doorway and is used as the northern
 	# cave mouth. The entry trigger is authored at its front door in the scene.
-	_place_rect(cave_layer, Vector2i(-70, -77), 0, Vector2i(16, 40), Vector2i(5, 5))
+	_place_multicell(cave_layer, Vector2i(-70, -77), 0, Vector2i(16, 40))
 	# A citadel/temple landmark gives the southern route a tile-authored goal.
-	_place_rect(landmark_layer, Vector2i(2, 68), 0, Vector2i(0, 40), Vector2i(6, 5))
-	_place_rect(landmark_layer, Vector2i(21, 40), 0, Vector2i(21, 40), Vector2i(4, 5))
+	_place_multicell(landmark_layer, Vector2i(2, 68), 0, Vector2i(0, 40))
+	_place_multicell(landmark_layer, Vector2i(21, 40), 0, Vector2i(21, 40))
 
 	# Interactive resource nodes still live as gameplay Area2Ds, but their
 	# visible material tiles are authored here and come from the unified atlas.
@@ -241,10 +241,10 @@ func _draw_polyline(layer: TileMapLayer, points: Array, source_id: int, atlas_co
 func _place(layer: TileMapLayer, cell: Vector2i, source_id: int, atlas_coords: Vector2i) -> void:
 	layer.set_cell(cell, source_id, atlas_coords)
 
-func _place_rect(layer: TileMapLayer, top_left: Vector2i, source_id: int, atlas_origin: Vector2i, size: Vector2i) -> void:
-	for y in range(size.y):
-		for x in range(size.x):
-			layer.set_cell(top_left + Vector2i(x, y), source_id, atlas_origin + Vector2i(x, y))
+func _place_multicell(layer: TileMapLayer, cell: Vector2i, source_id: int, atlas_origin: Vector2i) -> void:
+	# Multi-cell footprints are authored in the TileSet resource via
+	# size_in_atlas. A TileMapLayer stores the origin cell only.
+	layer.set_cell(cell, source_id, atlas_origin)
 
 func _save_scene(root: Node2D, path: String) -> void:
 	var packed := PackedScene.new()
