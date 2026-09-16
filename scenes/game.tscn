@@ -154,6 +154,7 @@ y_sort_origin = 48
 [node name="StructuresLayer" type="TileMapLayer" parent="World" unique_id=495461443]
 y_sort_enabled = true
 texture_filter = 1
+metadata/layer_role = "Preserved vegetation and world props; do not place houses or roads here"
 tile_map_data = PackedByteArray("AAAmAA4AAAAPAAkAAAAGADEAAAAaABIAAAD6/y0AAAAaABIAAAD6/zUAAAAaABIAAAAgANz/AAAPAAkAAADO/8z/AAAPAAkAAADQ/xQAAAAPAAkAAAAAACsAAAATABMAAAAGAC0AAAAaABIAAAD6/zEAAAAaABIAAAAGADUAAAAaABIAAAD9/zUAAAAWABIAAAADADUAAAAWABIAAAAAADcAAAAPAAkAAAC+/73/AAAQABIAAAA=")
 tile_set = ExtResource("2_kvpfn")
 
@@ -206,6 +207,7 @@ sprite_frames = ExtResource("5_bhx41")
 animation = &"idle"
 
 [node name="NameLabel" type="Label" parent="World/VillageNPCs/NPC_Cook" unique_id=2097849375]
+visible = false
 custom_minimum_size = Vector2(80, 20)
 offset_left = -40.0
 offset_top = -44.0
@@ -247,6 +249,7 @@ sprite_frames = ExtResource("6_qnb83")
 animation = &"idle"
 
 [node name="NameLabel" type="Label" parent="World/VillageNPCs/NPC_Elder" unique_id=1414136585]
+visible = false
 custom_minimum_size = Vector2(80, 20)
 offset_left = -40.0
 offset_top = -44.0
@@ -288,6 +291,7 @@ sprite_frames = ExtResource("7_sww3w")
 animation = &"idle"
 
 [node name="NameLabel" type="Label" parent="World/VillageNPCs/NPC_Carpenter" unique_id=699367366]
+visible = false
 custom_minimum_size = Vector2(80, 20)
 offset_left = -40.0
 offset_top = -44.0
@@ -329,6 +333,7 @@ sprite_frames = ExtResource("8_suyxu")
 animation = &"idle"
 
 [node name="NameLabel" type="Label" parent="World/VillageNPCs/NPC_Miner" unique_id=495446545]
+visible = false
 custom_minimum_size = Vector2(80, 20)
 offset_left = -40.0
 offset_top = -44.0

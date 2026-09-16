@@ -2,6 +2,20 @@ class_name QuestNPC
 extends StaticBody2D
 
 const NPC_PORTRAIT_SCRIPT = preload("res://scripts/ui/npc_portrait.gd")
+const GENERIC_NPC_FRAMES: SpriteFrames = preload("res://assets/sprites/npc_miniature_frames.tres")
+const ELDER_NPC_FRAMES: SpriteFrames = preload("res://assets/sprites/npc_elder_frames.tres")
+const CARPENTER_NPC_FRAMES: SpriteFrames = preload("res://assets/sprites/npc_carpenter_frames.tres")
+const CHEF_NPC_FRAMES: SpriteFrames = preload("res://assets/sprites/npc_chef_frames.tres")
+const MINER_NPC_FRAMES: SpriteFrames = preload("res://assets/sprites/npc_miner_frames.tres")
+
+const MINIATURE_TINTS: Array[Color] = [
+	Color(1.0, 1.0, 1.0),
+	Color(1.0, 0.945, 0.863),
+	Color(0.898, 0.949, 1.0),
+	Color(0.973, 0.894, 1.0),
+	Color(0.902, 0.969, 0.847),
+	Color(1.0, 0.894, 0.78)
+]
 
 @export var npc_name: String = "Villager"
 @export var npc_id: String = "villager"
@@ -11,7 +25,9 @@ const NPC_PORTRAIT_SCRIPT = preload("res://scripts/ui/npc_portrait.gd")
 @export var quest_active_text: String = "How's the task going?"
 @export var quest_complete_text: String = "Wonderful! Here's your reward."
 @export var quest_done_text: String = "Thank you for your help!"
-@export_enum("idle", "farmer", "guard", "merchant", "fisher", "herbalist", "carpenter", "miner", "builder", "cook", "blacksmith") var job: String = "idle"
+@export_enum("idle", "farmer", "guard", "merchant", "fisher", "herbalist", "carpenter", "miner", "builder", "cook", "blacksmith", "traveler") var job: String = "idle"
+@export_enum("female", "male", "androgynous") var gender: String = "androgynous"
+@export var appearance_seed: int = 0
 @export var dialogue_lines: Array[String] = []
 @export var work_position: Vector2 = Vector2.ZERO
 @export var work_speed: float = 42.0
@@ -48,6 +64,15 @@ var work_cycle_index: int = 0
 var village_center: Vector2 = Vector2.ZERO
 var village_radius: float = 500.0
 var _village_bounds_ready: bool = false
+var personality: Dictionary = {}
+var schedule_profile: Dictionary = {}
+var ambient_event_id: String = ""
+var ambient_event_label: String = ""
+var ambient_event_action: String = ""
+var ambient_event_role: String = ""
+var ambient_event_target: Vector2 = Vector2.ZERO
+var ambient_simulation_active: bool = true
+var _appearance_variant: int = 0
 
 func _ready() -> void:
 	# Dialogue is a modal screen-space UI, so the NPC must still receive Escape
@@ -56,6 +81,8 @@ func _ready() -> void:
 	add_to_group("npcs")
 	if job == "idle":
 		job = _job_from_npc_id()
+	_build_ambient_profile()
+	_ensure_visible_miniature_model()
 	home_position = global_position
 	if work_position == Vector2.ZERO:
 		work_position = home_position + _default_work_offset()
@@ -119,7 +146,157 @@ func _job_from_npc_id() -> String:
 		"carpenter": return "carpenter"
 		"miner": return "miner"
 		"blacksmith": return "blacksmith"
+		"traveler": return "traveler"
 		_: return "idle"
+
+func _build_ambient_profile() -> void:
+	var profile_rng := RandomNumberGenerator.new()
+	var seed_value := abs((npc_id + ":" + npc_name).hash()) + appearance_seed * 97 + 17
+	profile_rng.seed = seed_value
+	_appearance_variant = seed_value % MINIATURE_TINTS.size()
+	if gender == "androgynous":
+		gender = "female" if seed_value % 2 == 0 else "male"
+	personality = {
+		"social": profile_rng.randf_range(0.28, 0.92),
+		"shy": profile_rng.randf_range(0.18, 0.78),
+		"hardworking": profile_rng.randf_range(0.36, 0.92),
+		"lazy": profile_rng.randf_range(0.12, 0.58),
+		"curious": profile_rng.randf_range(0.25, 0.88),
+		"serious": profile_rng.randf_range(0.18, 0.78),
+		"adventurous": profile_rng.randf_range(0.22, 0.84),
+		"friendly": profile_rng.randf_range(0.35, 0.94),
+		"grumpy": profile_rng.randf_range(0.10, 0.62),
+		"spiritual": profile_rng.randf_range(0.14, 0.76),
+		"night_owl": profile_rng.randf_range(0.12, 0.76),
+		"early_riser": profile_rng.randf_range(0.16, 0.82)
+	}
+	match job:
+		"farmer", "miner", "carpenter", "builder", "blacksmith":
+			personality["hardworking"] = minf(1.0, float(personality["hardworking"]) + 0.16)
+		"merchant", "traveler", "fisher":
+			personality["adventurous"] = minf(1.0, float(personality["adventurous"]) + 0.14)
+		"guard":
+			personality["serious"] = minf(1.0, float(personality["serious"]) + 0.18)
+		"cook", "herbalist":
+			personality["friendly"] = minf(1.0, float(personality["friendly"]) + 0.12)
+	var wake_hour := 6.0 + profile_rng.randf_range(-0.65, 0.65)
+	var sleep_hour := 22.0 + profile_rng.randf_range(-0.65, 0.75)
+	if float(personality["night_owl"]) > 0.62:
+		wake_hour += 0.75
+		sleep_hour += 0.85
+	if float(personality["early_riser"]) > 0.68:
+		wake_hour -= 0.8
+		sleep_hour -= 0.45
+	schedule_profile = {
+		"wake_hour": fposmod(wake_hour, 24.0),
+		"sleep_hour": clampf(sleep_hour, 20.5, 24.0),
+		"work_start": 8.0 + profile_rng.randf_range(-0.45, 0.55),
+		"work_end": 17.0 + profile_rng.randf_range(-0.55, 0.55),
+		"phase_offset": profile_rng.randf_range(-0.28, 0.28)
+	}
+
+func _ensure_visible_miniature_model() -> void:
+	sprite = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if sprite == null:
+		sprite = AnimatedSprite2D.new()
+		sprite.name = "AnimatedSprite2D"
+		sprite.position = Vector2(0, -12)
+		add_child(sprite)
+	var frames := _frames_for_job()
+	if frames != null:
+		sprite.sprite_frames = frames
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.visible = true
+	sprite.modulate = MINIATURE_TINTS[_appearance_variant]
+	if sprite.sprite_frames != null and sprite.sprite_frames.has_animation("idle"):
+		sprite.play("idle")
+
+func _frames_for_job() -> SpriteFrames:
+	match npc_id:
+		"elder": return ELDER_NPC_FRAMES
+		"miner": return MINER_NPC_FRAMES
+		"cook", "chef": return CHEF_NPC_FRAMES
+		"carpenter": return CARPENTER_NPC_FRAMES
+	match job:
+		"guard": return ELDER_NPC_FRAMES
+		"miner", "traveler": return MINER_NPC_FRAMES
+		"cook", "herbalist", "merchant": return CHEF_NPC_FRAMES
+		"carpenter", "builder", "blacksmith": return CARPENTER_NPC_FRAMES
+		_: return GENERIC_NPC_FRAMES
+
+func get_ambient_personality_value(key: String) -> float:
+	if personality.is_empty():
+		_build_ambient_profile()
+	return clampf(float(personality.get(key, 0.5)), 0.0, 1.0)
+
+func get_ambient_event_join_score(event_id: String) -> float:
+	var score := 0.32
+	score += get_ambient_personality_value("social") * 0.34
+	score += get_ambient_personality_value("friendly") * 0.16
+	score -= get_ambient_personality_value("shy") * 0.18
+	if event_id.find("ritual") >= 0 or event_id.find("mourning") >= 0:
+		score += get_ambient_personality_value("spiritual") * 0.28
+	if event_id.find("strange") >= 0:
+		score += get_ambient_personality_value("curious") * 0.30
+	if event_id.find("work") >= 0:
+		score += get_ambient_personality_value("hardworking") * 0.18
+	if event_id.find("dance") >= 0 or event_id.find("game") >= 0:
+		score += get_ambient_personality_value("adventurous") * 0.14
+	if routine_phase == "sleep":
+		score -= 0.42
+	return clampf(score, 0.05, 0.98)
+
+func get_ambient_affinity_to(other: QuestNPC) -> float:
+	if other == null or other == self:
+		return 0.0
+	var affinity := 0.22 + get_ambient_personality_value("friendly") * 0.28
+	if job == other.job:
+		affinity += 0.18
+	var pair_seed := abs((npc_id + "|" + other.npc_id).hash()) % 100
+	affinity += float(pair_seed) / 100.0 * 0.18
+	return clampf(affinity, 0.0, 1.0)
+
+func has_ambient_event() -> bool:
+	return not ambient_event_id.is_empty()
+
+func set_ambient_simulation_active(active: bool) -> void:
+	ambient_simulation_active = active
+	if not active:
+		if activity_label:
+			activity_label.visible = false
+		if name_label:
+			name_label.visible = false
+	# Far NPCs keep their SpriteFrames animation but stop running schedule,
+	# label and path logic every frame. Dialogue and active events always wake
+	# the script back up.
+	set_process(active or is_dialogue_open)
+
+func begin_ambient_event(event_id: String, label: String, target: Vector2, action: String, role: String) -> void:
+	ambient_event_id = event_id
+	ambient_event_label = label
+	ambient_event_action = action
+	ambient_event_role = role
+	ambient_event_target = _clamp_to_village(target)
+	schedule_destination = ambient_event_target
+	routine_phase = "ambient"
+	routine_clock = 0.0
+	velocity = Vector2.ZERO
+	is_working = false
+	activity = label
+	set_ambient_simulation_active(true)
+
+func end_ambient_event() -> void:
+	ambient_event_id = ""
+	ambient_event_label = ""
+	ambient_event_action = ""
+	ambient_event_role = ""
+	ambient_event_target = Vector2.ZERO
+	routine_phase = ""
+	routine_clock = 0.0
+	activity = "Resting"
+	if sprite != null:
+		sprite.rotation = 0.0
+	set_process(ambient_simulation_active or is_dialogue_open)
 
 func _create_activity_label() -> void:
 	activity_label = Label.new()
@@ -290,6 +467,8 @@ func interact(player: CharacterBody2D) -> void:
 	_update_dialogue()
 
 func _process(delta: float) -> void:
+	if not ambient_simulation_active and not is_dialogue_open:
+		return
 	if stays_in_village and not _village_bounds_ready:
 		_configure_village_bounds()
 	if sprite == null:
@@ -305,10 +484,37 @@ func _process(delta: float) -> void:
 		if (_dialogue_player as Node2D).global_position.distance_to(global_position) > 160.0:
 			_close_dialogue()
 	if not is_dialogue_open and not get_tree().paused:
-		_run_daily_routine(delta)
+		if has_ambient_event():
+			_run_ambient_event_routine(delta)
+		else:
+			_run_daily_routine(delta)
 	_update_facing()
 	_update_worker_animation()
 	_update_activity_label()
+
+func _run_ambient_event_routine(delta: float) -> void:
+	if ambient_event_target == Vector2.ZERO:
+		velocity = Vector2.ZERO
+		return
+	if stays_in_village:
+		ambient_event_target = _clamp_to_village(ambient_event_target)
+	var distance := global_position.distance_to(ambient_event_target)
+	if distance > 8.0:
+		velocity = (ambient_event_target - global_position).normalized() * work_speed
+		global_position = _clamp_to_village(global_position + velocity * delta)
+		is_working = false
+		return
+	velocity = Vector2.ZERO
+	routine_clock += delta
+	# Existing 32px SpriteFrames are reused for every event. Action text and
+	# facing changes communicate the social behavior without spawning costly
+	# animation graphs or physics bodies.
+	is_working = ambient_event_action in ["investigating", "sheltering"]
+	if ambient_event_action == "dancing" and sprite != null:
+		sprite.rotation = sin(routine_clock * 5.0) * 0.06
+	else:
+		if sprite != null:
+			sprite.rotation = move_toward(sprite.rotation, 0.0, delta * 0.8)
 
 func _update_facing() -> void:
 	if is_dialogue_open and _dialogue_player and is_instance_valid(_dialogue_player):
@@ -317,6 +523,13 @@ func _update_facing() -> void:
 			facing_direction = "right" if to_player.x > 0 else "left"
 		else:
 			facing_direction = "down" if to_player.y > 0 else "up"
+	elif has_ambient_event() and ambient_event_target != Vector2.ZERO:
+		var to_event: Vector2 = ambient_event_target - global_position
+		if to_event.length_squared() > 36.0:
+			if absf(to_event.x) > absf(to_event.y):
+				facing_direction = "right" if to_event.x > 0 else "left"
+			else:
+				facing_direction = "down" if to_event.y > 0 else "up"
 	elif velocity.length_squared() > 4.0:
 		if absf(velocity.x) > absf(velocity.y):
 			facing_direction = "right" if velocity.x > 0 else "left"
@@ -365,7 +578,24 @@ func _default_work_offset() -> Vector2:
 		"carpenter", "builder", "blacksmith": return Vector2(120, 70)
 		"miner": return Vector2(96, 48)
 		"cook": return Vector2(-30, 58)
+		"traveler": return Vector2(210, -80)
 		_: return home_position
+
+func _schedule_phase_for_hour(hour: float) -> String:
+	if schedule_profile.is_empty():
+		_build_ambient_profile()
+	var local_hour := fposmod(hour + float(schedule_profile.get("phase_offset", 0.0)), 24.0)
+	# Guards have a deliberately different overnight shift instead of sharing
+	# the same sleep/work boundaries as farmers and shopkeepers.
+	if job == "guard" and (local_hour >= 18.0 or local_hour < 2.0):
+		return "work"
+	var wake_hour := float(schedule_profile.get("wake_hour", 6.0))
+	var sleep_hour := float(schedule_profile.get("sleep_hour", 22.0))
+	if local_hour < wake_hour or local_hour >= sleep_hour:
+		return "sleep"
+	if local_hour >= float(schedule_profile.get("work_start", 8.0)) and local_hour < float(schedule_profile.get("work_end", 17.0)):
+		return "work"
+	return "social"
 
 func _run_daily_routine(delta: float) -> void:
 	if job == "idle":
@@ -381,7 +611,7 @@ func _run_daily_routine(delta: float) -> void:
 		schedule_destination = _clamp_to_village(schedule_destination)
 
 	var hour := GameManager.game_time_hours
-	var new_phase := "sleep" if hour < 6.0 or hour >= 22.0 else ("work" if hour >= 8.0 and hour < 17.0 else "social")
+	var new_phase := _schedule_phase_for_hour(hour)
 	if new_phase != routine_phase:
 		routine_phase = new_phase
 		routine_clock = 0.0
@@ -430,6 +660,8 @@ func _work_offset_for_cycle(cycle: int) -> Vector2:
 			radius = 48.0
 		"cook":
 			radius = 30.0
+		"traveler":
+			radius = 110.0
 	var angle := float(cycle) * 1.75
 	return Vector2.RIGHT.rotated(angle) * radius
 
@@ -441,7 +673,9 @@ func _update_activity_label() -> void:
 		player_near = global_position.distance_squared_to(GameManager.player.global_position) <= 57600.0
 	activity_label.visible = player_near and not is_dialogue_open
 	if name_label:
-		name_label.visible = player_near and not is_dialogue_open
+		# Names belong in the dialogue UI; keep the world view free of floating
+		# nameplates so the miniature models read clearly in groups.
+		name_label.visible = false
 	activity_label.text = activity
 
 
@@ -456,6 +690,7 @@ func _job_activity() -> String:
 		"blacksmith": return "Forging and sharpening"
 		"miner": return "Working the quarry"
 		"cook": return "Preparing the evening meal"
+		"traveler": return "Planning the next journey"
 		_: return "Working"
 
 func _update_worker_animation() -> void:

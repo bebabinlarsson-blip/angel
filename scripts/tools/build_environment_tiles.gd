@@ -87,9 +87,9 @@ func _new_layer(root: Node2D, layer_name: String, z: int, y_sort: bool = false) 
 	layer.y_sort_enabled = y_sort
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if layer_name == "RoadLayer":
-		layer.set_meta("layer_role", "Authored road tiles; edit roads here")
+		layer.set_meta("layer_role", "Authored road tiles; currently cleared for rebuild")
 	elif layer_name == "HouseLayer":
-		layer.set_meta("layer_role", "Authored houses and building tiles; door triggers attach here")
+		layer.set_meta("layer_role", "Authored house tiles; currently cleared for rebuild")
 	layer.tile_set = load(TILESET_OUTPUT) as TileSet
 	root.add_child(layer)
 	layer.owner = root
@@ -100,6 +100,7 @@ func _build_overworld_scene(tileset: TileSet) -> void:
 	root.name = "AuthoredEnvironment"
 	root.set_meta("authored_tileset", TILESET_OUTPUT)
 	root.set_meta("placement_mode", "TileMapLayer cells; no runtime environment drawing")
+	root.set_meta("map_rebuild_state", "buildings_and_roads_cleared")
 
 	var path_layer := _new_layer(root, "RoadLayer", -92, false)
 	var water_layer := _new_layer(root, "WaterLayer", -111, false)
@@ -112,23 +113,9 @@ func _build_overworld_scene(tileset: TileSet) -> void:
 	var material_layer := _new_layer(root, "MaterialLayer", -42, true)
 	var object_layer := _new_layer(root, "ObjectLayer", -40, true)
 
-	# Dirt-road tiles are real atlas cells from the master source. The small
-	# variation tile keeps long paths from looking stamped without drawing them.
-	_draw_line(path_layer, Vector2i(-34, 0), Vector2i(34, 0), 0, Vector2i(10, 0))
-	_draw_line(path_layer, Vector2i(0, -34), Vector2i(0, 34), 0, Vector2i(11, 0))
-	_draw_polyline(path_layer, [Vector2i(0, -30), Vector2i(-18, -48), Vector2i(-38, -62), Vector2i(-68, -74)], 0, Vector2i(10, 0))
-	_draw_polyline(path_layer, [Vector2i(2, -2), Vector2i(8, -12), Vector2i(16, -22)], 0, Vector2i(11, 0))
-	_draw_polyline(path_layer, [Vector2i(2, 3), Vector2i(-15, 16), Vector2i(-30, 30), Vector2i(-52, 34)], 0, Vector2i(10, 0))
-	_draw_polyline(path_layer, [Vector2i(3, 4), Vector2i(20, 13), Vector2i(34, 21), Vector2i(48, 27)], 0, Vector2i(11, 0))
-	# Re-authored door spurs: every building entrance has a road tile route
-	# leading to its front cell, while all road cells remain on RoadLayer.
-	_draw_line(path_layer, Vector2i(-12, 0), Vector2i(-12, -2), 0, Vector2i(10, 0))
-	_draw_line(path_layer, Vector2i(8, 0), Vector2i(8, -2), 0, Vector2i(10, 0))
-	_draw_line(path_layer, Vector2i(-12, 0), Vector2i(-12, 5), 0, Vector2i(10, 0))
-	_draw_line(path_layer, Vector2i(8, 0), Vector2i(8, 5), 0, Vector2i(10, 0))
-	_draw_line(path_layer, Vector2i(16, -22), Vector2i(16, -19), 0, Vector2i(10, 0))
-	_draw_line(path_layer, Vector2i(-68, -74), Vector2i(-68, -73), 0, Vector2i(10, 0))
-
+	# RoadLayer and HouseLayer intentionally remain empty in this reset pass.
+	# They remain authored TileMapLayers using the shared TileSet for the next
+	# editor placement pass; old road geometry is not regenerated at runtime.
 	# Authored lake cells, using the water tile from the same unified TileSet.
 	for y in range(22, 31):
 		for x in range(44, 59):
@@ -149,17 +136,8 @@ func _build_overworld_scene(tileset: TileSet) -> void:
 	_place(tree_layer, Vector2i(57, -37), 0, Vector2i(8, 45))
 	_place(tree_layer, Vector2i(-47, 18), 0, Vector2i(4, 45))
 
-	# The atlas defines each house as one 4x4 multi-cell TileSet tile. Place its
-	# origin once; Godot renders the complete footprint and its authored physics
-	# polygon from that one HouseLayer cell.
-	_place_multicell(building_layer, Vector2i(-14, -6), 0, Vector2i(0, 36))
-	_place_multicell(building_layer, Vector2i(6, -6), 0, Vector2i(4, 36))
-	_place_multicell(building_layer, Vector2i(-14, 1), 0, Vector2i(8, 36))
-	_place_multicell(building_layer, Vector2i(6, 1), 0, Vector2i(12, 36))
-	# The church is a 5x5 multi-cell atlas tile and remains on HouseLayer so
-	# its entry trigger and visible door share the same editor-facing layer.
-	_place_multicell(building_layer, Vector2i(14, -24), 0, Vector2i(11, 40))
-
+	# Buildings are intentionally omitted while the authored village layout is
+	# being rebuilt. Keep the helper below for the next placement pass.
 	# The green ruin tile has a dark open doorway and is used as the northern
 	# cave mouth. The entry trigger is authored at its front door in the scene.
 	_place_multicell(cave_layer, Vector2i(-70, -77), 0, Vector2i(16, 40))

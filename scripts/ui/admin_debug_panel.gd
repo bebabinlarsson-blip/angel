@@ -649,8 +649,6 @@ func _build_teleport_presets() -> void:
 	preset_option.clear()
 	_add_preset("Angel Village", Vector2(0.0, 90.0))
 	_add_preset("Northern Mine", Vector2(-2160.0, -2344.0))
-	_add_preset("Abandoned Church", Vector2(528.0, -616.0))
-	_add_preset("Guest House", Vector2(256.0, -72.0))
 	for entry in get_tree().get_nodes_in_group("interior_entries"):
 		if entry is Node2D:
 			_add_preset(str(entry.get("display_name")) + " Entrance", (entry as Node2D).global_position + Vector2(0, 70))
