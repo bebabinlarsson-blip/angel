@@ -5,9 +5,11 @@ extends Control
 @onready var save_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/SaveButton")
 @onready var quest_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/QuestButton")
 @onready var settings_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/SettingsButton")
+@onready var admin_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/AdminButton")
 @onready var main_menu_btn: Button = get_node_or_null("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/MainMenuButton")
 @onready var dimmer: ColorRect = get_node_or_null("Dimmer")
 @onready var settings_panel: Control = get_node_or_null("SettingsPanel")
+@onready var admin_panel: AdminDebugPanel = get_node_or_null("AdminPanel") as AdminDebugPanel
 
 func _ready() -> void:
 	EventBus.pause_toggled.connect(_toggle)
@@ -22,8 +24,12 @@ func _ready() -> void:
 		quest_btn.pressed.connect(_on_quest)
 	if settings_btn:
 		settings_btn.pressed.connect(_on_settings)
+	if admin_btn:
+		admin_btn.pressed.connect(_on_admin)
 	if main_menu_btn:
 		main_menu_btn.pressed.connect(_on_main_menu)
+	if admin_panel:
+		admin_panel.close_requested.connect(_on_admin_closed)
 	if dimmer:
 		dimmer.gui_input.connect(func(event: InputEvent):
 			if event is InputEventMouseButton and event.pressed:
@@ -31,7 +37,7 @@ func _ready() -> void:
 		)
 	
 	_create_settings_panel()
-	for b in [resume_btn, save_btn, quest_btn, settings_btn, main_menu_btn]:
+	for b in [resume_btn, save_btn, quest_btn, settings_btn, admin_btn, main_menu_btn]:
 		if b is Button:
 			UIAnim.hook_button_sounds(b)
 	UITheme.style_recursive(self)
@@ -127,8 +133,14 @@ func _toggle() -> void:
 		GameManager.set_state(GameManager.GameState.PLAYING)
 		if settings_panel:
 			settings_panel.visible = false
+		if admin_panel:
+			admin_panel.visible = false
 
 func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("pause") and admin_panel and admin_panel.visible:
+		admin_panel.close_panel()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause") and visible and settings_panel and settings_panel.visible:
 		settings_panel.visible = false
 		get_viewport().set_input_as_handled()
@@ -143,6 +155,20 @@ func _on_save() -> void:
 func _on_settings() -> void:
 	if settings_panel:
 		settings_panel.visible = !settings_panel.visible
+
+func _on_admin() -> void:
+	if settings_panel:
+		settings_panel.visible = false
+	var card := get_node_or_null("CenterContainer/PanelContainer")
+	if card is Control:
+		(card as Control).visible = false
+	if admin_panel:
+		admin_panel.show_from_pause()
+
+func _on_admin_closed() -> void:
+	var card := get_node_or_null("CenterContainer/PanelContainer")
+	if card is Control and visible:
+		(card as Control).visible = true
 
 
 func _on_quest() -> void:

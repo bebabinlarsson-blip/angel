@@ -603,6 +603,21 @@ func _spawn_enemy(pos: Vector2) -> void:
 	else:
 		_release_occupied_position(pos)
 
+func debug_spawn_enemy_at(pos: Vector2, variant: String = "slime") -> Node:
+	# Admin-spawned enemies are intentionally immediate and are not added to
+	# the deterministic respawn records used by normal world streaming.
+	if enemy_parent == null:
+		return null
+	var enemy := SLIME_SCENE.instantiate() as SlimeMonster
+	if enemy == null:
+		return null
+	enemy.name = "AdminSpawned_" + variant.capitalize()
+	enemy.set_meta("variant", variant)
+	enemy.set_meta("admin_spawned", true)
+	enemy.position = pos
+	enemy_parent.add_child(enemy)
+	return enemy
+
 func get_save_data() -> Dictionary:
 	var now := float(Time.get_ticks_msec()) / 1000.0
 	var saved_resources: Array = []
