@@ -87,9 +87,11 @@ func _new_layer(root: Node2D, layer_name: String, z: int, y_sort: bool = false) 
 	layer.y_sort_enabled = y_sort
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if layer_name == "RoadLayer":
-		layer.set_meta("layer_role", "Authored road tiles; currently cleared for rebuild")
+		layer.set_meta("layer_role", "Authored road tiles; editor-movable village routes")
 	elif layer_name == "HouseLayer":
-		layer.set_meta("layer_role", "Authored house tiles; currently cleared for rebuild")
+		layer.set_meta("layer_role", "Authored house tiles; editor-movable village homes")
+	elif layer_name == "StructureLayer":
+		layer.set_meta("layer_role", "Authored church, ruins and mine tiles; editor-movable structures")
 	layer.tile_set = load(TILESET_OUTPUT) as TileSet
 	root.add_child(layer)
 	layer.owner = root
@@ -100,7 +102,7 @@ func _build_overworld_scene(tileset: TileSet) -> void:
 	root.name = "AuthoredEnvironment"
 	root.set_meta("authored_tileset", TILESET_OUTPUT)
 	root.set_meta("placement_mode", "TileMapLayer cells; no runtime environment drawing")
-	root.set_meta("map_rebuild_state", "buildings_and_roads_cleared")
+	root.set_meta("map_rebuild_state", "previous_authored_content_cleared_then_rebuilt")
 
 	var path_layer := _new_layer(root, "RoadLayer", -92, false)
 	var water_layer := _new_layer(root, "WaterLayer", -111, false)
@@ -108,14 +110,33 @@ func _build_overworld_scene(tileset: TileSet) -> void:
 	var decor_layer := _new_layer(root, "DecorLayer", -84, true)
 	var tree_layer := _new_layer(root, "TreeLayer", -54, true)
 	var building_layer := _new_layer(root, "HouseLayer", -52, true)
-	var cave_layer := _new_layer(root, "CaveLayer", -51, true)
-	var landmark_layer := _new_layer(root, "LandmarkLayer", -50, true)
+	var structure_layer := _new_layer(root, "StructureLayer", -51, true)
+	var cave_layer := _new_layer(root, "CaveLayer", -50, true)
+	var landmark_layer := _new_layer(root, "LandmarkLayer", -49, true)
 	var material_layer := _new_layer(root, "MaterialLayer", -42, true)
 	var object_layer := _new_layer(root, "ObjectLayer", -40, true)
 
-	# RoadLayer and HouseLayer intentionally remain empty in this reset pass.
-	# They remain authored TileMapLayers using the shared TileSet for the next
-	# editor placement pass; old road geometry is not regenerated at runtime.
+	# Fresh road cells are authored into RoadLayer. They are ordinary TileMapLayer
+	# cells, so a designer can select, move, or delete them in the Godot editor.
+	_draw_line(path_layer, Vector2i(-24, -2), Vector2i(24, -2), 12, Vector2i(0, 0))
+	_draw_line(path_layer, Vector2i(0, -14), Vector2i(0, 18), 12, Vector2i(0, 0))
+	_draw_line(path_layer, Vector2i(-18, 5), Vector2i(14, 5), 12, Vector2i(0, 0))
+	_draw_line(path_layer, Vector2i(16, -19), Vector2i(16, -2), 12, Vector2i(0, 0))
+
+	# Four fresh multi-cell house tiles. The footprint and collision come from
+	# the shared TileSet; no house sprite or runtime geometry is generated here.
+	_place_multicell(building_layer, Vector2i(-14, -6), 0, Vector2i(0, 36))
+	_place_multicell(building_layer, Vector2i(6, -6), 0, Vector2i(4, 36))
+	_place_multicell(building_layer, Vector2i(-14, 1), 0, Vector2i(8, 36))
+	_place_multicell(building_layer, Vector2i(6, 1), 0, Vector2i(12, 36))
+
+	# All non-house structures share one clear editor-facing layer. These are
+	# existing multi-cell tiles from the master atlas, not coded draw calls.
+	_place_multicell(structure_layer, Vector2i(14, -24), 0, Vector2i(11, 40)) # church
+	_place_multicell(structure_layer, Vector2i(-70, -77), 0, Vector2i(16, 40)) # mine entrance
+	_place_multicell(structure_layer, Vector2i(2, 68), 0, Vector2i(0, 40)) # southern ruins
+	_place_multicell(structure_layer, Vector2i(21, 40), 0, Vector2i(21, 40)) # eastern ruins
+
 	# Authored lake cells, using the water tile from the same unified TileSet.
 	for y in range(22, 31):
 		for x in range(44, 59):
@@ -129,21 +150,9 @@ func _build_overworld_scene(tileset: TileSet) -> void:
 		for x in range(-58, -43):
 			farm_layer.set_cell(Vector2i(x, y), 15, Vector2i(0, 0))
 
-	# A few authored trees, not runtime-drawn village decoration. The master
-	# atlas defines these as multi-cell tiles with y-sort origins and collisions.
-	_place(tree_layer, Vector2i(25, -42), 0, Vector2i(0, 45))
-	_place(tree_layer, Vector2i(42, -48), 0, Vector2i(4, 45))
-	_place(tree_layer, Vector2i(57, -37), 0, Vector2i(8, 45))
-	_place(tree_layer, Vector2i(-47, 18), 0, Vector2i(4, 45))
-
-	# Buildings are intentionally omitted while the authored village layout is
-	# being rebuilt. Keep the helper below for the next placement pass.
-	# The green ruin tile has a dark open doorway and is used as the northern
-	# cave mouth. The entry trigger is authored at its front door in the scene.
-	_place_multicell(cave_layer, Vector2i(-70, -77), 0, Vector2i(16, 40))
-	# A citadel/temple landmark gives the southern route a tile-authored goal.
-	_place_multicell(landmark_layer, Vector2i(2, 68), 0, Vector2i(0, 40))
-	_place_multicell(landmark_layer, Vector2i(21, 40), 0, Vector2i(21, 40))
+	# TreeLayer, CaveLayer, and LandmarkLayer are intentionally empty in this
+	# reset/rebuild. The direct World/TreeLayer remains untouched because it is
+	# the user's default vegetation layer, not content from this authoring pass.
 
 	# Interactive resource nodes still live as gameplay Area2Ds, but their
 	# visible material tiles are authored here and come from the unified atlas.

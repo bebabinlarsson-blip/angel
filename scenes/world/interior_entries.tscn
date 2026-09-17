@@ -7,10 +7,75 @@ radius = 36.0
 
 [node name="Interiors" type="Node2D"]
 metadata/authored_entries = "scene-authored doorway positions; gameplay triggers only"
-metadata/rebuild_state = "building_and_church_entries_cleared; cave_entry_retained"
+metadata/rebuild_state = "old_entries_cleared; fresh_house_and_structure_entries"
 
 [node name="EntryRegistry" type="Node2D" parent="."]
 metadata/purpose = "Compatibility registry; door triggers attach to their authored tile layers after scene startup"
+
+[node name="Entry_ElderHouse" type="Area2D" parent="EntryRegistry"]
+position = Vector2(-384, -72)
+script = ExtResource("1_entry")
+interior_id = "elder_house"
+display_name = "Elder's House"
+interior_scene_path = "res://scenes/interiors/generic_house.tscn"
+destination_spawn = Vector2(0, 180)
+linked_layer_name = "HouseLayer"
+linked_house_id = "elder_house"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EntryRegistry/Entry_ElderHouse"]
+shape = SubResource("CircleShape_entry")
+
+[node name="Entry_Bakery" type="Area2D" parent="EntryRegistry"]
+position = Vector2(256, -72)
+script = ExtResource("1_entry")
+interior_id = "bakery"
+display_name = "Village Bakery"
+interior_scene_path = "res://scenes/interiors/generic_house.tscn"
+destination_spawn = Vector2(0, 180)
+linked_layer_name = "HouseLayer"
+linked_house_id = "bakery"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EntryRegistry/Entry_Bakery"]
+shape = SubResource("CircleShape_entry")
+
+[node name="Entry_Smithy" type="Area2D" parent="EntryRegistry"]
+position = Vector2(-384, 152)
+script = ExtResource("1_entry")
+interior_id = "smithy"
+display_name = "Village Smithy"
+interior_scene_path = "res://scenes/interiors/generic_house.tscn"
+destination_spawn = Vector2(0, 180)
+linked_layer_name = "HouseLayer"
+linked_house_id = "smithy"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EntryRegistry/Entry_Smithy"]
+shape = SubResource("CircleShape_entry")
+
+[node name="Entry_CarpenterHouse" type="Area2D" parent="EntryRegistry"]
+position = Vector2(256, 152)
+script = ExtResource("1_entry")
+interior_id = "carpenter_house"
+display_name = "Carpenter's House"
+interior_scene_path = "res://scenes/interiors/generic_house.tscn"
+destination_spawn = Vector2(0, 180)
+linked_layer_name = "HouseLayer"
+linked_house_id = "carpenter_house"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EntryRegistry/Entry_CarpenterHouse"]
+shape = SubResource("CircleShape_entry")
+
+[node name="Entry_Church" type="Area2D" parent="EntryRegistry"]
+position = Vector2(528, -616)
+script = ExtResource("1_entry")
+interior_id = "church"
+display_name = "Village Church"
+interior_scene_path = "res://scenes/interiors/abandoned_church.tscn"
+destination_spawn = Vector2(0, 180)
+linked_layer_name = "StructureLayer"
+linked_house_id = "church"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EntryRegistry/Entry_Church"]
+shape = SubResource("CircleShape_entry")
 
 [node name="Entry_HighlandMine" type="Area2D" parent="EntryRegistry"]
 position = Vector2(-2160, -2344)
@@ -19,8 +84,34 @@ interior_id = "mine"
 display_name = "Highland Mine"
 interior_scene_path = "res://scenes/interiors/mine.tscn"
 destination_spawn = Vector2(0, 180)
-linked_layer_name = "CaveLayer"
+linked_layer_name = "StructureLayer"
 linked_house_id = "highland_mine"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="EntryRegistry/Entry_HighlandMine"]
+shape = SubResource("CircleShape_entry")
+
+[node name="Entry_SouthernRuins" type="Area2D" parent="EntryRegistry"]
+position = Vector2(160, 2328)
+script = ExtResource("1_entry")
+interior_id = "southern_ruins"
+display_name = "Southern Ruins"
+interior_scene_path = "res://scenes/interiors/ruins.tscn"
+destination_spawn = Vector2(0, 180)
+linked_layer_name = "StructureLayer"
+linked_house_id = "southern_ruins"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EntryRegistry/Entry_SouthernRuins"]
+shape = SubResource("CircleShape_entry")
+
+[node name="Entry_EasternRuins" type="Area2D" parent="EntryRegistry"]
+position = Vector2(736, 1400)
+script = ExtResource("1_entry")
+interior_id = "eastern_ruins"
+display_name = "Eastern Ruins"
+interior_scene_path = "res://scenes/interiors/ruins.tscn"
+destination_spawn = Vector2(0, 180)
+linked_layer_name = "StructureLayer"
+linked_house_id = "eastern_ruins"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EntryRegistry/Entry_EasternRuins"]
 shape = SubResource("CircleShape_entry")
