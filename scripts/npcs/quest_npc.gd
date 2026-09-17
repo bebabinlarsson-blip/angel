@@ -2,20 +2,6 @@ class_name QuestNPC
 extends StaticBody2D
 
 const NPC_PORTRAIT_SCRIPT = preload("res://scripts/ui/npc_portrait.gd")
-const GENERIC_NPC_FRAMES: SpriteFrames = preload("res://assets/sprites/npc_miniature_frames.tres")
-const ELDER_NPC_FRAMES: SpriteFrames = preload("res://assets/sprites/npc_elder_frames.tres")
-const CARPENTER_NPC_FRAMES: SpriteFrames = preload("res://assets/sprites/npc_carpenter_frames.tres")
-const CHEF_NPC_FRAMES: SpriteFrames = preload("res://assets/sprites/npc_chef_frames.tres")
-const MINER_NPC_FRAMES: SpriteFrames = preload("res://assets/sprites/npc_miner_frames.tres")
-
-const MINIATURE_TINTS: Array[Color] = [
-	Color(1.0, 1.0, 1.0),
-	Color(1.0, 0.945, 0.863),
-	Color(0.898, 0.949, 1.0),
-	Color(0.973, 0.894, 1.0),
-	Color(0.902, 0.969, 0.847),
-	Color(1.0, 0.894, 0.78)
-]
 
 @export var npc_name: String = "Villager"
 @export var npc_id: String = "villager"
@@ -29,6 +15,8 @@ const MINIATURE_TINTS: Array[Color] = [
 @export_enum("female", "male", "androgynous") var gender: String = "androgynous"
 @export var appearance_seed: int = 0
 @export var dialogue_lines: Array[String] = []
+@export var affinity_friends: Array[String] = []
+@export var affinity_rivals: Array[String] = []
 @export var work_position: Vector2 = Vector2.ZERO
 @export var work_speed: float = 42.0
 @export var stays_in_village: bool = true
@@ -46,11 +34,9 @@ var dialogue_layer: CanvasLayer = null
 
 var quest_system: QuestSystem = null
 var is_dialogue_open: bool = false
-var visual: CustomDraw2D = null
 var _dialogue_player: Node2D = null
 var sprite: AnimatedSprite2D = null
 var facing_direction: String = "down"
-var worker_tool: WorkerTool = null
 var home_position: Vector2 = Vector2.ZERO
 var schedule_destination: Vector2 = Vector2.ZERO
 var activity: String = "Resting"
@@ -72,7 +58,6 @@ var ambient_event_action: String = ""
 var ambient_event_role: String = ""
 var ambient_event_target: Vector2 = Vector2.ZERO
 var ambient_simulation_active: bool = true
-var _appearance_variant: int = 0
 
 func _ready() -> void:
 	# Dialogue is a modal screen-space UI, so the NPC must still receive Escape
@@ -82,7 +67,7 @@ func _ready() -> void:
 	if job == "idle":
 		job = _job_from_npc_id()
 	_build_ambient_profile()
-	_ensure_visible_miniature_model()
+	_bind_authored_miniature_model()
 	home_position = global_position
 	if work_position == Vector2.ZERO:
 		work_position = home_position + _default_work_offset()
@@ -106,13 +91,6 @@ func _ready() -> void:
 		interaction_label.visible = false
 	
 	quest_system = _find_quest_system()
-	worker_tool = WorkerTool.new()
-	worker_tool.name = "WorkerTool"
-	worker_tool.job = job
-	worker_tool.position = Vector2(0, -10)
-	worker_tool.z_index = 6
-	worker_tool.visible = false
-	add_child(worker_tool)
 
 func _configure_village_bounds() -> void:
 	if not stays_in_village:
@@ -153,7 +131,6 @@ func _build_ambient_profile() -> void:
 	var profile_rng := RandomNumberGenerator.new()
 	var seed_value := abs((npc_id + ":" + npc_name).hash()) + appearance_seed * 97 + 17
 	profile_rng.seed = seed_value
-	_appearance_variant = seed_value % MINIATURE_TINTS.size()
 	if gender == "androgynous":
 		gender = "female" if seed_value % 2 == 0 else "male"
 	personality = {
@@ -195,34 +172,22 @@ func _build_ambient_profile() -> void:
 		"phase_offset": profile_rng.randf_range(-0.28, 0.28)
 	}
 
-func _ensure_visible_miniature_model() -> void:
+func _bind_authored_miniature_model() -> void:
+	# NPC visuals are authored in the packed scene. Runtime logic may start an
+	# existing animation, but it never creates a model, picks a sprite sheet, or
+	# applies a procedural tint. This keeps every NPC inspectable in Godot's
+	# scene tree and prevents invisible/script-only NPCs from being spawned.
 	sprite = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 	if sprite == null:
-		sprite = AnimatedSprite2D.new()
-		sprite.name = "AnimatedSprite2D"
-		sprite.position = Vector2(0, -12)
-		add_child(sprite)
-	var frames := _frames_for_job()
-	if frames != null:
-		sprite.sprite_frames = frames
+		push_warning("QuestNPC %s is missing its scene-authored AnimatedSprite2D." % npc_id)
+		return
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	sprite.visible = true
-	sprite.modulate = MINIATURE_TINTS[_appearance_variant]
-	if sprite.sprite_frames != null and sprite.sprite_frames.has_animation("idle"):
+	if sprite.sprite_frames == null:
+		push_warning("QuestNPC %s has no scene-authored SpriteFrames resource." % npc_id)
+		return
+	if sprite.sprite_frames.has_animation("idle"):
 		sprite.play("idle")
-
-func _frames_for_job() -> SpriteFrames:
-	match npc_id:
-		"elder": return ELDER_NPC_FRAMES
-		"miner": return MINER_NPC_FRAMES
-		"cook", "chef": return CHEF_NPC_FRAMES
-		"carpenter": return CARPENTER_NPC_FRAMES
-	match job:
-		"guard": return ELDER_NPC_FRAMES
-		"miner", "traveler": return MINER_NPC_FRAMES
-		"cook", "herbalist", "merchant": return CHEF_NPC_FRAMES
-		"carpenter", "builder", "blacksmith": return CARPENTER_NPC_FRAMES
-		_: return GENERIC_NPC_FRAMES
 
 func get_ambient_personality_value(key: String) -> float:
 	if personality.is_empty():
@@ -250,6 +215,10 @@ func get_ambient_affinity_to(other: QuestNPC) -> float:
 	if other == null or other == self:
 		return 0.0
 	var affinity := 0.22 + get_ambient_personality_value("friendly") * 0.28
+	if other.npc_id in affinity_friends:
+		affinity += 0.34
+	if other.npc_id in affinity_rivals:
+		affinity -= 0.30
 	if job == other.job:
 		affinity += 0.18
 	var pair_seed := abs((npc_id + "|" + other.npc_id).hash()) % 100
@@ -489,7 +458,6 @@ func _process(delta: float) -> void:
 		else:
 			_run_daily_routine(delta)
 	_update_facing()
-	_update_worker_animation()
 	_update_activity_label()
 
 func _run_ambient_event_routine(delta: float) -> void:
@@ -692,15 +660,6 @@ func _job_activity() -> String:
 		"cook": return "Preparing the evening meal"
 		"traveler": return "Planning the next journey"
 		_: return "Working"
-
-func _update_worker_animation() -> void:
-	if worker_tool:
-		worker_tool.set_active(is_working)
-	if name_label and not npc_name.is_empty():
-		# Keep the nameplate compact; the separate activity label carries the
-		# schedule state and avoids multi-line world-space text becoming huge at
-		# the player's camera zoom.
-		name_label.text = npc_name
 
 func _update_dialogue() -> void:
 	if quest_id.is_empty() or quest_system == null:

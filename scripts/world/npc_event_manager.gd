@@ -17,6 +17,8 @@ const MAX_PARTICIPANTS := 6
 const EVENT_DEFINITIONS: Array[Dictionary] = [
 	{"id": "campfire_gathering", "label": "Chatting around the fire", "window": "evening", "anchor": "campfire", "min": 2, "max": 5, "duration": 52.0, "weight": 4.0, "action": "conversation"},
 	{"id": "shared_meal", "label": "Sharing a late meal", "window": "evening", "anchor": "campfire", "min": 2, "max": 4, "duration": 44.0, "weight": 2.2, "action": "eating"},
+	{"id": "evening_drinks", "label": "Sharing a quiet drink", "window": "evening", "anchor": "campfire", "min": 2, "max": 4, "duration": 38.0, "weight": 0.9, "action": "drinking"},
+	{"id": "laughter", "label": "Laughing over a village story", "window": "day_or_evening", "anchor": "square", "min": 2, "max": 4, "duration": 30.0, "weight": 1.0, "action": "laughing"},
 	{"id": "night_ritual", "label": "Taking part in a quiet night ritual", "window": "night", "anchor": "campfire", "min": 3, "max": 5, "duration": 58.0, "weight": 0.45, "rare": true, "action": "ritual"},
 	{"id": "dancing", "label": "Dancing to an unheard tune", "window": "evening", "anchor": "square", "min": 2, "max": 5, "duration": 40.0, "weight": 0.8, "rare": true, "action": "dancing"},
 	{"id": "small_game", "label": "Playing a small game", "window": "day_or_evening", "anchor": "square", "min": 2, "max": 4, "duration": 36.0, "weight": 1.1, "action": "playing"},
@@ -26,7 +28,7 @@ const EVENT_DEFINITIONS: Array[Dictionary] = [
 	{"id": "sunset_watch", "label": "Watching the last light", "window": "sunset", "anchor": "sunset", "min": 2, "max": 4, "duration": 42.0, "weight": 1.1, "action": "watching"},
 	{"id": "strange_inspection", "label": "Inspecting something unusual", "window": "any", "anchor": "square", "min": 2, "max": 4, "duration": 46.0, "weight": 0.28, "rare": true, "action": "investigating"},
 	{"id": "solitary_rest", "label": "Resting alone near the fire", "window": "night", "anchor": "campfire", "min": 1, "max": 1, "duration": 34.0, "weight": 0.8, "action": "resting"},
-	{"id": "rain_shelter", "label": "Rushing together for shelter", "window": "rain", "anchor": "square", "min": 2, "max": 5, "duration": 48.0, "weight": 3.0, "action": "sheltering"},
+	{"id": "rain_shelter", "label": "Rushing together for shelter", "window": "rain", "anchor": "shelter", "min": 2, "max": 5, "duration": 48.0, "weight": 3.0, "action": "sheltering"},
 	{"id": "celebration", "label": "Starting a tiny town celebration", "window": "evening", "anchor": "campfire", "min": 3, "max": 6, "duration": 64.0, "weight": 0.18, "rare": true, "action": "celebrating"},
 	{"id": "mourning", "label": "Gathering quietly together", "window": "night", "anchor": "campfire", "min": 2, "max": 4, "duration": 50.0, "weight": 0.12, "rare": true, "action": "mourning"}
 ]
@@ -241,6 +243,19 @@ func _event_anchor(anchor_kind: String, player_position: Vector2) -> Vector2:
 			return center
 		"sunset":
 			return center + Vector2(230.0, -128.0)
+		"shelter":
+			var shelter_entries := get_tree().get_nodes_in_group("interior_entries")
+			var best_position := center
+			var best_distance := INF
+			for raw_entry in shelter_entries:
+				if not (raw_entry is Node2D) or not is_instance_valid(raw_entry):
+					continue
+				var entry := raw_entry as Node2D
+				var distance := entry.global_position.distance_squared_to(center)
+				if distance < best_distance:
+					best_distance = distance
+					best_position = entry.global_position
+			return best_position
 		"player":
 			return player_position
 		_:

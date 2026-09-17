@@ -28,6 +28,11 @@
 [ext_resource type="Texture2D" uid="uid://dgj6js7mp8lo8" path="res://assets/sprites/items/item_mushroom.png" id="20_gxtfn"]
 [ext_resource type="PackedScene" path="res://scenes/world/authored_environment.tscn" id="21_environment"]
 [ext_resource type="PackedScene" path="res://scenes/world/interior_entries.tscn" id="22_entries"]
+[ext_resource type="PackedScene" path="res://scenes/npcs/villager_farmer.tscn" id="23_farmer"]
+[ext_resource type="PackedScene" path="res://scenes/npcs/villager_guard.tscn" id="24_guard"]
+[ext_resource type="PackedScene" path="res://scenes/npcs/villager_merchant.tscn" id="25_merchant"]
+[ext_resource type="PackedScene" path="res://scenes/npcs/villager_craftsman.tscn" id="26_craftsman"]
+[ext_resource type="PackedScene" path="res://scenes/npcs/villager_traveler.tscn" id="27_traveler"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_suyxu"]
 radius = 12.0
@@ -185,6 +190,8 @@ horizontal_alignment = 1
 
 [node name="VillageNPCs" type="Node2D" parent="World" unique_id=2000579591]
 y_sort_enabled = true
+metadata/roster = "scene-authored miniature NPC instances; each has a visible AnimatedSprite2D"
+metadata/runtime_policy = "QuestNPC logic may move these nodes, but never creates NPC models or NPC instances"
 
 [node name="NPC_Cook" type="StaticBody2D" parent="World/VillageNPCs" unique_id=2103187766]
 y_sort_enabled = true
@@ -195,6 +202,7 @@ npc_id = "cook"
 quest_id = "first_meal"
 greeting_text = "Welcome to the campfire hearth!"
 quest_offer_text = "Try your hand at cooking a hearty meal at the campfire [F]!"
+affinity_friends = ["apothecary"]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageNPCs/NPC_Cook" unique_id=529164981]
 position = Vector2(0, 6)
@@ -237,6 +245,7 @@ npc_id = "elder"
 quest_id = "slay_slimes"
 greeting_text = "Welcome to the grand Angel Island!"
 quest_offer_text = "Slimes roam the outskirts. Defeat 5 slimes to help secure our borders!"
+affinity_friends = ["guard", "watch"]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageNPCs/NPC_Elder" unique_id=997152730]
 position = Vector2(0, 6)
@@ -279,6 +288,7 @@ npc_id = "carpenter"
 quest_id = "gather_wood"
 greeting_text = "Hello traveler! Need repairs or building supplies?"
 quest_offer_text = "I am reinforcing the village fences. Could you gather 10 Wood?"
+affinity_friends = ["builder", "blacksmith"]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageNPCs/NPC_Carpenter" unique_id=267044210]
 position = Vector2(0, 6)
@@ -321,6 +331,7 @@ npc_id = "miner"
 quest_id = "explore_cave"
 greeting_text = "Greetings! The northern mountains hold vast mineral wealth."
 quest_offer_text = "Explore the northern cave quarries and mine 3 Iron Ores for me."
+affinity_friends = ["blacksmith", "traveler"]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageNPCs/NPC_Miner" unique_id=499108931]
 position = Vector2(0, 6)
@@ -353,6 +364,176 @@ offset_right = 40.0
 offset_bottom = -37.0
 text = "[F] Talk"
 horizontal_alignment = 1
+
+[node name="NPC_Farmer" parent="World/VillageNPCs" instance=ExtResource("23_farmer")]
+position = Vector2(-380, 160)
+npc_name = "Anika the Farmer"
+npc_id = "farmer"
+quest_id = "farmer_seed"
+gender = "female"
+appearance_seed = 101
+greeting_text = "The fields feed everyone in Angel Village."
+quest_offer_text = "Could you gather 6 Wood for the field fences?"
+quest_active_text = "The seedlings are waiting on those fence posts."
+dialogue_lines = ["I wake before sunrise when the soil is kind.", "Suri and I compare notes on every seed."]
+affinity_friends = ["gardener", "herbalist"]
+work_position = Vector2(-220, 248)
+
+[node name="NPC_Guard" parent="World/VillageNPCs" instance=ExtResource("24_guard")]
+position = Vector2(400, 80)
+npc_name = "Rook the Gatekeeper"
+npc_id = "guard"
+quest_id = "guard_patrol"
+gender = "male"
+appearance_seed = 102
+greeting_text = "Keep your eyes open beyond the village markers."
+quest_offer_text = "Defeat 2 slimes near the eastern road so the patrol can pass."
+quest_active_text = "The eastern road is still dangerous."
+dialogue_lines = ["I prefer the late shift; the quiet tells me more.", "Bram covers the north ring when I check the gate."]
+affinity_friends = ["watch"]
+work_position = Vector2(430, -110)
+
+[node name="NPC_Merchant" parent="World/VillageNPCs" instance=ExtResource("25_merchant")]
+position = Vector2(360, -144)
+npc_name = "Lio the Trader"
+npc_id = "merchant"
+quest_id = "merchant_trade"
+gender = "male"
+appearance_seed = 103
+greeting_text = "I buy rare finds and sell stories from distant shores."
+quest_offer_text = "Bring me 3 Herbs for a fair market bundle."
+quest_active_text = "The bundle needs a few more fragrant leaves."
+dialogue_lines = ["A good bargain leaves both people smiling.", "I open the stall slowly; morning customers are still dreaming."]
+affinity_friends = ["trader"]
+affinity_rivals = ["blacksmith"]
+work_position = Vector2(310, -54)
+
+[node name="NPC_Fisher" parent="World/VillageNPCs" instance=ExtResource("27_traveler")]
+position = Vector2(320, 300)
+npc_name = "Mira the Fisher"
+npc_id = "fisher"
+quest_id = "fisher_morning"
+gender = "female"
+appearance_seed = 104
+greeting_text = "The lake has been generous this morning."
+quest_offer_text = "Find 2 Mushrooms for bait and I will share the catch."
+quest_active_text = "The lake is calm; I only need the bait."
+dialogue_lines = ["The best fishing spot changes with the moon.", "Sometimes I follow the long way home just to watch the water."]
+affinity_friends = ["traveler"]
+work_position = Vector2(410, 300)
+
+[node name="NPC_Herbalist" parent="World/VillageNPCs" instance=ExtResource("25_merchant")]
+position = Vector2(-360, 240)
+npc_name = "Elin the Herbalist"
+npc_id = "herbalist"
+quest_id = "herbalist_remedy"
+gender = "female"
+appearance_seed = 105
+greeting_text = "The island grows medicine for those who know where to look."
+quest_offer_text = "Gather 4 Herbs for tonight's village remedy."
+quest_active_text = "The remedy needs more green leaves."
+dialogue_lines = ["I listen to plants before I pick them.", "A shy flower often grows where the road is quiet."]
+affinity_friends = ["apothecary", "gardener"]
+work_position = Vector2(-420, 220)
+
+[node name="NPC_Builder" parent="World/VillageNPCs" instance=ExtResource("26_craftsman")]
+position = Vector2(320, 160)
+npc_name = "Oskar the Builder"
+npc_id = "builder"
+quest_id = "builder_repairs"
+gender = "male"
+appearance_seed = 106
+greeting_text = "There is always another roof, fence or bridge to repair."
+quest_offer_text = "Bring 8 Wood so I can finish the square's repairs."
+quest_active_text = "The scaffolding is ready when the wood arrives."
+dialogue_lines = ["I measure twice, then ask Nia what she thinks.", "Some repairs are easier after a good night's sleep."]
+affinity_friends = ["blacksmith", "carpenter"]
+work_position = Vector2(300, 222)
+
+[node name="NPC_Gardener" parent="World/VillageNPCs" instance=ExtResource("23_farmer")]
+position = Vector2(-230, 300)
+npc_name = "Suri the Gardener"
+npc_id = "gardener"
+quest_id = "gardener_bloom"
+gender = "female"
+appearance_seed = 107
+greeting_text = "Every seed is a promise that tomorrow can be better."
+quest_offer_text = "Find 3 Mushrooms for the compost beds."
+quest_active_text = "The compost beds are waiting by the west path."
+dialogue_lines = ["I like company, but the seedlings are my closest friends.", "Anika always notices when I sneak out early."]
+affinity_friends = ["farmer", "herbalist"]
+work_position = Vector2(-260, 352)
+
+[node name="NPC_Watch" parent="World/VillageNPCs" instance=ExtResource("24_guard")]
+position = Vector2(-420, -40)
+npc_name = "Bram the Watch"
+npc_id = "watch"
+quest_id = "watch_clearance"
+gender = "male"
+appearance_seed = 108
+greeting_text = "The ring is safe, but the roads beyond it still need watching."
+quest_offer_text = "Defeat 3 slimes that have wandered toward the north road."
+quest_active_text = "I can hear them beyond the trees."
+dialogue_lines = ["I am serious on duty, though Rook says I laugh too loudly off it.", "The night sky is clearer from the western rise."]
+affinity_friends = ["guard"]
+work_position = Vector2(-430, -170)
+
+[node name="NPC_Trader" parent="World/VillageNPCs" instance=ExtResource("25_merchant")]
+position = Vector2(220, -260)
+npc_name = "Nia the Trader"
+npc_id = "trader"
+quest_id = "trader_balance"
+gender = "female"
+appearance_seed = 109
+greeting_text = "A healthy village is built on fair trades and good timing."
+quest_offer_text = "Bring 2 Gold Ore from the highland mine for the market ledger."
+quest_active_text = "The ledger is waiting for the mine's bright ore."
+dialogue_lines = ["Lio loves stories; I prefer prices that can be checked.", "Sometimes I leave the stall open one hour late for a traveler."]
+affinity_friends = ["merchant"]
+work_position = Vector2(160, -190)
+
+[node name="NPC_Apothecary" parent="World/VillageNPCs" instance=ExtResource("25_merchant")]
+position = Vector2(-240, -260)
+npc_name = "Tala the Apothecary"
+npc_id = "apothecary"
+quest_id = "apothecary_tonic"
+gender = "female"
+appearance_seed = 110
+greeting_text = "Bring me mint, lavender and flowers; I can turn them into calm."
+quest_offer_text = "Cook 1 dish at the campfire so I can test a new tonic base."
+quest_active_text = "The tonic smells like supper; it needs one fresh dish."
+dialogue_lines = ["Elin brings the wild herbs; I turn them into measured remedies.", "I am curious about every recipe that enters this village."]
+affinity_friends = ["herbalist", "cook"]
+work_position = Vector2(-180, -190)
+
+[node name="NPC_Blacksmith" parent="World/VillageNPCs" instance=ExtResource("26_craftsman")]
+position = Vector2(-288, -176)
+npc_name = "Gunnar the Blacksmith"
+npc_id = "blacksmith"
+quest_id = "blacksmith_ore"
+gender = "male"
+appearance_seed = 111
+greeting_text = "A good blade starts with honest steel and a steady hand."
+quest_offer_text = "Bring 3 Iron Ore from the highland mine for a village tool."
+quest_active_text = "The forge is hot; the iron is all that is missing."
+dialogue_lines = ["The hammer is a metronome for a patient mind.", "Oskar talks plans while I make them hold together."]
+affinity_friends = ["builder", "miner"]
+affinity_rivals = ["merchant"]
+work_position = Vector2(-330, -90)
+
+[node name="NPC_Traveler" parent="World/VillageNPCs" instance=ExtResource("27_traveler")]
+position = Vector2(438, -42)
+npc_name = "Sable the Traveler"
+npc_id = "traveler"
+quest_id = "traveler_route"
+gender = "androgynous"
+appearance_seed = 112
+greeting_text = "Every island has a story. I am staying long enough to hear this one."
+quest_offer_text = "Visit the eastern ruins and return with 1 Mushroom as proof of the route."
+quest_active_text = "The old road is still there if you watch the stones."
+dialogue_lines = ["I take unusual routes when the weather changes.", "Mira knows the lake; I know the roads beyond it."]
+affinity_friends = ["fisher", "merchant"]
+work_position = Vector2(460, -160)
 
 [node name="Waystones" type="Node2D" parent="World" unique_id=1238720667]
 y_sort_enabled = true

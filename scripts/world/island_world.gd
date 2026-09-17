@@ -42,6 +42,11 @@ func _layer_name_candidates(layer_name: String) -> Array:
         return ["RoadLayer", "PathLayer"]
     if layer_name == "HouseLayer" or layer_name == "BuildingLayer":
         return ["HouseLayer", "BuildingLayer"]
+    if layer_name == "StructureLayer":
+        # StructureLayer is the canonical authored layer for the church,
+        # ruins, and mine. Keep the old direct StructuresLayer as a read-only
+        # compatibility source for the default world props.
+        return ["StructureLayer", "StructuresLayer"]
     return [layer_name]
 
 func _collect_world_layers(world: Node, layer_name: String) -> Array:
@@ -107,7 +112,10 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     paths = _primary_world_layer(world, "RoadLayer")
     trees = _primary_world_layer(world, "TreeLayer")
     bridge = _primary_world_layer(world, "BridgeLayer")
-    structures = _primary_world_layer(world, "StructuresLayer")
+    # StructureLayer is the editor-facing home for the authored church, ruins,
+    # and mine. The old StructuresLayer remains available through the layer
+    # set as a compatibility source for default world props.
+    structures = _primary_world_layer(world, "StructureLayer")
     decor = _primary_world_layer(world, "DecorLayer")
     water_layer = _primary_world_layer(world, "WaterLayer")
     farm_layer = _primary_world_layer(world, "FarmLayer")
@@ -126,6 +134,7 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     _layer_sets["water"] = _collect_world_layers(world, "WaterLayer")
     _layer_sets["farm"] = _collect_world_layers(world, "FarmLayer")
     var structure_layers: Array = _collect_world_layers(world, "StructuresLayer")
+    _append_unique_layers(structure_layers, _collect_world_layers(world, "StructureLayer"))
     _append_unique_layers(structure_layers, _collect_world_layers(world, "HouseLayer"))
     _append_unique_layers(structure_layers, _collect_world_layers(world, "CaveLayer"))
     _append_unique_layers(structure_layers, _collect_world_layers(world, "LandmarkLayer"))

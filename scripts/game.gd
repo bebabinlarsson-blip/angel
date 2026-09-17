@@ -1,8 +1,6 @@
 extends Node2D
 
-const VILLAGER_SCENE = preload("res://scenes/npcs/villager.tscn")
 const VILLAGE_LAYOUT_SCRIPT = preload("res://scripts/world/village_layout.gd")
-const INTERIOR_ENTRY_SCRIPT = preload("res://scripts/world/interior_entry.gd")
 const NPC_EVENT_MANAGER_SCRIPT = preload("res://scripts/world/npc_event_manager.gd")
 
 @onready var player: CharacterBody2D = get_node_or_null("World/Player") as CharacterBody2D
@@ -36,7 +34,6 @@ func _ready() -> void:
 	# from an interior never silently drops the player's active objective.
 	if quest_system != null:
 		GameManager.consume_quest_transfer(quest_system)
-	_spawn_additional_villagers(world_node)
 	var director := world_node.get_node_or_null("WorldDirector") as WorldDirector
 	if director == null:
 		director = WorldDirector.new()
@@ -125,34 +122,12 @@ func _ensure_village_content(world_node: Node2D) -> void:
 		interiors.name = "Interiors"
 		interiors.y_sort_enabled = true
 		world_node.add_child(interiors)
-	# Doorway positions are authored in scenes/world/interior_entries.tscn.
-	# This fallback is only for minimal test scenes and intentionally retains the cave entry.
-	if interiors.get_child_count() > 0:
-		return
-
-	var entry_data: Array[Dictionary] = [
-		{
-			"id": "mine",
-			"name": "Northern Mine",
-			"scene": "res://scenes/interiors/mine.tscn",
-			"position": Vector2(-2160.0, -2344.0),
-			"spawn": Vector2(0.0, 180.0),
-		},
-	]
-	for data: Dictionary in entry_data:
-		var entry_name := "Entry_" + str(data["id"]).capitalize()
-		var entry := interiors.get_node_or_null(entry_name) as InteriorEntry
-		if entry == null:
-			entry = INTERIOR_ENTRY_SCRIPT.new() as InteriorEntry
-			entry.name = entry_name
-			interiors.add_child(entry)
-		entry.interior_id = str(data["id"])
-		entry.display_name = str(data["name"])
-		entry.interior_scene_path = str(data["scene"])
-		entry.destination_spawn = data["spawn"]
-		entry.linked_house_id = str(data["id"])
-		entry.linked_layer_name = "CaveLayer" if str(data["id"]) == "mine" else "HouseLayer"
-		entry.position = data["position"]
+	# All door triggers are scene-authored in interior_entries.tscn and attach
+	# themselves to the matching TileMapLayer. Never recreate removed or moved
+	# entrances from code; a missing registry is an authoring error that should be
+	# visible in the editor instead of silently creating duplicate geometry.
+	if interiors.get_child_count() == 0:
+		push_warning("Angel: no scene-authored interior entries were found.")
 
 
 func _load_layout_config() -> Dictionary:
@@ -168,41 +143,6 @@ func _load_layout_config() -> Dictionary:
 		push_warning("Angel: island layout config root is not a dictionary.")
 		return {}
 	return json.data
-
-func _spawn_additional_villagers(world_node: Node2D) -> void:
-	var village := world_node.get_node_or_null("VillageNPCs") as Node2D
-	if village == null:
-		return
-	var villagers := [
-		{"id": "farmer", "name": "Anika the Farmer", "job": "farmer", "pos": Vector2(-380, 160), "greeting": "The fields feed everyone in Angel Village."},
-		{"id": "guard", "name": "Rook the Gatekeeper", "job": "guard", "pos": Vector2(400, 80), "greeting": "Keep your eyes open beyond the village markers."},
-		{"id": "merchant", "name": "Lio the Trader", "job": "merchant", "pos": Vector2(360, -144), "greeting": "I buy rare finds and sell stories from distant shores."},
-		{"id": "fisher", "name": "Mira the Fisher", "job": "fisher", "pos": Vector2(320, 300), "greeting": "The lake has been generous this morning."},
-		{"id": "herbalist", "name": "Elin the Herbalist", "job": "herbalist", "pos": Vector2(-360, 240), "greeting": "The island grows medicine for those who know where to look."},
-		{"id": "builder", "name": "Oskar the Builder", "job": "builder", "pos": Vector2(320, 160), "greeting": "There is always another roof, fence or bridge to repair."},
-		{"id": "gardener", "name": "Suri the Gardener", "job": "farmer", "pos": Vector2(-230, 300), "greeting": "Every seed is a promise that tomorrow can be better."},
-		{"id": "watch", "name": "Bram the Watch", "job": "guard", "pos": Vector2(-420, -40), "greeting": "The ring is safe, but the roads beyond it still need watching."},
-		{"id": "trader", "name": "Nia the Trader", "job": "merchant", "pos": Vector2(220, -260), "greeting": "A healthy village is built on fair trades and good timing."},
-		{"id": "apothecary", "name": "Tala the Apothecary", "job": "herbalist", "pos": Vector2(-240, -260), "greeting": "Bring me mint, lavender and flowers; I can turn them into calm."},
-		{"id": "blacksmith", "name": "Gunnar the Blacksmith", "job": "blacksmith", "pos": Vector2(-288, -176), "greeting": "A good blade starts with honest steel and a steady hand."},
-		{"id": "traveler", "name": "Sable the Traveler", "job": "traveler", "pos": Vector2(438, -42), "greeting": "Every island has a story. I am staying long enough to hear this one."}
-	]
-	for data: Dictionary in villagers:
-		var node_name := "NPC_" + str(data["id"]).capitalize()
-		if village.get_node_or_null(node_name) != null:
-			continue
-		var npc := VILLAGER_SCENE.instantiate() as QuestNPC
-		if npc == null:
-			continue
-		npc.name = node_name
-		npc.npc_id = str(data["id"])
-		npc.npc_name = str(data["name"])
-		npc.job = str(data["job"])
-		npc.appearance_seed = abs(str(data["id"]).hash())
-		npc.stays_in_village = true
-		npc.greeting_text = str(data["greeting"])
-		npc.position = data["pos"]
-		village.add_child(npc)
 
 func _ensure_npc_event_manager(world_node: Node2D) -> void:
 	var manager := world_node.get_node_or_null("NPCEventManager") as NPCEventManager

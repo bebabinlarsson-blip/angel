@@ -5,14 +5,14 @@
 [node name="AuthoredEnvironment" type="Node2D" unique_id=1215769000]
 metadata/authored_tileset = "res://assets/tilesets/angel_environment_tileset.tres"
 metadata/placement_mode = "TileMapLayer cells; no runtime environment drawing"
-metadata/map_rebuild_state = "buildings_and_roads_cleared"
+metadata/map_rebuild_state = "previous_authored_content_cleared_then_rebuilt"
 
 [node name="RoadLayer" type="TileMapLayer" parent="." unique_id=1575565520]
 z_index = -92
 texture_filter = 1
-metadata/layer_role = "Authored road tiles; currently cleared for rebuild"
-metadata/rebuild_state = "cleared; ready for the next authored road pass"
-tile_map_data = PackedByteArray()
+metadata/layer_role = "Authored road tiles; editor-movable village routes"
+metadata/rebuild_state = "fresh editor-authored road pass"
+tile_map_data = PackedByteArray("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")
 tile_set = ExtResource("1_yuak4")
 
 [node name="WaterLayer" type="TileMapLayer" parent="." unique_id=1253987820]
@@ -37,30 +37,43 @@ tile_set = ExtResource("1_yuak4")
 z_index = -54
 y_sort_enabled = true
 texture_filter = 1
-tile_map_data = PackedByteArray("AAAZANb/AAAAAC0AAAAqAND/AAAEAC0AAAA5ANv/AAAIAC0AAADR/xIAAAAEAC0AAAA=")
+metadata/layer_role = "Compatibility slot; the default World/TreeLayer remains untouched"
+metadata/rebuild_state = "authored-pass trees cleared"
+tile_map_data = PackedByteArray()
 tile_set = ExtResource("1_yuak4")
 
 [node name="HouseLayer" type="TileMapLayer" parent="." unique_id=2125995559]
 z_index = -52
 y_sort_enabled = true
 texture_filter = 1
-metadata/layer_role = "Authored house tiles; currently cleared for rebuild"
-metadata/rebuild_state = "cleared; ready for the next authored building pass"
-tile_map_data = PackedByteArray()
+metadata/layer_role = "Authored house tiles; editor-movable village homes"
+metadata/rebuild_state = "fresh editor-authored house pass"
+tile_map_data = PackedByteArray("AADy//r/AAAAACQAAAAGAPr/AAAEACQAAADy/wEAAAAIACQAAAAGAAEAAAAMACQAAAA=")
 tile_set = ExtResource("1_yuak4")
 
-[node name="CaveLayer" type="TileMapLayer" parent="." unique_id=871060253]
+[node name="StructureLayer" type="TileMapLayer" parent="." unique_id=2057711043]
 z_index = -51
 y_sort_enabled = true
 texture_filter = 1
-tile_map_data = PackedByteArray("AAC6/7P/AAAQACgAAAA=")
+metadata/layer_role = "Authored church, ruins and mine tiles; editor-movable structures"
+metadata/structure_catalog = "church; highland mine; southern ruins; eastern ruins"
+tile_map_data = PackedByteArray("AAAOAOj/AAALACgAAAC6/7P/AAAQACgAAAACAEQAAAAAACgAAAAVACgAAAAVACgAAAA=")
 tile_set = ExtResource("1_yuak4")
 
-[node name="LandmarkLayer" type="TileMapLayer" parent="." unique_id=1576842044]
+[node name="CaveLayer" type="TileMapLayer" parent="." unique_id=871060253]
 z_index = -50
 y_sort_enabled = true
 texture_filter = 1
-tile_map_data = PackedByteArray("AAACAEQAAAAAACgAAAAVACgAAAAVACgAAAA=")
+metadata/layer_role = "Compatibility slot; cave structures are authored in StructureLayer"
+tile_map_data = PackedByteArray()
+tile_set = ExtResource("1_yuak4")
+
+[node name="LandmarkLayer" type="TileMapLayer" parent="." unique_id=1576842044]
+z_index = -49
+y_sort_enabled = true
+texture_filter = 1
+metadata/layer_role = "Compatibility slot; landmarks are authored in StructureLayer"
+tile_map_data = PackedByteArray()
 tile_set = ExtResource("1_yuak4")
 
 [node name="MaterialLayer" type="TileMapLayer" parent="." unique_id=1876740794]

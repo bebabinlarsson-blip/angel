@@ -106,6 +106,8 @@ func _find_linked_layer(world: Node) -> TileMapLayer:
         candidates.append("BuildingLayer")
     elif linked_layer_name == "RoadLayer":
         candidates.append("PathLayer")
+    elif linked_layer_name == "StructureLayer":
+        candidates.append("StructuresLayer")
     var authored_root := world.get_node_or_null("AuthoredEnvironment")
     if authored_root != null:
         for candidate: String in candidates:
