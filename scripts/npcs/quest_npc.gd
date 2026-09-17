@@ -2,6 +2,7 @@ class_name QuestNPC
 extends StaticBody2D
 
 const NPC_PORTRAIT_SCRIPT = preload("res://scripts/ui/npc_portrait.gd")
+const NPC_COMBAT_EFFECT = preload("res://scripts/world/npc_combat_effect.gd")
 
 @export var npc_name: String = "Villager"
 @export var npc_id: String = "villager"
@@ -21,6 +22,7 @@ const NPC_PORTRAIT_SCRIPT = preload("res://scripts/ui/npc_portrait.gd")
 @export var work_speed: float = 42.0
 @export var stays_in_village: bool = true
 @export var village_boundary_margin: float = 26.0
+@export var max_health: float = 100.0
 
 var name_label: Label = null
 var dialogue_panel: PanelContainer = null
@@ -58,6 +60,20 @@ var ambient_event_action: String = ""
 var ambient_event_role: String = ""
 var ambient_event_target: Vector2 = Vector2.ZERO
 var ambient_simulation_active: bool = true
+var current_health: float = 0.0
+var ambient_combat_enabled: bool = false
+var ambient_combat_down: bool = false
+var ambient_combat_target: QuestNPC = null
+var ambient_combat_team: int = -1
+var ambient_weapon_kind: String = "melee"
+var ambient_attack_cooldown: float = 0.0
+var ambient_down_clock: float = 0.0
+var combat_knockback: Vector2 = Vector2.ZERO
+var weapon_visual: Line2D = null
+var weapon_visual_clock: float = 0.0
+var combat_damage_clock: float = 0.0
+var _base_sprite_modulate: Color = Color.WHITE
+var _collision_shape: CollisionShape2D = null
 
 func _ready() -> void:
 	# Dialogue is a modal screen-space UI, so the NPC must still receive Escape
@@ -68,6 +84,9 @@ func _ready() -> void:
 		job = _job_from_npc_id()
 	_build_ambient_profile()
 	_bind_authored_miniature_model()
+	current_health = max_health
+	_collision_shape = get_node_or_null("CollisionShape2D") as CollisionShape2D
+	_create_placeholder_weapon()
 	home_position = global_position
 	if work_position == Vector2.ZERO:
 		work_position = home_position + _default_work_offset()
@@ -183,11 +202,79 @@ func _bind_authored_miniature_model() -> void:
 		return
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	sprite.visible = true
+	_base_sprite_modulate = sprite.modulate
 	if sprite.sprite_frames == null:
 		push_warning("QuestNPC %s has no scene-authored SpriteFrames resource." % npc_id)
 		return
 	if sprite.sprite_frames.has_animation("idle"):
 		sprite.play("idle")
+
+func _create_placeholder_weapon() -> void:
+	# This is deliberately a replaceable combat prop, not an NPC model. The
+	# final art can replace this Line2D without changing event or damage logic.
+	weapon_visual = Line2D.new()
+	weapon_visual.name = "PlaceholderWeapon"
+	weapon_visual.width = 3.0
+	weapon_visual.default_color = Color("#d6b071")
+	weapon_visual.z_index = 3
+	weapon_visual.antialiased = false
+	weapon_visual.points = PackedVector2Array([Vector2(1, -2), Vector2(20, -2)])
+	weapon_visual.visible = false
+	add_child(weapon_visual)
+
+func is_ambient_combat_available() -> bool:
+	return ambient_combat_enabled and not ambient_combat_down and current_health > 0.0
+
+func is_ambient_combat_down() -> bool:
+	return ambient_combat_down
+
+func get_ambient_combat_team() -> int:
+	return ambient_combat_team
+
+func get_ambient_combat_target() -> QuestNPC:
+	return ambient_combat_target
+
+func begin_ambient_combat(target: QuestNPC, weapon_kind: String, team: int) -> void:
+	ambient_combat_enabled = true
+	ambient_combat_down = false
+	ambient_combat_target = target
+	ambient_combat_team = team
+	ambient_weapon_kind = "firearm" if weapon_kind == "firearm" else "melee"
+	ambient_attack_cooldown = randf_range(0.25, 0.85)
+	ambient_down_clock = 0.0
+	combat_knockback = Vector2.ZERO
+	current_health = max_health
+	if _collision_shape != null:
+		_collision_shape.disabled = false
+	if sprite != null:
+		sprite.rotation = 0.0
+		sprite.modulate = _base_sprite_modulate
+	activity = "Fighting with a placeholder firearm" if ambient_weapon_kind == "firearm" else "Fighting with a placeholder weapon"
+	set_ambient_simulation_active(true)
+
+func set_ambient_combat_target(target: QuestNPC) -> void:
+	ambient_combat_target = target
+
+func end_ambient_combat() -> void:
+	ambient_combat_enabled = false
+	ambient_combat_down = false
+	ambient_combat_target = null
+	ambient_combat_team = -1
+	ambient_weapon_kind = "melee"
+	ambient_attack_cooldown = 0.0
+	ambient_down_clock = 0.0
+	combat_knockback = Vector2.ZERO
+	current_health = max_health
+	if _collision_shape != null:
+		_collision_shape.disabled = false
+	if sprite != null:
+		sprite.rotation = 0.0
+		sprite.modulate = _base_sprite_modulate
+	if weapon_visual != null:
+		weapon_visual.visible = false
+
+func has_ambient_combat_target() -> bool:
+	return is_ambient_combat_available() and ambient_combat_target != null and is_instance_valid(ambient_combat_target) and not ambient_combat_target.is_ambient_combat_down()
 
 func get_ambient_personality_value(key: String) -> float:
 	if personality.is_empty():
@@ -241,6 +328,8 @@ func set_ambient_simulation_active(active: bool) -> void:
 	set_process(active or is_dialogue_open)
 
 func begin_ambient_event(event_id: String, label: String, target: Vector2, action: String, role: String) -> void:
+	if event_id != "armed_brawl" and ambient_combat_enabled:
+		end_ambient_combat()
 	ambient_event_id = event_id
 	ambient_event_label = label
 	ambient_event_action = action
@@ -255,6 +344,8 @@ func begin_ambient_event(event_id: String, label: String, target: Vector2, actio
 	set_ambient_simulation_active(true)
 
 func end_ambient_event() -> void:
+	if ambient_combat_enabled or ambient_combat_down:
+		end_ambient_combat()
 	ambient_event_id = ""
 	ambient_event_label = ""
 	ambient_event_action = ""
@@ -415,6 +506,8 @@ func _find_quest_system() -> QuestSystem:
 	return null
 
 func interact(player: CharacterBody2D) -> void:
+	if ambient_combat_down:
+		return
 	if is_dialogue_open:
 		_close_dialogue()
 		return
@@ -447,6 +540,7 @@ func _process(delta: float) -> void:
 				if child is AnimatedSprite2D:
 					sprite = child
 					break
+	_update_combat_visual(delta)
 	
 	# Auto-close if the player walks away with the panel open.
 	if is_dialogue_open and _dialogue_player and is_instance_valid(_dialogue_player):
@@ -454,7 +548,10 @@ func _process(delta: float) -> void:
 			_close_dialogue()
 	if not is_dialogue_open and not get_tree().paused:
 		if has_ambient_event():
-			_run_ambient_event_routine(delta)
+			if ambient_event_action == "armed_brawl":
+				_run_ambient_combat(delta)
+			else:
+				_run_ambient_event_routine(delta)
 		else:
 			_run_daily_routine(delta)
 	_update_facing()
@@ -484,13 +581,175 @@ func _run_ambient_event_routine(delta: float) -> void:
 		if sprite != null:
 			sprite.rotation = move_toward(sprite.rotation, 0.0, delta * 0.8)
 
+func _update_combat_visual(delta: float) -> void:
+	if weapon_visual_clock > 0.0:
+		weapon_visual_clock = maxf(0.0, weapon_visual_clock - delta)
+		if weapon_visual_clock <= 0.0 and weapon_visual != null:
+			weapon_visual.visible = false
+	if combat_damage_clock > 0.0:
+		combat_damage_clock = maxf(0.0, combat_damage_clock - delta)
+	if combat_knockback.length_squared() > 1.0:
+		global_position = _clamp_to_village(global_position + combat_knockback * delta)
+		combat_knockback = combat_knockback.move_toward(Vector2.ZERO, 480.0 * delta)
+
+func _run_ambient_combat(delta: float) -> void:
+	if ambient_combat_down:
+		velocity = Vector2.ZERO
+		ambient_down_clock += delta
+		is_working = false
+		return
+	if not ambient_combat_enabled:
+		velocity = Vector2.ZERO
+		return
+	ambient_attack_cooldown = maxf(0.0, ambient_attack_cooldown - delta)
+	routine_clock += delta
+	var target := ambient_combat_target
+	if target == null or not is_instance_valid(target) or target.is_ambient_combat_down():
+		velocity = Vector2.ZERO
+		is_working = false
+		return
+	var to_target: Vector2 = target.global_position - global_position
+	var distance := to_target.length()
+	if distance <= 0.01:
+		return
+	var aim_direction := to_target.normalized()
+	var desired_min := 34.0 if ambient_weapon_kind == "melee" else 118.0
+	var desired_max := 58.0 if ambient_weapon_kind == "melee" else 225.0
+	if distance > desired_max:
+		velocity = aim_direction * work_speed * (1.12 if ambient_weapon_kind == "firearm" else 1.0)
+		global_position = _clamp_to_village(global_position + velocity * delta)
+		is_working = false
+	elif distance < desired_min and ambient_weapon_kind == "firearm":
+		velocity = -aim_direction * work_speed * 0.72
+		global_position = _clamp_to_village(global_position + velocity * delta)
+		is_working = false
+	else:
+		velocity = Vector2.ZERO
+		is_working = ambient_attack_cooldown <= 0.16
+		if ambient_attack_cooldown <= 0.0:
+			if ambient_weapon_kind == "firearm":
+				_fire_ambient_firearm(target, aim_direction)
+			else:
+				_strike_ambient_target(target, aim_direction)
+
+func _strike_ambient_target(target: QuestNPC, aim_direction: Vector2) -> void:
+	if target == null or not is_instance_valid(target) or target.is_ambient_combat_down():
+		return
+	_show_placeholder_weapon(aim_direction, false)
+	target.take_damage(randf_range(10.0, 17.0), aim_direction * 74.0, "melee", self)
+	ambient_attack_cooldown = randf_range(0.72, 1.18)
+	combat_damage_clock = 0.16
+
+func _fire_ambient_firearm(target: QuestNPC, aim_direction: Vector2) -> void:
+	if target == null or not is_instance_valid(target) or target.is_ambient_combat_down():
+		return
+	var muzzle_position := global_position + aim_direction * 19.0 + Vector2(0.0, -4.0)
+	_show_placeholder_weapon(aim_direction, true)
+	# Hitscan keeps this rare event cheap while the tracer communicates the shot.
+	_spawn_combat_effect(NPC_COMBAT_EFFECT.EFFECT_MUZZLE_SMOKE, muzzle_position, aim_direction, 18.0)
+	_spawn_combat_effect(NPC_COMBAT_EFFECT.EFFECT_TRACER, muzzle_position, aim_direction, global_position.distance_to(target.global_position))
+	target.take_damage(randf_range(15.0, 24.0), aim_direction * 48.0, "firearm", self)
+	ambient_attack_cooldown = randf_range(1.25, 1.95)
+	combat_damage_clock = 0.12
+
+func _show_placeholder_weapon(aim_direction: Vector2, firearm: bool) -> void:
+	if weapon_visual == null:
+		return
+	weapon_visual.visible = true
+	weapon_visual.position = Vector2(2.0, -4.0)
+	weapon_visual.rotation = aim_direction.angle()
+	weapon_visual.width = 2.5 if firearm else 3.5
+	weapon_visual.default_color = Color("#4e5966") if firearm else Color("#d6b071")
+	weapon_visual.points = PackedVector2Array([Vector2(1, 0), Vector2(21, 0)] if firearm else [Vector2(1, 0), Vector2(18, -4)])
+	weapon_visual_clock = 0.16 if firearm else 0.12
+
+func _spawn_combat_effect(kind: int, world_position: Vector2, direction: Vector2, distance: float = 32.0) -> void:
+	var parent := get_parent()
+	if parent == null or not is_instance_valid(parent):
+		return
+	var live_effects := get_tree().get_nodes_in_group("npc_combat_fx")
+	if live_effects.size() >= 80:
+		var oldest := live_effects[0] as Node
+		if oldest != null and is_instance_valid(oldest):
+			oldest.queue_free()
+	var effect := NPC_COMBAT_EFFECT.new()
+	effect.setup(kind, direction, distance)
+	parent.add_child(effect)
+	effect.global_position = world_position
+
+func take_damage(amount: float, knockback: Vector2 = Vector2.ZERO, damage_kind: String = "melee", source: Node = null) -> void:
+	if amount <= 0.0 or not ambient_combat_enabled or ambient_combat_down:
+		return
+	if source == self:
+		return
+	current_health = maxf(0.0, current_health - amount)
+	combat_knockback = knockback
+	combat_damage_clock = 0.24
+	var hit_direction := -knockback.normalized() if knockback.length_squared() > 0.01 else Vector2.DOWN
+	_spawn_combat_effect(NPC_COMBAT_EFFECT.EFFECT_BLOOD, global_position + Vector2(0.0, -8.0), hit_direction, 18.0)
+	_spawn_combat_damage_number(amount)
+	if sprite != null:
+		VFX.flash_hit(sprite)
+	if EventBus != null:
+		EventBus.damage_dealt.emit(self, amount)
+	if current_health <= 0.0:
+		_enter_ambient_combat_down()
+
+func _spawn_combat_damage_number(amount: float) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var existing := get_tree().get_nodes_in_group("damage_numbers")
+	if existing.size() >= 28:
+		var oldest := existing[0] as Node
+		if oldest != null and is_instance_valid(oldest):
+			oldest.queue_free()
+	var label := Label.new()
+	label.add_to_group("damage_numbers")
+	label.text = "-%d" % int(amount)
+	label.modulate = Color("#ff8e78")
+	label.position = global_position + Vector2(-12.0, -34.0)
+	label.z_index = 100
+	parent.add_child(label)
+	var tween := label.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, "position", label.position + Vector2(randf_range(-8.0, 8.0), -22.0), 0.42)
+	tween.tween_property(label, "modulate:a", 0.0, 0.42)
+	tween.chain().tween_callback(label.queue_free)
+
+func _enter_ambient_combat_down() -> void:
+	ambient_combat_down = true
+	ambient_combat_target = null
+	ambient_down_clock = 0.0
+	velocity = Vector2.ZERO
+	is_working = false
+	activity = "Downed after the fight"
+	if _collision_shape != null:
+		_collision_shape.disabled = true
+	if weapon_visual != null:
+		weapon_visual.visible = false
+	if sprite != null:
+		sprite.rotation = PI * 0.5
+		sprite.modulate = _base_sprite_modulate * Color(0.62, 0.46, 0.46, 1.0)
+
 func _update_facing() -> void:
+	if ambient_combat_down:
+		if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("idle") and sprite.animation != "idle":
+			sprite.play("idle")
+		return
 	if is_dialogue_open and _dialogue_player and is_instance_valid(_dialogue_player):
 		var to_player: Vector2 = (_dialogue_player as Node2D).global_position - global_position
 		if absf(to_player.x) > absf(to_player.y):
 			facing_direction = "right" if to_player.x > 0 else "left"
 		else:
 			facing_direction = "down" if to_player.y > 0 else "up"
+	elif ambient_event_action == "armed_brawl" and has_ambient_combat_target():
+		var to_event: Vector2 = ambient_combat_target.global_position - global_position
+		if to_event.length_squared() > 36.0:
+			if absf(to_event.x) > absf(to_event.y):
+				facing_direction = "right" if to_event.x > 0 else "left"
+			else:
+				facing_direction = "down" if to_event.y > 0 else "up"
 	elif has_ambient_event() and ambient_event_target != Vector2.ZERO:
 		var to_event: Vector2 = ambient_event_target - global_position
 		if to_event.length_squared() > 36.0:
