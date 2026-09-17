@@ -30,7 +30,8 @@ const EVENT_DEFINITIONS: Array[Dictionary] = [
 	{"id": "solitary_rest", "label": "Resting alone near the fire", "window": "night", "anchor": "campfire", "min": 1, "max": 1, "duration": 34.0, "weight": 0.8, "action": "resting"},
 	{"id": "rain_shelter", "label": "Rushing together for shelter", "window": "rain", "anchor": "shelter", "min": 2, "max": 5, "duration": 48.0, "weight": 3.0, "action": "sheltering"},
 	{"id": "celebration", "label": "Starting a tiny town celebration", "window": "evening", "anchor": "campfire", "min": 3, "max": 6, "duration": 64.0, "weight": 0.18, "rare": true, "action": "celebrating"},
-	{"id": "mourning", "label": "Gathering quietly together", "window": "night", "anchor": "campfire", "min": 2, "max": 4, "duration": 50.0, "weight": 0.12, "rare": true, "action": "mourning"}
+	{"id": "mourning", "label": "Gathering quietly together", "window": "night", "anchor": "campfire", "min": 2, "max": 4, "duration": 50.0, "weight": 0.12, "rare": true, "action": "mourning"},
+	{"id": "armed_brawl", "label": "A gang fight breaks out", "window": "day_or_evening", "anchor": "square", "min": 3, "max": 5, "duration": 42.0, "weight": 0.24, "rare": true, "action": "armed_brawl"}
 ]
 
 var _timer: Timer
@@ -93,6 +94,8 @@ func _advance_active_events() -> void:
 		var event: Dictionary = _active_events[index]
 		event["remaining"] = float(event.get("remaining", 0.0)) - EVENT_TICK_SECONDS
 		var participants_value: Variant = event.get("participants", [])
+		if str(event.get("id", "")) == "armed_brawl" and participants_value is Array:
+			_retarget_armed_brawl(participants_value)
 		var living_participants := 0
 		if participants_value is Array:
 			for raw_npc in participants_value:
@@ -228,6 +231,11 @@ func _join_score(npc: QuestNPC, definition: Dictionary, anchor: Vector2, leader:
 	score += clampf(1.0 - distance / 760.0, 0.0, 1.0) * 0.28
 	if leader != null:
 		score += npc.get_ambient_affinity_to(leader) * 0.28
+	if str(definition.get("id", "")) == "armed_brawl":
+		score += npc.get_ambient_personality_value("grumpy") * 0.22
+		score += npc.get_ambient_personality_value("serious") * 0.10
+		if leader != null and (leader.npc_id in npc.affinity_rivals or npc.npc_id in leader.affinity_rivals):
+			score += 0.35
 	return clampf(score, 0.0, 1.0)
 
 func _event_anchor(anchor_kind: String, player_position: Vector2) -> Vector2:
@@ -284,8 +292,53 @@ func _begin_event(definition: Dictionary, participants: Array[QuestNPC], anchor:
 			str(definition.get("action", "social")),
 			role
 		)
-	_start_cooldown = _rng.randf_range(8.0, 15.0)
+	if event_id == "armed_brawl":
+		_configure_armed_brawl(participants)
+	_start_cooldown = _rng.randf_range(14.0, 24.0) if event_id == "armed_brawl" else _rng.randf_range(8.0, 15.0)
 	EventBus.npc_ambient_event_started.emit(event_id, participants.size())
+
+func _configure_armed_brawl(participants: Array[QuestNPC]) -> void:
+	if participants.size() < 3:
+		return
+	var firearm_indices: Array[int] = []
+	# Most fights stay melee; a firearm is an occasional escalation rather than
+	# a guaranteed prop. A larger brawl can rarely have a second shooter.
+	if _rng.randf() < 0.72:
+		firearm_indices.append(_rng.randi_range(0, participants.size() - 1))
+		if participants.size() >= 5 and _rng.randf() < 0.24:
+			var second_index := _rng.randi_range(0, participants.size() - 1)
+			if not firearm_indices.has(second_index):
+				firearm_indices.append(second_index)
+	for index in range(participants.size()):
+		var opponents: Array[QuestNPC] = []
+		var team := index % 2
+		for opponent_index in range(participants.size()):
+			if opponent_index == index or opponent_index % 2 == team:
+				continue
+			opponents.append(participants[opponent_index])
+		if opponents.is_empty():
+			continue
+		var target := opponents[_rng.randi_range(0, opponents.size() - 1)]
+		var weapon_kind := "firearm" if firearm_indices.has(index) else "melee"
+		participants[index].begin_ambient_combat(target, weapon_kind, team)
+
+func _retarget_armed_brawl(participants: Array) -> void:
+	for raw_npc in participants:
+		var npc := raw_npc as QuestNPC
+		if npc == null or not is_instance_valid(npc) or not npc.is_ambient_combat_available():
+			continue
+		if npc.has_ambient_combat_target():
+			continue
+		var opponents: Array[QuestNPC] = []
+		for raw_opponent in participants:
+			var opponent := raw_opponent as QuestNPC
+			if opponent == null or not is_instance_valid(opponent) or opponent == npc:
+				continue
+			if opponent.get_ambient_combat_team() == npc.get_ambient_combat_team() or not opponent.is_ambient_combat_available():
+				continue
+			opponents.append(opponent)
+		if not opponents.is_empty():
+			npc.set_ambient_combat_target(opponents[_rng.randi_range(0, opponents.size() - 1)])
 
 func _finish_event(event: Dictionary) -> void:
 	var event_id := str(event.get("id", "ambient_event"))
