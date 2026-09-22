@@ -1,7 +1,7 @@
 extends Node2D
 
 const VILLAGER_SCENE = preload("res://scenes/npcs/villager.tscn")
-const VILLAGE_LAYOUT_SCRIPT = preload("res://scripts/world/village_layout.gd")
+const ENVIRONMENT_ART_SCRIPT = preload("res://scripts/world/environment_art_director.gd")
 const INTERIOR_ENTRY_SCRIPT = preload("res://scripts/world/interior_entry.gd")
 
 @onready var player: CharacterBody2D = get_node_or_null("World/Player") as CharacterBody2D
@@ -27,9 +27,11 @@ func _ready() -> void:
 		terrain.name = "IslandWorld"
 		terrain.add_to_group("island_world")
 		world_node.add_child(terrain)
+	var layout_config := _load_layout_config()
+	_ensure_environment_art(world_node, layout_config)
 	_ensure_cooking_place(world_node)
 	_ensure_village_content(world_node)
-	terrain.rebuild(world_node, _load_layout_config())
+	terrain.rebuild(world_node, layout_config)
 	# Scene transfers rebuild the overworld from scratch. Restore the compact
 	# quest snapshot after the new QuestSystem child has initialized so an exit
 	# from an interior never silently drops the player's active objective.
@@ -109,13 +111,23 @@ func _ensure_cooking_place(world_node: Node2D) -> void:
 	hearth.position = Vector2.ZERO
 	world_node.add_child(hearth)
 
+
+func _ensure_environment_art(world_node: Node2D, layout_config: Dictionary) -> void:
+	var art := world_node.get_node_or_null("EnvironmentArt") as EnvironmentArtDirector
+	if art == null:
+		art = ENVIRONMENT_ART_SCRIPT.new() as EnvironmentArtDirector
+		art.name = "EnvironmentArt"
+		world_node.add_child(art)
+	art.rebuild(world_node, layout_config)
+
+
 func _ensure_village_content(world_node: Node2D) -> void:
-	var layout := world_node.get_node_or_null("VillageLayout") as VillageLayout
-	if layout == null:
-		layout = VILLAGE_LAYOUT_SCRIPT.new() as VillageLayout
-		layout.name = "VillageLayout"
-		world_node.add_child(layout)
-	layout.configure(Vector2.ZERO, 500.0)
+	# Earlier builds created VillageLayout, a Node2D that painted roads, homes
+	# and props as flat colored geometry. The TileMap environment now owns those
+	# visuals, so remove a leftover node from a hot-reloaded scene if present.
+	var legacy_layout := world_node.get_node_or_null("VillageLayout")
+	if legacy_layout != null:
+		legacy_layout.queue_free()
 
 	var interiors := world_node.get_node_or_null("Interiors") as Node2D
 	if interiors == null:

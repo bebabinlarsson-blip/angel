@@ -19,6 +19,8 @@ var expanded_radius: float = 350000.0
 const EXPANSION_MULTIPLIER: float = 100.0
 const OCEAN_WORLD_RECT := Rect2(-7200.0, -8128.0, 27744.0, 14400.0)
 const VILLAGE_RING_SCRIPT = preload("res://scripts/world/village_safe_ring.gd")
+const GRASS_ATLAS: Texture2D = preload("res://assets/tilesets/master_tileset_32.png")
+const CELL_SIZE := 32.0
 var revision: int = 0
 var reserved: Array[Vector2] = []
 var land: Dictionary = {}
@@ -26,9 +28,12 @@ var map_locations: Array[Dictionary] = []
 var village_center: Vector2 = Vector2.ZERO
 var village_radius: float = 500.0
 const VILLAGE_BOUNDARY_MARGIN: float = 24.0
+var _grass_tile: AtlasTexture
 
 func rebuild(world: Node2D, config: Dictionary = {}) -> void:
     z_index = -200
+    texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+    texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
     add_to_group("island_world")
     ground = world.get_node_or_null("GroundLayer")
     paths = world.get_node_or_null("PathLayer")
@@ -51,7 +56,7 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
         for cell: Vector2i in ground.get_used_cells():
             land[cell] = true
         var used_rect: Rect2i = ground.get_used_rect()
-        authored_bounds = Rect2(Vector2(used_rect.position) * 32.0, Vector2(used_rect.size) * 32.0)
+        authored_bounds = Rect2(Vector2(used_rect.position) * CELL_SIZE, Vector2(used_rect.size) * CELL_SIZE)
         authored_radius = maxf(authored_bounds.size.x, authored_bounds.size.y) * 0.5
     else:
         authored_bounds = Rect2(-3520, -3520, 7040, 7040)
@@ -98,6 +103,8 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
 
     _build_map_locations(config)
     _refresh_map(water_layer, farm_layer)
+    _ensure_grass_backdrop()
+    queue_redraw()
     revision += 1
 
 func is_water(p: Vector2) -> bool:
@@ -381,13 +388,15 @@ func _world_to_map_pixel(world_p: Vector2, width: int, height: int, target_bound
     return Vector2i(int(nx * width), int(ny * height))
 
 func _draw() -> void:
-    # This is the visual ground beneath the original authored tilemap. A broad
-    # border, subtle biome rings and a water rim make the enlarged boundary
-    # visible while keeping the detailed village tiles on top.
-    draw_circle(Vector2.ZERO, expanded_radius + 900.0, Color("#244853"))
-    draw_circle(Vector2.ZERO, expanded_radius, Color("#648b4a"))
-    draw_arc(Vector2.ZERO, expanded_radius, 0.0, TAU, 256, Color("#a8c179"), 18.0)
-    for i in range(32):
-        var angle := float(i) * TAU / 32.0
-        var p := Vector2.RIGHT.rotated(angle) * (expanded_radius * 0.78)
-        draw_circle(p, expanded_radius * 0.035, Color(0.23, 0.40, 0.22, 0.16))
+    # The playable expansion now uses the same repeating 32 px grass cell as
+    # the authored island. This replaces the old flat circle/biome drawing
+    # while keeping the large-world streaming and ocean backdrop unchanged.
+    if _grass_tile != null:
+        draw_texture_rect(_grass_tile, bounds.grow(CELL_SIZE * 2.0), true, Color.WHITE)
+
+
+func _ensure_grass_backdrop() -> void:
+    if _grass_tile == null:
+        _grass_tile = AtlasTexture.new()
+        _grass_tile.atlas = GRASS_ATLAS
+        _grass_tile.region = Rect2(0.0, 0.0, CELL_SIZE, CELL_SIZE)
