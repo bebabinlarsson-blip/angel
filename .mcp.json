@@ -1,3 +1,28 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "godot-ai": {
+      "command": "uvx",
+      "args": [
+        "--isolated",
+        "--no-config",
+        "--no-env-file",
+        "--no-sources",
+        "--link-mode",
+        "copy",
+        "--from",
+        "git+https://github.com/bebabinlarsson-blip/Godot-MCP.git",
+        "godot-ai",
+        "attach",
+        "--port",
+        "8000",
+        "--ws-port",
+        "9500"
+      ],
+      "cwd": ".",
+      "env": {
+        "FASTMCP_CHECK_FOR_UPDATES": "off",
+        "GODOT_AI_DISABLE_TELEMETRY": "true"
+      }
+    }
+  }
 }

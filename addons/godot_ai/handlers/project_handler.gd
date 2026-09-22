@@ -227,6 +227,106 @@ func set_main_scene(params: Dictionary) -> Dictionary:
 	}
 
 
+func apply_preset(params: Dictionary) -> Dictionary:
+	var preset: String = params.get("preset", "pixel_art_2d").to_lower()
+	var settings_to_apply: Dictionary = {}
+	match preset:
+		"pixel_art_2d":
+			var vw: int = int(params.get("viewport_width", 320))
+			var vh: int = int(params.get("viewport_height", 180))
+			settings_to_apply = {
+				"display/window/size/viewport_width": vw,
+				"display/window/size/viewport_height": vh,
+				"display/window/size/window_width_override": vw * 4,
+				"display/window/size/window_height_override": vh * 4,
+				"display/window/stretch/mode": "viewport",
+				"display/window/stretch/aspect": "keep",
+				"rendering/textures/canvas_textures/default_texture_filter": 0,
+			}
+		"hd_2d":
+			var vw: int = int(params.get("viewport_width", 1920))
+			var vh: int = int(params.get("viewport_height", 1080))
+			settings_to_apply = {
+				"display/window/size/viewport_width": vw,
+				"display/window/size/viewport_height": vh,
+				"display/window/stretch/mode": "canvas_items",
+				"display/window/stretch/aspect": "keep",
+				"rendering/textures/canvas_textures/default_texture_filter": 1,
+			}
+		"low_poly_3d":
+			var vw: int = int(params.get("viewport_width", 1280))
+			var vh: int = int(params.get("viewport_height", 720))
+			settings_to_apply = {
+				"display/window/size/viewport_width": vw,
+				"display/window/size/viewport_height": vh,
+				"display/window/stretch/mode": "canvas_items",
+				"display/window/stretch/aspect": "expand",
+				"rendering/anti_aliasing/quality/msaa_3d": 0,
+				"rendering/anti_aliasing/quality/screen_space_aa": 1,
+			}
+		"cinematic_3d":
+			var vw: int = int(params.get("viewport_width", 1920))
+			var vh: int = int(params.get("viewport_height", 1080))
+			settings_to_apply = {
+				"display/window/size/viewport_width": vw,
+				"display/window/size/viewport_height": vh,
+				"display/window/stretch/mode": "canvas_items",
+				"display/window/stretch/aspect": "expand",
+				"rendering/anti_aliasing/quality/msaa_3d": 2,
+				"rendering/anti_aliasing/quality/screen_space_aa": 1,
+				"rendering/anti_aliasing/quality/use_taa": true,
+			}
+		_:
+			return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE,
+				"Unknown preset '%s'. Supported presets: 'pixel_art_2d', 'hd_2d', 'low_poly_3d', 'cinematic_3d'." % preset)
+
+	for key in settings_to_apply.keys():
+		ProjectSettings.set_setting(key, settings_to_apply[key])
+
+	var err := ProjectSettings.save()
+	if err != OK:
+		return ErrorCodes.make(ErrorCodes.INTERNAL_ERROR, "Failed to save project settings (error %d)" % err)
+
+	return {
+		"data": {
+			"preset": preset,
+			"settings_applied": settings_to_apply,
+			"undoable": false,
+			"reason": "ProjectSettings changes are saved to disk",
+		}
+	}
+
+
+func get_info(params: Dictionary = {}) -> Dictionary:
+	var name: String = ProjectSettings.get_setting("application/config/name", "")
+	var desc: String = ProjectSettings.get_setting("application/config/description", "")
+	var version: String = ProjectSettings.get_setting("application/config/version", "")
+	var main_scene: String = ProjectSettings.get_setting(MAIN_SCENE_KEY, "")
+	var vw: int = int(ProjectSettings.get_setting("display/window/size/viewport_width", 1152))
+	var vh: int = int(ProjectSettings.get_setting("display/window/size/viewport_height", 648))
+	var stretch_mode: String = str(ProjectSettings.get_setting("display/window/stretch/mode", "disabled"))
+	var stretch_aspect: String = str(ProjectSettings.get_setting("display/window/stretch/aspect", "ignore"))
+	var renderer: String = str(ProjectSettings.get_setting("rendering/renderer/rendering_method", "forward_plus"))
+	var features: PackedStringArray = ProjectSettings.get_setting("application/config/features", PackedStringArray())
+
+	return {
+		"data": {
+			"name": name,
+			"description": desc,
+			"version": version,
+			"main_scene": main_scene,
+			"viewport_width": vw,
+			"viewport_height": vh,
+			"stretch_mode": stretch_mode,
+			"stretch_aspect": stretch_aspect,
+			"rendering_method": renderer,
+			"features": Array(features),
+			"is_playing": EditorInterface.is_playing_scene(),
+			"edited_scene_root": str(EditorInterface.get_edited_scene_root().name) if EditorInterface.get_edited_scene_root() != null else ""
+		}
+	}
+
+
 func run_project(params: Dictionary) -> Dictionary:
 	var mode: String = params.get("mode", "main")
 	var autosave: bool = params.get("autosave", true)
