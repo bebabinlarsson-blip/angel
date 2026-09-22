@@ -74,8 +74,8 @@
         "id": "miner",
         "name": "Miner Torvald",
         "pos": {
-          "x": -2048,
-          "y": -1856
+          "x": -192,
+          "y": 176
         },
         "quest_id": "explore_cave",
         "type": 12
@@ -91,15 +91,6 @@
         "y": 192
       },
       "unlocked": true
-    },
-    {
-      "id": "cave",
-      "name": "Highland Waystone",
-      "pos": {
-        "x": -1920,
-        "y": -1792
-      },
-      "unlocked": false
     },
     {
       "id": "west_cliffs",
@@ -120,15 +111,6 @@
       "unlocked": false
     },
     {
-      "id": "ruins",
-      "name": "Forgotten Citadel Waystone",
-      "pos": {
-        "x": 64,
-        "y": 1728
-      },
-      "unlocked": false
-    },
-    {
       "id": "lake",
       "name": "Great Lake Waystone",
       "pos": {
@@ -144,11 +126,7 @@
         "x": -2080,
         "y": -2240
       },
-      "radius": 500,
-      "cave_mouth": {
-        "x": -2176,
-        "y": -2368
-      }
+      "radius": 500
     },
     "western_farmlands": {
       "center": {
@@ -168,13 +146,6 @@
       "center": {
         "x": 1536,
         "y": 896
-      },
-      "radius": 600
-    },
-    "forgotten_citadel": {
-      "center": {
-        "x": 160,
-        "y": 2304
       },
       "radius": 600
     }

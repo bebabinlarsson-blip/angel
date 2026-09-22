@@ -30,7 +30,7 @@ window/stretch/mode="canvas_items"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/godot_omni/plugin.cfg")
 
 [input]
 
@@ -114,10 +114,7 @@ admin_panel={
 
 [rendering]
 
-# Keep the broadest-compatible renderer explicit. This uses the existing
-# assets and draw paths unchanged, while avoiding startup failures on older
-# integrated GPUs commonly found in low-end PCs.
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
 textures/canvas_textures/default_texture_filter=0
+renderer/rendering_method.mobile="gl_compatibility"
 anti_aliasing/quality/msaa_2d=0.0
+#Keepthebroadest-compatiblerendererexplicit.Thisusestheexisting#assetsanddrawpathsunchanged,whileavoidingstartupfailuresonolder#integratedGPUscommonlyfoundinlow-endPCs.renderer/rendering_method="gl_compatibility"

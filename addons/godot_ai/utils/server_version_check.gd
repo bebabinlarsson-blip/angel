@@ -6,6 +6,21 @@ extends RefCounted
 ## handshake and episode transition; this class intentionally owns no timer,
 ## connection, or manager reference.
 
+## First release whose attached bridge follows servers of the same major.
+const FIRST_BRIDGE_TOLERANT_VERSION := "4.0.4"
+
+
+## Whether clients attached at `from_version` can reconnect after updating
+## to `to_version` without restarting their bridge (#1024).
+static func attached_bridges_follow(from_version: String, to_version: String) -> bool:
+	var from_tuple := version_tuple(from_version)
+	var to_tuple := version_tuple(to_version)
+	if from_tuple.is_empty() or to_tuple.is_empty():
+		return false
+	if int(from_tuple[0]) != int(to_tuple[0]):
+		return false
+	return compare(from_tuple, version_tuple(FIRST_BRIDGE_TOLERANT_VERSION)) >= 0
+
 
 ## Leading numeric `major.minor.patch` of a version as `[major, minor, patch]`,
 ## or `[]` when it does not start that way (a dev build, a malformed pin).
@@ -42,8 +57,17 @@ static func is_older_same_major(candidate: String, reference: String) -> bool:
 static func evaluate(actual_version: String, expected_version: String) -> Dictionary:
 	if actual_version.is_empty():
 		return {"compatible": false, "reason": "missing_version"}
-	var compatible := actual_version == expected_version
+	if actual_version == expected_version:
+		return {"compatible": true, "reason": ""}
+	var actual_tuple := version_tuple(actual_version)
+	var expected_tuple := version_tuple(expected_version)
+	if not actual_tuple.is_empty() and not expected_tuple.is_empty():
+		var compatible: bool = int(actual_tuple[0]) == int(expected_tuple[0])
+		return {
+			"compatible": compatible,
+			"reason": "" if compatible else "version_mismatch",
+		}
 	return {
-		"compatible": compatible,
-		"reason": "" if compatible else "version_mismatch",
+		"compatible": false,
+		"reason": "version_mismatch",
 	}

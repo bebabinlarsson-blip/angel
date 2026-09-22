@@ -15,9 +15,9 @@ const UpdateInstaller := preload("res://addons/godot_ai/utils/update_installer.g
 const LIVE_ADDON_ROOT := "res://addons/godot_ai"
 const PLUGIN_CFG := "res://addons/godot_ai/plugin.cfg"
 const MIN_GODOT_MAJOR := 4
-const MIN_GODOT_MINOR := 7
+const MIN_GODOT_MINOR := 1
 const UNSUPPORTED_GODOT_MESSAGE := \
-	"Godot AI v4 requires Godot 4.7 or newer in the 4.x line; plugin remains inactive."
+	"Godot Omni requires Godot 4.1 or newer in the 4.x line; plugin remains inactive."
 
 ## The lifecycle manager owns the serialized server episode and process
 ## authority. This root only captures its immutable launch plan and routes
@@ -39,7 +39,7 @@ const LogBuffer := preload("res://addons/godot_ai/utils/log_buffer.gd")
 const GameLogBuffer := preload("res://addons/godot_ai/utils/game_log_buffer.gd")
 const EditorLogBuffer := preload("res://addons/godot_ai/utils/editor_log_buffer.gd")
 const SurfacedErrorTracker := preload("res://addons/godot_ai/utils/surfaced_error_tracker.gd")
-const Dock := preload("res://addons/godot_ai/mcp_dock.gd")
+const Dock := preload("res://addons/godot_ai/godot_mcp_dock.gd")
 const DebuggerPlugin := preload("res://addons/godot_ai/debugger/mcp_debugger_plugin.gd")
 const VisionRoutingScript := preload("res://addons/godot_ai/vision_routing.gd")
 const ExportPlugin := preload("res://addons/godot_ai/export/mcp_export_plugin.gd")
@@ -118,6 +118,20 @@ var _custom_tool_service_locator
 ## a self-update.
 var _client_jobs
 var _update_manager
+## One-shot per session: once a server transport is ready and a status refresh
+## completes, installed-but-unconfigured clients are configured automatically
+## (see ClientConfigurator.auto_configure_candidates). Reset on plugin
+## reload/boot, so a manual Configure/Remove stays authoritative mid-session.
+var _auto_configure_clients_attempted := false
+## Serialized sweep state. Automatic client mutations share one global safety
+## lock (see client_mutation_lock.gd), so concurrent fan-out makes every worker
+## but the first fail closed — the sweep runs at most one configure at a time
+## and starts the next on completion. `_auto_configure_in_flight` names the
+## client whose configure worker is running; completion of any other action is
+## ignored so a manual/dock/MCP action can't advance the queue early.
+var _auto_configure_queue: Array[String] = []
+var _auto_configure_pending := false
+var _auto_configure_in_flight := ""
 ## Process identity continuity and the immutable terminal outcome cross only
 ## as values. The coordinator retains neither this plugin nor its objects.
 var _post_update_outcome: Dictionary = {}
@@ -135,6 +149,7 @@ var _last_logged_block := ""
 ## that is bound but not yet answering status reads as merely occupied.
 const POST_UPDATE_REPROBE_LIMIT := 10
 var _post_update_reprobes_left := POST_UPDATE_REPROBE_LIMIT
+var _post_update_retry_episode := 0
 ## A pre-v4 server left on the port by a still-running v3 attach bridge
 ## outlives the fast budget above: its lease lasts 30 s after that client
 ## quits and its idle backstop another 120 s. Poll slowly across that
@@ -148,15 +163,6 @@ var _post_update_stale_reprobes_left := POST_UPDATE_STALE_REPROBE_LIMIT
 ## may not be the last; a few are allowed before the dock takes over.
 const POST_UPDATE_REPLACEMENT_LIMIT := 3
 var _post_update_replacements_left := POST_UPDATE_REPLACEMENT_LIMIT
-## Right after an update the old bridge's backend may still be settling on
-## the port; a status probe that gives up in 800 ms reads it as a foreign
-## process and nothing replaces it. The post-update probe waits longer.
-const POST_UPDATE_PROBE_TIMEOUT_MS := 3000
-## First version whose attach bridge keeps serving a server of the same
-## major version (#1024). A client attached through an update from an older
-## version still runs a bridge that refuses the new server and must be quit
-## and relaunched; from this version on it follows the new server itself.
-const FIRST_BRIDGE_TOLERANT_VERSION := "4.0.4"
 ## Set once the live tree has been renamed; the lock then belongs to the restart.
 var _update_swapped := false
 var _post_update_action := ""
@@ -283,9 +289,6 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	## is an activation effect on Windows (`netsh`), so it runs only after every
 	## owner and the Dock have been constructed and wired below.
 	_endpoint_policy = ClientConfigurator.capture_endpoint_policy()
-	_endpoint_policy["capability_path"] = TransportCapability.path_for_http_port(
-		int(_endpoint_policy.http_port)
-	)
 	_resolved_ws_port = int(_endpoint_policy.ws_port)
 
 	## Construct plugin-lifetime work owners before attaching the replaceable
@@ -355,7 +358,7 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	## _exit_tree.
 	var undo := get_undo_redo()
 	_dispatcher.register_lazy_handler("editor", HANDLERS_DIR + "editor_handler.gd", [_log_buffer, _connection, _debugger_plugin, _game_log_buffer, _editor_log_buffer, null, _surfaced_error_tracker, _vision_routing])
-	_dispatcher.register_lazy_handler("scene", HANDLERS_DIR + "scene_handler.gd", [_connection])
+	_dispatcher.register_lazy_handler("scene", HANDLERS_DIR + "scene_handler.gd", [_connection, undo])
 	_dispatcher.register_lazy_handler("node", HANDLERS_DIR + "node_handler.gd", [undo])
 	_dispatcher.register_lazy_handler("project", HANDLERS_DIR + "project_handler.gd", [_connection, _debugger_plugin, _editor_log_buffer])
 	_dispatcher.register_lazy_handler(
@@ -390,6 +393,7 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	_dispatcher.register_lazy_handler("tileset", HANDLERS_DIR + "tileset_handler.gd", [])
 	_dispatcher.register_lazy_handler("gridmap", HANDLERS_DIR + "gridmap_handler.gd", [undo])
 	_dispatcher.register_lazy_handler("csg", HANDLERS_DIR + "csg_handler.gd", [undo])
+	_dispatcher.register_lazy_handler("omni", HANDLERS_DIR + "omni_handler.gd", [undo, _connection])
 
 	_dispatcher.register_lazy("get_editor_state", "editor", &"get_editor_state")
 	_dispatcher.register_lazy("get_scene_tree", "scene", &"get_scene_tree")
@@ -399,6 +403,8 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	_dispatcher.register_lazy("open_scene", "scene", &"open_scene")
 	_dispatcher.register_lazy("save_scene", "scene", &"save_scene")
 	_dispatcher.register_lazy("save_scene_as", "scene", &"save_scene_as")
+	_dispatcher.register_lazy("instantiate_batch", "scene", &"instantiate_batch")
+	_dispatcher.register_lazy("scene_instantiate_batch", "scene", &"instantiate_batch")
 	_dispatcher.register_lazy("get_selection", "editor", &"get_selection")
 	_dispatcher.register_lazy("create_node", "node", &"create_node")
 	_dispatcher.register_lazy("delete_node", "node", &"delete_node")
@@ -407,6 +413,9 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	_dispatcher.register_lazy("rename_node", "node", &"rename_node")
 	_dispatcher.register_lazy("duplicate_node", "node", &"duplicate_node")
 	_dispatcher.register_lazy("move_node", "node", &"move_node")
+	_dispatcher.register_lazy("rotate_node", "node", &"rotate_node")
+	_dispatcher.register_lazy("scale_node", "node", &"scale_node")
+	_dispatcher.register_lazy("translate_node", "node", &"translate_node")
 	_dispatcher.register_lazy("add_to_group", "node", &"add_to_group")
 	_dispatcher.register_lazy("remove_from_group", "node", &"remove_from_group")
 	_dispatcher.register_lazy("set_selection", "node", &"set_selection")
@@ -437,6 +446,8 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	_dispatcher.register_lazy("attach_script", "script", &"attach_script")
 	_dispatcher.register_lazy("detach_script", "script", &"detach_script")
 	_dispatcher.register_lazy("find_symbols", "script", &"find_symbols")
+	_dispatcher.register_lazy("validate_script", "script", &"validate_script")
+	_dispatcher.register_lazy("delete_script", "script", &"delete_script")
 	_dispatcher.register_lazy("search_resources", "resource", &"search_resources")
 	_dispatcher.register_lazy("load_resource", "resource", &"load_resource")
 	_dispatcher.register_lazy("assign_resource", "resource", &"assign_resource")
@@ -447,6 +458,9 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	_dispatcher.register_lazy("write_file", "filesystem", &"write_file")
 	_dispatcher.register_lazy("reimport", "filesystem", &"reimport")
 	_dispatcher.register_lazy("scan_filesystem", "filesystem", &"scan_filesystem")
+	_dispatcher.register_lazy("list_files", "filesystem", &"list_files")
+	_dispatcher.register_lazy("delete_file", "filesystem", &"delete_file")
+	_dispatcher.register_lazy("move_file", "filesystem", &"move_file")
 	_dispatcher.register_lazy("list_signals", "signal", &"list_signals")
 	_dispatcher.register_lazy("connect_signal", "signal", &"connect_signal")
 	_dispatcher.register_lazy("disconnect_signal", "signal", &"disconnect_signal")
@@ -487,6 +501,15 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	_dispatcher.register_lazy("animation_preset_slide", "animation", &"preset_slide")
 	_dispatcher.register_lazy("animation_preset_shake", "animation", &"preset_shake")
 	_dispatcher.register_lazy("animation_preset_pulse", "animation", &"preset_pulse")
+	_dispatcher.register_lazy("animation_preset_spin", "animation", &"preset_spin")
+	_dispatcher.register_lazy("animation_preset_bounce", "animation", &"preset_bounce")
+	_dispatcher.register_lazy("animation_create_spritesheet_track", "animation", &"create_spritesheet_track")
+	_dispatcher.register_lazy("animation_create_spritesheet_animation", "animation", &"create_spritesheet_animation")
+	_dispatcher.register_lazy("create_spritesheet_animation", "animation", &"create_spritesheet_animation")
+	_dispatcher.register_lazy("animation_create_animated_sprite", "animation", &"create_animated_sprite")
+	_dispatcher.register_lazy("animation_scaffold_state_machine", "animation", &"scaffold_state_machine")
+	_dispatcher.register_lazy("animation_scaffold_locomotion_tree", "animation", &"scaffold_locomotion_tree")
+	_dispatcher.register_lazy("scaffold_locomotion_tree", "animation", &"scaffold_locomotion_tree")
 	_dispatcher.register_lazy("material_create", "material", &"create_material")
 	_dispatcher.register_lazy("material_set_param", "material", &"set_param")
 	_dispatcher.register_lazy("material_set_shader_param", "material", &"set_shader_param")
@@ -502,6 +525,8 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	_dispatcher.register_lazy("particle_restart", "particle", &"restart_particle")
 	_dispatcher.register_lazy("particle_get", "particle", &"get_particle")
 	_dispatcher.register_lazy("particle_apply_preset", "particle", &"apply_preset")
+	_dispatcher.register_lazy("particle_spawn_preset_2d", "particle", &"spawn_preset_2d")
+	_dispatcher.register_lazy("spawn_preset_2d", "particle", &"spawn_preset_2d")
 	_dispatcher.register_lazy("camera_create", "camera", &"create_camera")
 	_dispatcher.register_lazy("camera_configure", "camera", &"configure")
 	_dispatcher.register_lazy("camera_set_limits_2d", "camera", &"set_limits_2d")
@@ -527,8 +552,20 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	_dispatcher.register_lazy("tilemap_set_cells_rect", "tilemap", &"set_cells_rect")
 	_dispatcher.register_lazy("tilemap_clear", "tilemap", &"clear_layer")
 	_dispatcher.register_lazy("tilemap_get_cells", "tilemap", &"get_used_cells")
+	_dispatcher.register_lazy("tilemap_place_tile", "tilemap", &"place_tile")
+	_dispatcher.register_lazy("tilemap_rotate_cell", "tilemap", &"rotate_cell")
+	_dispatcher.register_lazy("tilemap_flip_cell", "tilemap", &"flip_cell")
+	_dispatcher.register_lazy("tilemap_erase_cell", "tilemap", &"erase_cell")
+	_dispatcher.register_lazy("tilemap_get_cell", "tilemap", &"get_cell")
+	_dispatcher.register_lazy("tilemap_generate_layout", "tilemap", &"generate_layout")
+	_dispatcher.register_lazy("tilemap_paint_terrain", "tilemap", &"paint_terrain")
+	_dispatcher.register_lazy("tilemap_import_matrix", "tilemap", &"import_matrix")
+	_dispatcher.register_lazy("tilemap_scatter_props", "tilemap", &"scatter_props")
 	_dispatcher.register_lazy("tileset_get_atlas_tiles", "tileset", &"get_atlas_tiles")
 	_dispatcher.register_lazy("tileset_get_atlas_image", "tileset", &"get_atlas_image")
+	_dispatcher.register_lazy("tileset_create_from_texture", "tileset", &"create_from_texture")
+	_dispatcher.register_lazy("tileset_create_collision_polygon", "tileset", &"create_collision_polygon")
+	_dispatcher.register_lazy("tileset_scaffold_terrain_bitmasks", "tileset", &"scaffold_terrain_bitmasks")
 	_dispatcher.register_lazy("gridmap_set_item", "gridmap", &"set_item")
 	_dispatcher.register_lazy("gridmap_fill", "gridmap", &"fill")
 	_dispatcher.register_lazy("gridmap_clear", "gridmap", &"clear_layer")
@@ -536,6 +573,24 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	_dispatcher.register_lazy("gridmap_list_library_items", "gridmap", &"list_library_items")
 	_dispatcher.register_lazy("csg_create", "csg", &"create")
 	_dispatcher.register_lazy("csg_set_operation", "csg", &"set_operation")
+	_dispatcher.register_lazy("omni_eval", "omni", &"omni_eval")
+	_dispatcher.register_lazy("editor_eval", "omni", &"omni_eval")
+	_dispatcher.register_lazy("omni_execute_script", "omni", &"omni_execute_script")
+	_dispatcher.register_lazy("reflection_call", "omni", &"reflection_call")
+	_dispatcher.register_lazy("reflection_get", "omni", &"reflection_get")
+	_dispatcher.register_lazy("reflection_set", "omni", &"reflection_set")
+	_dispatcher.register_lazy("reflection_inspect", "omni", &"reflection_inspect")
+	_dispatcher.register_lazy("reflection_instantiate", "omni", &"reflection_instantiate")
+	_dispatcher.register_lazy("ui_semantic_tree", "omni", &"ui_semantic_tree")
+	_dispatcher.register_lazy("ui_click_control", "omni", &"ui_click_control")
+	_dispatcher.register_lazy("ui_type_text", "omni", &"ui_type_text")
+	_dispatcher.register_lazy("scene_instantiate_prefab", "omni", &"scene_instantiate_prefab")
+	_dispatcher.register_lazy("shader_create", "omni", &"shader_create")
+	_dispatcher.register_lazy("mesh_create_primitive", "omni", &"mesh_create_primitive")
+	_dispatcher.register_lazy("collision_shape_create", "omni", &"collision_shape_create")
+	_dispatcher.register_lazy("animation_preset_motion", "omni", &"animation_preset_motion")
+	_dispatcher.register_lazy("mcp_ping", "omni", &"mcp_ping")
+	_dispatcher.register_lazy("ping", "omni", &"mcp_ping")
 
 	_connection.dispatcher = _dispatcher
 	add_child(_connection)
@@ -553,7 +608,7 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	# Dock panel
 	_dock = Dock.new()
 	_dock.vision_routing = _vision_routing
-	_dock.name = "Godot AI"
+	_dock.name = "Godot MCP"
 	_dock.update_requested.connect(_on_dock_update_requested)
 	_dock.client_action_requested.connect(_on_dock_client_action_requested)
 	_dock.client_status_refresh_requested.connect(_on_dock_client_status_refresh_requested)
@@ -568,18 +623,75 @@ func _continue_enter_tree_after_update_barrier() -> void:
 	_dock.post_update_action_requested.connect(_on_dock_post_update_action_requested)
 	_client_jobs.set_client_health_blocked(_client_health_is_blocked())
 	_publish_dock_status_snapshots()
-	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _dock)
+	add_control_to_dock(DOCK_SLOT_RIGHT_UL, _dock)
 	_dock.present_client_work_snapshot(_client_jobs.snapshot())
 	_startup_trace_phase("dock_attached")
 	## Activation barrier: no process, socket, or probe effect begins until all
 	## owners and the replaceable Dock have been constructed and wired.
-	var resolved_policy := _endpoint_policy.duplicate(true)
-	resolved_policy["ws_port"] = _resolve_ws_port(int(resolved_policy.ws_port))
+	_activate_startup_endpoints()
+
+
+## Endpoint selection is retryable before the immutable launch policy or any
+## client migration worker exists. An old bridge keeps its own ports.
+func _activate_startup_endpoints() -> void:
+	if str(_post_update_outcome.get("outcome", "")) == "success":
+		var prepared := ClientConfigurator.prepare_major_upgrade_endpoints(
+			str(_post_update_outcome.get("from_version", "")),
+			str(_post_update_outcome.get("to_version", "")),
+		)
+		if not bool(prepared.get("ok", false)):
+			_present_endpoint_setup_failure(str(prepared.get("error", "Endpoint selection failed.")))
+			return
+	var override := ClientConfigurator.v4_endpoint_ports_status()
+	if not bool(override.get("ok", false)):
+		_present_endpoint_setup_failure(str(override.get("error", "Invalid endpoint override.")))
+		return
+	var resolved_policy := ClientConfigurator.capture_endpoint_policy()
+	var http_port := int(resolved_policy.http_port)
+	var configured_ws := int(resolved_policy.ws_port)
+	if (
+		http_port < ClientConfigurator.MIN_PORT or http_port > ClientConfigurator.MAX_PORT
+		or configured_ws < ClientConfigurator.MIN_PORT or configured_ws > ClientConfigurator.MAX_PORT
+		or http_port == configured_ws
+	):
+		_present_endpoint_setup_failure("Choose distinct HTTP and WebSocket ports between %d and %d in Godot AI settings." % [ClientConfigurator.MIN_PORT, ClientConfigurator.MAX_PORT])
+		return
+	var resolved_ws := _resolve_ws_port(configured_ws)
+	if (
+		resolved_ws < ClientConfigurator.MIN_PORT or resolved_ws > ClientConfigurator.MAX_PORT
+		or resolved_ws == http_port
+		or (bool(override.present) and resolved_ws != configured_ws)
+	):
+		_present_endpoint_setup_failure("The configured WebSocket port is unavailable. Choose another endpoint pair in Godot AI settings, then retry.")
+		return
+	resolved_policy["ws_port"] = resolved_ws
+	resolved_policy["capability_path"] = TransportCapability.path_for_http_port(http_port)
 	_set_endpoint_policy(resolved_policy)
+	if _connection != null:
+		_connection.ws_port = resolved_ws
+	if _post_update_action == "retry_endpoints":
+		_post_update_action = ""
+		if _dock != null:
+			_dock.present_update_state({"post_update_action": "", "status_text": "", "label_text": "", "banner_visible": false})
 	## #691: publish every environment/setting value before the first worker.
 	ClientConfigurator.warm_env_snapshot(_endpoint_policy)
 	_lifecycle.configure(_capture_lifecycle_plan())
 	_begin_startup_release()
+
+
+func _present_endpoint_setup_failure(error: String) -> void:
+	_post_update_action = "retry_endpoints"
+	_lifecycle._block_without_effect("endpoint_setup_failed", error)
+	if _dock != null:
+		_dock.present_update_state({
+			"install_in_flight": false,
+			"button_text": "Retry endpoint setup",
+			"status_text": "Client endpoint setup failed",
+			"button_disabled": false,
+			"label_text": error,
+			"banner_visible": true,
+			"post_update_action": "retry_endpoints",
+		})
 
 
 func _client_health_is_blocked() -> bool:
@@ -610,6 +722,52 @@ func _on_client_work_snapshot_changed(snapshot: Dictionary) -> void:
 func _on_client_status_refresh_completed(results: Dictionary) -> void:
 	if _dock != null:
 		_dock.present_client_status_refresh_results(results)
+	_auto_configure_clients_on_ready(results)
+
+
+## Enabling the plugin auto-configures every installed client that isn't
+## already pointing at this server — Claude Code, Codex, Antigravity, OpenCode
+## and any other registered client get their `godot-ai` attach entry without
+## a manual "Configure all" click. Runs once per session on the first
+## health-unblocked completed refresh — the one `_on_lifecycle_transport_ready`
+## requested — after the server transport is live. When nothing can be
+## admitted (setting disabled, no candidates), a later completed refresh gets
+## another chance; once the queue is admitted, `_start_next_auto_configure`
+## drains it one client at a time on every `action_completed`.
+func _auto_configure_clients_on_ready(results: Dictionary) -> void:
+	if _auto_configure_clients_attempted:
+		return
+	if _client_jobs == null or _client_health_is_blocked():
+		return
+	if not McpSettings.auto_configure_clients_enabled():
+		_auto_configure_clients_attempted = true
+		return
+	if not _auto_configure_pending:
+		var candidates := ClientConfigurator.auto_configure_candidates(results)
+		if candidates.is_empty():
+			return
+		_auto_configure_queue.assign(candidates)
+		_auto_configure_pending = true
+	_start_next_auto_configure()
+
+
+## Automatic client mutations take one global safety lock, so a concurrent
+## fan-out is self-defeating: the first worker wins the directory-creation
+## race and every other acquire fails closed with the recovery message. The
+## sweep therefore starts at most one configure at a time and relies on
+## `_on_client_action_completed` to advance the queue. Starting is skipped
+## for clients whose slot is already busy (a concurrent manual action) or
+## whose termination is unproven; the queue simply moves past them.
+func _start_next_auto_configure() -> void:
+	if not _auto_configure_pending or not _auto_configure_in_flight.is_empty():
+		return
+	while not _auto_configure_queue.is_empty():
+		var client_id := String(_auto_configure_queue.pop_front())
+		if _client_jobs.request_action(client_id, "configure"):
+			_auto_configure_in_flight = client_id
+			return
+	_auto_configure_pending = false
+	_auto_configure_clients_attempted = true
 
 
 func _on_mcp_client_status_completed(
@@ -629,6 +787,18 @@ func _on_mcp_client_action_completed(request_id: String, payload: Dictionary) ->
 func _on_client_action_completed(
 	client_id: String, action: String, result: Dictionary, prewarm: Dictionary
 ) -> void:
+	## Advance the auto-configure queue BEFORE any presentation: the sweep must
+	## flow even if the dock's completion painting aborts. A script error in
+	## dock presentation must never strand the queue (it aborts this handler,
+	## which previously sat before the advancement and killed the sweep after
+	## every first completion).
+	if _auto_configure_pending and _auto_configure_in_flight == client_id:
+		_auto_configure_in_flight = ""
+		## Defer the kick: the completion signal is emitted from inside the job
+		## owner's `_poll_actions` (mid-`_process`), and starting the next worker
+		## reentrantly from that frame aborts the handler. Running at end of
+		## frame keeps the sweep on entirely settled job-owner state.
+		_start_next_auto_configure.call_deferred()
 	if _dock != null:
 		_dock.present_client_action_result(client_id, action, result, prewarm)
 
@@ -636,6 +806,16 @@ func _on_client_action_completed(
 func _on_client_action_timed_out(client_id: String, action: String, detail: String) -> void:
 	if _dock != null:
 		_dock.present_client_action_timeout(client_id, action, detail)
+	## A worker that outlives its watchdog must not deadlock the sweep: the job
+	## owner keeps the thread slot until the worker actually finishes (and
+	## finally emits `action_completed`), so advance the queue now. While the
+	## straggler still holds the global safety lock, the next acquire fails
+	## fast with the recovery message — bounded, self-terminating, never
+	## stranding the session. The straggler's eventual completion is ignored
+	## because `_auto_configure_in_flight` moved on.
+	if _auto_configure_pending and _auto_configure_in_flight == client_id:
+		_auto_configure_in_flight = ""
+		_start_next_auto_configure.call_deferred()
 
 
 func _transport_snapshot_for_dock() -> Dictionary:
@@ -668,6 +848,12 @@ func _lifecycle_snapshot_for_dock() -> Dictionary:
 		_normal_start_released and bool(snapshot.get("can_recover_incompatible", false))
 	)
 	snapshot["normal_start_released"] = _normal_start_released
+	if _post_update_retry_episode > 0 and int(snapshot.get("episode_id", 0)) == _post_update_retry_episode:
+		var episode: Dictionary = _lifecycle.episode_snapshot()
+		if str(episode.get("state", "")) == "BLOCKED" and str(episode.get("reason", "")) == "launch_gone" and str(episode.get("proof_pending_reason", "")) == "capability_pair":
+			## Only the presentation changes; transport remains blocked until proof.
+			snapshot["state"] = ServerStateScript.SPAWNING
+			snapshot["handoff_retry_pending"] = true
 	return snapshot
 
 
@@ -679,6 +865,15 @@ func _publish_dock_status_snapshots() -> void:
 
 
 func _on_dock_status_snapshot_requested() -> void:
+	if _lifecycle != null and str(_lifecycle.get_status_dict().get("episode_state", "")) == "BLOCKED":
+		if _connection == null or not _connection.is_connected:
+			var port := ClientConfigurator.http_port()
+			var probe := ServerLifecycleManager.probe_live_server_status(
+				port, ServerLifecycleManager.DEFAULT_PROBE_TIMEOUT_MS,
+				str(_endpoint_policy.get("capability_path", ""))
+			)
+			if bool(probe.get("reachable", false)):
+				_lifecycle.start_server()
 	_publish_dock_status_snapshots()
 
 
@@ -847,9 +1042,9 @@ func _on_post_update_repin_completed(result: Dictionary) -> void:
 			)
 	## A click cannot prove that an external client restarted. The enforceable
 	## boundary is the one we own: repin its configuration, mark the update
-	## complete, then start and authenticate that server. Clients reconnect to
-	## the stable endpoint; a stale client can still be restarted as remediation,
-	## but it must not hold a healthy installation behind ceremony.
+	## complete, then start and authenticate that server. A major upgrade can
+	## select independent ports; old clients must reload the migrated config,
+	## but cannot hold the new editor endpoint behind their existing leases.
 	_finish_post_update()
 
 
@@ -860,6 +1055,7 @@ func _present_post_update_barrier_failure(error: String) -> void:
 		_dock.present_update_state({
 			"install_in_flight": false,
 			"button_text": "Retry client migration",
+			"status_text": "Installed — client migration failed",
 			"button_disabled": false,
 			"label_text": "Server startup is blocked: %s" % error,
 			"banner_visible": true,
@@ -870,7 +1066,9 @@ func _present_post_update_barrier_failure(error: String) -> void:
 func _on_dock_post_update_action_requested(action: String) -> void:
 	if action != _post_update_action:
 		return
-	if action == "retry":
+	if action == "retry_endpoints":
+		_activate_startup_endpoints()
+	elif action == "retry":
 		_begin_startup_release()
 
 
@@ -882,19 +1080,20 @@ func _finish_post_update() -> void:
 	var recorded := UpdateInstaller.record_clients_migrated()
 	if recorded != OK:
 		push_warning("MCP | could not record client migration in the update marker: %s" % error_string(recorded))
-	## Backups are named by the version they hold: keep the one this update
-	## just retained (the previous version) and drop older ones.
-	UpdateInstaller.prune_backups(str(_post_update_outcome.get("from_version", "")))
+	## In-editor updates retain old script graphs for undo. Keep their backing
+	## files until a fresh editor process can safely prune older generations.
+	if not get_tree().root.has_meta("godot_ai_retained_update_scripts"):
+		UpdateInstaller.prune_backups(str(_post_update_outcome.get("from_version", "")))
 	_post_update_replaced_version = str(_post_update_outcome.get("from_version", ""))
 	_post_update_reprobes_left = POST_UPDATE_REPROBE_LIMIT
 	_post_update_stale_reprobes_left = POST_UPDATE_STALE_REPROBE_LIMIT
 	_post_update_replacements_left = POST_UPDATE_REPLACEMENT_LIMIT
 	var to_version := str(_post_update_outcome.get("to_version", ""))
-	if attached_bridges_follow(_post_update_replaced_version, to_version):
-		print("MCP | AI clients attached before the update keep working on v%s" % to_version)
+	if McpServerVersionCheck.attached_bridges_follow(_post_update_replaced_version, to_version):
+		print("MCP | AI clients using v%s can reconnect to v%s; relaunch clients still using older versions" % [_post_update_replaced_version, to_version])
 	else:
 		print(
-			"MCP | AI clients attached before the update must be quit and relaunched to use v%s"
+			"MCP | Refresh the Godot AI MCP connection and reload its configuration once to use v%s; relaunch the AI app if it cannot reload the configuration"
 			% to_version
 		)
 	_present_post_update_complete()
@@ -922,7 +1121,7 @@ func _present_post_update_complete() -> void:
 	if _dock != null:
 		_dock.present_update_state({
 			"install_in_flight": false,
-			"status_text": "Update complete",
+			"status_text": "Godot AI installed" if _post_update_deferred.is_empty() else "Installed — client setup needed",
 			"button_disabled": true,
 			"label_text": _post_update_complete_label(),
 			"banner_visible": true,
@@ -931,25 +1130,13 @@ func _present_post_update_complete() -> void:
 		})
 
 
-## Whether a bridge a client attached at `from_version` keeps serving the
-## server at `to_version` (#1024: same major version, from 4.0.4 on).
-static func attached_bridges_follow(from_version: String, to_version: String) -> bool:
-	var from_tuple := McpServerVersionCheck.version_tuple(from_version)
-	var to_tuple := McpServerVersionCheck.version_tuple(to_version)
-	if from_tuple.is_empty() or to_tuple.is_empty():
-		return false
-	if int(from_tuple[0]) != int(to_tuple[0]):
-		return false
-	var floor_tuple := McpServerVersionCheck.version_tuple(FIRST_BRIDGE_TOLERANT_VERSION)
-	return McpServerVersionCheck.compare(from_tuple, floor_tuple) >= 0
-
-
 func _post_update_complete_label() -> String:
 	var to_version := str(_post_update_outcome.get("to_version", ""))
+	var from_version := str(_post_update_outcome.get("from_version", ""))
 	var text := (
-		"AI clients that were connected during the update keep working on v%s." % to_version
-		if attached_bridges_follow(str(_post_update_outcome.get("from_version", "")), to_version)
-		else "Quit and relaunch AI clients that were connected during the update so they use v%s."
+		"AI clients already using v%s can reconnect to v%s without restarting. Refresh older MCP connections and reload their configuration; relaunch the AI app if needed." % [from_version, to_version]
+		if McpServerVersionCheck.attached_bridges_follow(from_version, to_version)
+		else "Refresh the Godot AI MCP connection and reload its configuration once to use v%s. If the AI app cannot reload its configuration, quit and relaunch it."
 		% to_version
 	)
 	if _post_update_deferred.is_empty():
@@ -1073,6 +1260,7 @@ func _exit_tree() -> void:
 		_dispatcher.release_after_teardown()
 
 	if _dock:
+		_dock.release_editor_progress_dialog()
 		remove_control_from_docks(_dock)
 		_dock.queue_free()
 		_dock = null
@@ -1283,13 +1471,6 @@ func _capture_lifecycle_plan() -> Dictionary:
 		"server_command": ClientConfigurator.get_server_command(),
 		"pid_file": ProjectSettings.globalize_path(PortResolver.SERVER_PID_FILE),
 		"startup_report": ProjectSettings.globalize_path(PortResolver.SERVER_STARTUP_REPORT),
-		## The lifecycle is configured before the post-update migration runs,
-		## so the arm's own state is not set yet; the recorded outcome is.
-		"probe_timeout_ms": (
-			POST_UPDATE_PROBE_TIMEOUT_MS
-			if str(_post_update_outcome.get("outcome", "")) == "success"
-			else ServerLifecycleManager.DEFAULT_PROBE_TIMEOUT_MS
-		),
 		"http_port_reserved": WindowsPortReservation.is_port_excluded(http_port),
 		"excluded_domains": str(policy.get("excluded_domains", "")),
 		"allow_hosts": str(policy.get("allow_hosts", "")),
@@ -1309,11 +1490,13 @@ static func _supports_godot_version(version_info: Dictionary) -> bool:
 
 
 func _on_lifecycle_snapshot_changed(snapshot: Dictionary) -> void:
+	if int(snapshot.get("episode_id", 0)) != _post_update_retry_episode or str(snapshot.get("episode_state", "")) != "BLOCKED":
+		_post_update_retry_episode = 0
 	if _connection != null and bool(snapshot.get("connection_blocked", true)):
 		_connection.connect_blocked = true
 		_connection.connect_block_reason = str(snapshot.get("message", ""))
-	_log_lifecycle_block(snapshot)
 	_replace_server_left_by_update(snapshot)
+	_log_lifecycle_block(snapshot)
 	if _client_jobs != null:
 		_client_jobs.set_client_health_blocked(
 			ServerStateScript.blocks_client_health(
@@ -1333,7 +1516,8 @@ func _log_lifecycle_block(snapshot: Dictionary) -> void:
 	if message.is_empty() or message == _last_logged_block:
 		return
 	_last_logged_block = message
-	print("MCP | server start blocked: %s" % message)
+	var retry_pending := bool(_lifecycle_snapshot_for_dock().get("handoff_retry_pending", false))
+	print("MCP | %s: %s" % ["server handoff retry pending" if retry_pending else "server start blocked", message])
 
 
 ## Once, right after an update: a godot-ai server at the version we just
@@ -1355,6 +1539,9 @@ func _replace_server_left_by_update(snapshot: Dictionary) -> void:
 		## the remaining path.
 		if str(snapshot.get("episode_state", "")) != "BLOCKED":
 			return
+		var episode_id := int(snapshot.get("episode_id", 0))
+		if episode_id <= 0 or episode_id == _post_update_retry_episode:
+			return
 		if str(snapshot.get("blocked_hint", "")) == ServerLifecycleManager.STALE_PRE_V4_HINT:
 			if _post_update_stale_reprobes_left <= 0:
 				return
@@ -1364,13 +1551,15 @@ func _replace_server_left_by_update(snapshot: Dictionary) -> void:
 					% int(snapshot.get("conflict_port", 0))
 				)
 			_post_update_stale_reprobes_left -= 1
+			_post_update_retry_episode = episode_id
 			get_tree().create_timer(POST_UPDATE_STALE_REPROBE_SECONDS).timeout.connect(
-				_reprobe_after_update, CONNECT_ONE_SHOT
+				_reprobe_after_update.bind(episode_id), CONNECT_ONE_SHOT
 			)
 			return
 		if _post_update_reprobes_left > 0:
 			_post_update_reprobes_left -= 1
-			get_tree().create_timer(1.0).timeout.connect(_reprobe_after_update, CONNECT_ONE_SHOT)
+			_post_update_retry_episode = episode_id
+			get_tree().create_timer(1.0).timeout.connect(_reprobe_after_update.bind(episode_id), CONNECT_ONE_SHOT)
 		return
 	var version := str(snapshot.get("conflict_version", ""))
 	if not _update_may_replace(version):
@@ -1403,8 +1592,16 @@ func _update_may_replace(conflict_version: String) -> bool:
 	)
 
 
-func _reprobe_after_update() -> void:
+func _reprobe_after_update(episode_id: int) -> void:
+	if episode_id != _post_update_retry_episode:
+		return
+	_post_update_retry_episode = 0
 	if _post_update_replaced_version.is_empty() or _lifecycle == null or not _normal_start_released:
+		_publish_dock_status_snapshots()
+		return
+	var snapshot: Dictionary = _lifecycle.get_status_dict()
+	if int(snapshot.get("episode_id", 0)) != episode_id or str(snapshot.get("episode_state", "")) != "BLOCKED":
+		_publish_dock_status_snapshots()
 		return
 	_lifecycle.start_server()
 
@@ -1532,7 +1729,7 @@ static func _remove_tree(path: String) -> void:
 	DirAccess.remove_absolute(path)
 
 
-## Verify, stage, quiesce, swap, restart. Every check runs in this editor
+## Verify, stage, quiesce, then hand activation to an independent runner. Every check runs in this editor
 ## against the downloaded bytes; nothing outside the editor is executed. The
 ## live tree is touched only by the two renames inside `swap`, and only after
 ## the staged tree has been re-hashed against the signed manifest.
@@ -1600,31 +1797,31 @@ func install_downloaded_update(package: Dictionary) -> void:
 		"editor_nonce": Crypto.new().generate_random_bytes(16).hex_encode(),
 		"replace_owned_mismatches": false,
 	}
-	var swapped: Dictionary = UpdateInstaller.swap(
-		str(staged.get("stage_root", "")), LIVE_ADDON_ROOT, record
+	## Compile an independent script with no resource path. Loading this as a
+	## normal Script would let the filesystem scan replace our live runner.
+	var runner_script := GDScript.new()
+	runner_script.source_code = FileAccess.get_file_as_string(
+		"res://addons/godot_ai/utils/update_activation_runner.gd"
 	)
-	if not bool(swapped.get("ok", false)):
-		var refused := "update swap refused: %s" % str(swapped.get("error", ""))
-		if not FileAccess.file_exists(PLUGIN_CFG):
-			_fail_update(
-				"Update failed — repair required",
-				refused + "; the previous tree is not live: run `script/v4-release install` or restore the backup by hand",
-			)
-			return
+	if runner_script.source_code.is_empty() or runner_script.reload() != OK:
 		UpdateInstaller.discard_stage()
-		_fail_update("Update failed — previous version kept", refused)
-		## Quiescence already stopped the server and cleared the dispatcher;
-		## the old tree is still live, so rebuild the plugin from it.
+		_fail_update("Update cancelled safely", "could not compile the independent activation runner")
 		_reload_plugin_after_failed_update()
 		return
+	var runner = runner_script.new()
+	get_tree().root.add_child(runner)
+	if not runner.start({"stage_root": str(staged.get("stage_root", "")), "record": record}):
+		var refusal_reason := str(runner.refusal_reason)
+		runner.queue_free()
+		UpdateInstaller.discard_stage()
+		_fail_update("Update cancelled safely", refusal_reason)
+		_reload_plugin_after_failed_update()
+		return
+	## The runner now owns the lock. Teardown's cancellation signal must not
+	## release it before the deferred disable/drain/swap sequence completes.
 	_update_swapped = true
-	## The lock covered download, stage and swap. From here the marker itself
-	## refuses a second update until the restarted editor verifies the tree,
-	## and that editor cannot prove this process dead, so release it now.
-	UpdateInstaller.release_lock()
-	UpdateInstaller.persist_next_start_enabled(PLUGIN_CFG)
-	print("MCP | update to %s swapped in; restarting the editor" % to_version)
-	UpdateInstaller.request_restart.call_deferred()
+	## Return: no frame of this plugin may be suspended across source replacement.
+
 
 
 ## Name the activation phase in the dock and let it repaint before the
@@ -1665,10 +1862,11 @@ func can_recover_incompatible_server() -> bool:
 
 
 func recover_incompatible_server(_user_initiated: bool = true, _stale_version: String = "") -> bool:
-	## The Dock click is the sole source of replacement authority. The manager
-	## binds, spends, and discards one authorization for this exact target.
 	if not _normal_start_released:
 		return false
+	var port := ClientConfigurator.http_port()
+	PortResolver.kill_processes_on_port(port)
+	PortResolver.wait_for_port_free(port, 2.0)
 	return _lifecycle.request_replacement()
 
 
@@ -1677,6 +1875,9 @@ func recover_incompatible_server(_user_initiated: bool = true, _stale_version: S
 func force_restart_server() -> bool:
 	if not _normal_start_released:
 		return false
+	var port := ClientConfigurator.http_port()
+	PortResolver.kill_processes_on_port(port)
+	PortResolver.wait_for_port_free(port, 2.0)
 	return _lifecycle.force_restart_server()
 
 

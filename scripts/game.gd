@@ -28,6 +28,7 @@ func _ready() -> void:
 		world_node.add_child(terrain)
 	_ensure_cooking_place(world_node)
 	_ensure_village_content(world_node)
+	_strip_removed_village_structures(world_node)
 	terrain.rebuild(world_node, _load_layout_config())
 	# Scene transfers rebuild the overworld from scratch. Restore the compact
 	# quest snapshot after the new QuestSystem child has initialized so an exit
@@ -107,6 +108,48 @@ func _ensure_cooking_place(world_node: Node2D) -> void:
 	hearth.name = "Campfire"
 	hearth.position = Vector2.ZERO
 	world_node.add_child(hearth)
+
+func _strip_removed_village_structures(world_node: Node2D) -> void:
+	# Village is now an open settlement. Keep reusable art resources in the
+	# project, but remove every road, house, church, ruin, mine entrance and
+	# mine prop from the playable scene before terrain indexes the map.
+	for layer_path: String in [
+		"RoadLayer",
+		"HouseLayer",
+		"StructuresLayer",
+		"AuthoredEnvironment/RoadLayer",
+		"AuthoredEnvironment/HouseLayer",
+		"AuthoredEnvironment/StructureLayer",
+	]:
+		var layer := world_node.get_node_or_null(layer_path) as TileMapLayer
+		if layer == null:
+			continue
+		layer.clear()
+		layer.visible = false
+		layer.enabled = false
+
+	var interiors := world_node.get_node_or_null("Interiors")
+	if interiors != null:
+		interiors.visible = false
+		interiors.process_mode = Node.PROCESS_MODE_DISABLED
+		for entry in interiors.find_children("*", "Area2D", true, false):
+			(entry as Area2D).monitoring = false
+			for shape in (entry as Area2D).find_children("*", "CollisionShape2D", true, false):
+				(shape as CollisionShape2D).disabled = true
+
+	var mining_area := world_node.get_node_or_null("MiningArea")
+	if mining_area != null:
+		mining_area.visible = false
+		mining_area.process_mode = Node.PROCESS_MODE_DISABLED
+		for shape in mining_area.find_children("*", "CollisionShape2D", true, false):
+			(shape as CollisionShape2D).disabled = true
+
+	# Destinations whose landmarks no longer exist should not remain as hidden
+	# fast-travel promises.
+	for waystone_name: String in ["Waystone_Cave", "Waystone_Ruins"]:
+		var waystone := world_node.get_node_or_null("Waystones/" + waystone_name)
+		if waystone != null:
+			waystone.queue_free()
 
 func _ensure_village_content(world_node: Node2D) -> void:
 	var layout := world_node.get_node_or_null("VillageLayout") as VillageLayout

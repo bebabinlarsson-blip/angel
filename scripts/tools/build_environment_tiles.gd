@@ -92,6 +92,9 @@ func _new_layer(root: Node2D, layer_name: String, z: int, y_sort: bool = false) 
 		layer.set_meta("layer_role", "Authored house tiles; editor-movable village homes")
 	elif layer_name == "StructureLayer":
 		layer.set_meta("layer_role", "Authored church, ruins and mine tiles; editor-movable structures")
+	if layer_name in ["RoadLayer", "HouseLayer", "StructureLayer"]:
+		layer.visible = false
+		layer.enabled = false
 	layer.tile_set = load(TILESET_OUTPUT) as TileSet
 	root.add_child(layer)
 	layer.owner = root
@@ -116,26 +119,8 @@ func _build_overworld_scene(tileset: TileSet) -> void:
 	var material_layer := _new_layer(root, "MaterialLayer", -42, true)
 	var object_layer := _new_layer(root, "ObjectLayer", -40, true)
 
-	# Fresh road cells are authored into RoadLayer. They are ordinary TileMapLayer
-	# cells, so a designer can select, move, or delete them in the Godot editor.
-	_draw_line(path_layer, Vector2i(-24, -2), Vector2i(24, -2), 12, Vector2i(0, 0))
-	_draw_line(path_layer, Vector2i(0, -14), Vector2i(0, 18), 12, Vector2i(0, 0))
-	_draw_line(path_layer, Vector2i(-18, 5), Vector2i(14, 5), 12, Vector2i(0, 0))
-	_draw_line(path_layer, Vector2i(16, -19), Vector2i(16, -2), 12, Vector2i(0, 0))
-
-	# Four fresh multi-cell house tiles. The footprint and collision come from
-	# the shared TileSet; no house sprite or runtime geometry is generated here.
-	_place_multicell(building_layer, Vector2i(-14, -6), 0, Vector2i(0, 36))
-	_place_multicell(building_layer, Vector2i(6, -6), 0, Vector2i(4, 36))
-	_place_multicell(building_layer, Vector2i(-14, 1), 0, Vector2i(8, 36))
-	_place_multicell(building_layer, Vector2i(6, 1), 0, Vector2i(12, 36))
-
-	# All non-house structures share one clear editor-facing layer. These are
-	# existing multi-cell tiles from the master atlas, not coded draw calls.
-	_place_multicell(structure_layer, Vector2i(14, -24), 0, Vector2i(11, 40)) # church
-	_place_multicell(structure_layer, Vector2i(-70, -77), 0, Vector2i(16, 40)) # mine entrance
-	_place_multicell(structure_layer, Vector2i(2, 68), 0, Vector2i(0, 40)) # southern ruins
-	_place_multicell(structure_layer, Vector2i(21, 40), 0, Vector2i(21, 40)) # eastern ruins
+	# Open-village pass: roads, houses, church, mine entrance and ruins stay
+	# empty. Natural terrain, water, farms and gatherable materials remain.
 
 	# Authored lake cells, using the water tile from the same unified TileSet.
 	for y in range(22, 31):

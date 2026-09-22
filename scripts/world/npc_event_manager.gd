@@ -145,6 +145,10 @@ func _choose_event_definition() -> Dictionary:
 
 func _event_allowed(definition: Dictionary) -> bool:
 	var hour := fposmod(GameManager.game_time_hours, 24.0)
+	# Every NPC sleeps after dark. Keep ambient conversations and gatherings in
+	# daylight/evening hours so sleeping NPCs never appear available for talk.
+	if hour >= 20.0 or hour < 6.0:
+		return false
 	var window := str(definition.get("window", "any"))
 	match window:
 		"night":

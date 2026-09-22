@@ -55,9 +55,9 @@ func _init_quests() -> void:
 		},
 		"explore_cave": {
 			"id": "explore_cave",
-			"title": "Cave Exploration",
-			"description": "Miner Torvald asks you to explore the northern mountain cave and mine ores.",
-			"objective": "Mine 3 Iron Ores from the northern mountain quarries",
+			"title": "Open Hills Ore",
+			"description": "Miner Torvald asks you to gather ore from the open hills beyond the village.",
+			"objective": "Gather 3 Iron Ore from the open hills",
 			"type": "collect",
 			"target": "iron_ore",
 			"target_count": 3,
@@ -83,7 +83,7 @@ func _init_quests() -> void:
 		"guard_patrol": {
 			"id": "guard_patrol",
 			"title": "Eastern Patrol",
-			"description": "Rook wants the eastern road cleared before the next patrol.",
+			"description": "Rook wants the open eastern ground cleared before the next patrol.",
 			"objective": "Defeat 2 Slimes",
 			"type": "kill",
 			"target": "slime",
@@ -155,7 +155,7 @@ func _init_quests() -> void:
 		"watch_clearance": {
 			"id": "watch_clearance",
 			"title": "Northern Watch",
-			"description": "Bram spotted a few slimes beyond the northern road.",
+			"description": "Bram spotted a few slimes beyond the northern village ring.",
 			"objective": "Defeat 3 Slimes",
 			"type": "kill",
 			"target": "slime",
@@ -202,8 +202,8 @@ func _init_quests() -> void:
 		},
 		"traveler_route": {
 			"id": "traveler_route",
-			"title": "Old Road Proof",
-			"description": "Sable wants proof that the eastern ruins route is still safe.",
+			"title": "Outer Route Proof",
+			"description": "Sable wants proof that the outer island route is safe.",
 			"objective": "Gather 1 Mushroom",
 			"type": "collect",
 			"target": "mushroom",

@@ -42,6 +42,8 @@ func _layer_name_candidates(layer_name: String) -> Array:
         return ["RoadLayer", "PathLayer"]
     if layer_name == "HouseLayer" or layer_name == "BuildingLayer":
         return ["HouseLayer", "BuildingLayer"]
+    if layer_name == "DecorLayer" or layer_name == "DecorationLayer":
+        return ["DecorationLayer", "DecorLayer"]
     if layer_name == "StructureLayer":
         # StructureLayer is the canonical authored layer for the church,
         # ruins, and mine. Keep the old direct StructuresLayer as a read-only

@@ -47,15 +47,27 @@ func _ready() -> void:
     call_deferred("_attach_to_authored_layer")
     queue_redraw()
 
+func _get_game_manager() -> Node:
+    if Engine.is_editor_hint():
+        return null
+    return get_node_or_null("/root/GameManager")
+
+func _get_event_bus() -> Node:
+    if Engine.is_editor_hint():
+        return null
+    return get_node_or_null("/root/EventBus")
+
 func _process(delta: float) -> void:
-    var player := GameManager.player
-    var near: bool = player != null and is_instance_valid(player) and player.global_position.distance_squared_to(global_position) <= 19600.0
-    var prompt_should_show := near and GameManager.current_state == GameManager.GameState.PLAYING
+    var gm := _get_game_manager()
+    var player: CharacterBody2D = gm.get("player") if gm and is_instance_valid(gm.get("player")) else null
+    var near: bool = player != null and player.global_position.distance_squared_to(global_position) <= 19600.0
+    var is_playing: bool = gm == null or int(gm.get("current_state")) == 1
+    var prompt_should_show := near and is_playing
     if prompt_label:
         if prompt_label.visible != prompt_should_show:
             prompt_label.visible = prompt_should_show
         if prompt_label.text.is_empty():
-            prompt_label.text = "[F] Enter  %s" % display_name
+            prompt_label.text = "[F] Enter" if display_name.is_empty() else "[F] Enter  %s" % display_name
 
     # Door rings retain their authored look, but distant entrances do not
     # rebuild their draw command every frame. Nearby doors keep a smooth 30 Hz
@@ -123,8 +135,12 @@ func _find_linked_layer(world: Node) -> TileMapLayer:
 func interact(player: CharacterBody2D) -> void:
     if player == null or not is_instance_valid(player) or interior_scene_path.is_empty():
         return
-    if GameManager.begin_interior_transfer(interior_scene_path, destination_spawn, player, _find_quest_system(), interior_id, display_name):
-        EventBus.show_notification.emit("Entering %s" % display_name)
+    var gm := _get_game_manager()
+    if gm and gm.has_method("begin_interior_transfer"):
+        if gm.begin_interior_transfer(interior_scene_path, destination_spawn, player, _find_quest_system(), interior_id, display_name):
+            var bus := _get_event_bus()
+            if bus and bus.has_signal("show_notification"):
+                bus.show_notification.emit("Entering %s" % display_name)
 
 func _find_quest_system() -> Node:
     return get_tree().root.find_child("QuestSystem", true, false)

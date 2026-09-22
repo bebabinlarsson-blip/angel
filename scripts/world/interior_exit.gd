@@ -32,25 +32,40 @@ func _ready() -> void:
     z_index = 8
     queue_redraw()
 
+func _get_game_manager() -> Node:
+    if Engine.is_editor_hint():
+        return null
+    return get_node_or_null("/root/GameManager")
+
+func _get_event_bus() -> Node:
+    if Engine.is_editor_hint():
+        return null
+    return get_node_or_null("/root/EventBus")
+
 func _process(delta: float) -> void:
     _pulse += delta
-    var player := GameManager.player
-    var near: bool = player != null and is_instance_valid(player) and player.global_position.distance_squared_to(global_position) <= 22500.0
+    var gm := _get_game_manager()
+    var player: CharacterBody2D = gm.get("player") if gm and is_instance_valid(gm.get("player")) else null
+    var near: bool = player != null and player.global_position.distance_squared_to(global_position) <= 22500.0
+    var is_playing: bool = gm == null or int(gm.get("current_state")) == 1
     if prompt_label:
-        prompt_label.visible = near and GameManager.current_state == GameManager.GameState.PLAYING
+        prompt_label.visible = near and is_playing
         prompt_label.text = "[F] " + return_label
     queue_redraw()
 
 func interact(player: CharacterBody2D) -> void:
+    var gm := _get_game_manager()
     var source_player: CharacterBody2D = player
     if source_player == null or not is_instance_valid(source_player):
-        source_player = GameManager.player if is_instance_valid(GameManager.player) else null
+        source_player = gm.get("player") if gm and is_instance_valid(gm.get("player")) else null
     if source_player == null or not is_instance_valid(source_player):
         return
     var root := get_tree().current_scene
     var quest_system := root.get_node_or_null("QuestSystem") if root else null
-    if GameManager.exit_interior(source_player, quest_system):
-        EventBus.show_notification.emit("Returning to Angel Island")
+    if gm and gm.has_method("exit_interior") and gm.exit_interior(source_player, quest_system):
+        var bus := _get_event_bus()
+        if bus and bus.has_signal("show_notification"):
+            bus.show_notification.emit("Returning to Angel Island")
 
 func _draw() -> void:
     var glow := 0.14 + (sin(_pulse * 3.0) + 1.0) * 0.06

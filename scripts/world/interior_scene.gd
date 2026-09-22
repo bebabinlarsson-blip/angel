@@ -14,13 +14,17 @@ func _ready() -> void:
     # A scene launched directly by the editor has no transfer snapshot. Give
     # it the same location state as a normal doorway transition so save/exit
     # behavior remains deterministic in smoke tests and standalone previews.
-    if not GameManager.is_interior:
-        GameManager.is_interior = true
-        GameManager.current_interior_id = interior_id
-        GameManager.current_location_name = display_name
-    get_tree().paused = false
-    GameManager.set_state(GameManager.GameState.PLAYING)
-    GameManager.consume_quest_transfer(quest_system)
+    var gm := get_node_or_null("/root/GameManager")
+    if gm:
+        if not gm.get("is_interior"):
+            gm.set("is_interior", true)
+            gm.set("current_interior_id", interior_id)
+            gm.set("current_location_name", display_name)
+        get_tree().paused = false
+        if gm.has_method("set_state"):
+            gm.set_state(gm.GameState.PLAYING)
+        if gm.has_method("consume_quest_transfer"):
+            gm.consume_quest_transfer(quest_system)
     _ensure_room_bounds()
     if theme_kind == "mine":
         _ensure_mine_rocks()
@@ -28,7 +32,9 @@ func _ready() -> void:
     var hud := get_node_or_null("HUD")
     if hud and hud.has_method("set_interior_context"):
         hud.call("set_interior_context", display_name)
-    EventBus.show_notification.emit(display_name + "  ·  Explore safely")
+    var bus := get_node_or_null("/root/EventBus")
+    if bus and bus.has_signal("show_notification"):
+        bus.show_notification.emit(display_name + "  ·  Explore safely")
 
 func _ensure_room_bounds() -> void:
     var walls := get_node_or_null("RoomBounds") as Node2D

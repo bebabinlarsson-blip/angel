@@ -494,6 +494,8 @@ func _update_active_interactable() -> void:
 	var closest: Node = null
 	var min_d_sq: float = INF
 	for item in nearby_interactables:
+		if item.has_method("can_talk") and not item.can_talk():
+			continue
 		if item is Node2D:
 			var d_sq: float = global_position.distance_squared_to((item as Node2D).global_position)
 			if d_sq < min_d_sq:

@@ -48,6 +48,7 @@ const MAX_PORT := 65535
 ## takes one or two probes, so this only bounds the worst case.
 const SUGGEST_PORT_MAX_PROBES := 64
 const SETTING_WS_PORT := "godot_ai/ws_port"
+const SETTING_V4_ENDPOINT_PORTS := "godot_ai/v4_endpoint_ports"
 const SETTING_STARTUP_TRACE := "godot_ai/log_startup_timing"
 const SETTING_KEEP_SERVER_ON_EXIT := "godot_ai/keep_server_on_exit"
 ## External cwd the user can set when an MCP client (Pi, code-server, …) reads
@@ -77,12 +78,83 @@ const _WINDOWS_STDIO_BOOTSTRAP := (
 
 ## Active HTTP port: user override (if in range) or `DEFAULT_HTTP_PORT`.
 static func http_port() -> int:
+	var override := v4_endpoint_ports_status()
+	if bool(override.present):
+		return int(override.get("http_port", 0))
 	return _read_port_setting(McpSettings.SETTING_HTTP_PORT, DEFAULT_HTTP_PORT)
 
 
 ## Active WebSocket port: user override (if in range) or `DEFAULT_WS_PORT`.
 static func ws_port() -> int:
+	var override := v4_endpoint_ports_status()
+	if bool(override.present):
+		return int(override.get("ws_port", 0))
 	return _read_port_setting(SETTING_WS_PORT, DEFAULT_WS_PORT)
+
+
+## An absent override preserves historical settings. A malformed present
+## override grants no endpoint; callers can surface its error before startup.
+static func v4_endpoint_ports_status() -> Dictionary:
+	var es := EditorInterface.get_editor_settings()
+	if es == null or not es.has_setting(SETTING_V4_ENDPOINT_PORTS):
+		return {"ok": true, "present": false}
+	var pair: Variant = es.get_setting(SETTING_V4_ENDPOINT_PORTS)
+	var invalid := {"ok": false, "present": true,
+		"error": "Invalid %s: set distinct integer http_port and ws_port values between %d and %d, or remove the override." % [SETTING_V4_ENDPOINT_PORTS, MIN_PORT, MAX_PORT]}
+	if not (pair is Dictionary) or pair.size() != 2:
+		return invalid
+	for key in ["http_port", "ws_port"]:
+		var value: Variant = pair.get(key)
+		if not (value is int or value is float) or not is_finite(float(value)):
+			return invalid
+		if float(value) < MIN_PORT or float(value) > MAX_PORT or float(value) != float(int(value)):
+			return invalid
+	if int(pair.http_port) == int(pair.ws_port):
+		return invalid
+	return {"ok": true, "present": true, "http_port": int(pair.http_port), "ws_port": int(pair.ws_port)}
+
+
+## Call only after a verified successful upgrade and the activation barrier.
+## This selects independent ports, not authority over the legacy backend.
+static func prepare_major_upgrade_endpoints(from_version: String, to_version: String) -> Dictionary:
+	var previous := McpServerVersionCheck.version_tuple(from_version)
+	var installed := McpServerVersionCheck.version_tuple(to_version)
+	if previous.is_empty() or installed.is_empty() or int(previous[0]) >= 4 or int(installed[0]) < 4:
+		return {"ok": true, "changed": false}
+	if OS.get_thread_caller_id() != OS.get_main_thread_id():
+		return {"ok": false, "error": "upgrade endpoint selection requires the main thread"}
+	var existing := v4_endpoint_ports_status()
+	if not bool(existing.ok) or bool(existing.present):
+		existing["changed"] = false
+		return existing
+	var es := EditorInterface.get_editor_settings()
+	if es == null:
+		return {"ok": false, "error": "EditorSettings is unavailable"}
+	var legacy_http := _read_port_setting(McpSettings.SETTING_HTTP_PORT, DEFAULT_HTTP_PORT)
+	var legacy_ws := _read_port_setting(SETTING_WS_PORT, DEFAULT_WS_PORT)
+	var selected: Array[int] = []
+	var candidate := legacy_http + 1 if legacy_http < MAX_PORT else MIN_PORT
+	candidate = WindowsPortReservation.suggest_non_excluded_port(candidate, MAX_PORT - candidate + 1, MAX_PORT)
+	var reserved_output := str(WindowsPortReservation._get_cached_excluded_output().get("text", ""))
+	for _probe in range(SUGGEST_PORT_MAX_PROBES):
+		candidate = WindowsPortReservation.suggest_non_excluded_port_from_output(reserved_output, candidate, MAX_PORT - candidate + 1, MAX_PORT)
+		if candidate < MIN_PORT or candidate > MAX_PORT:
+			break
+		if candidate not in [legacy_http, legacy_ws] and not selected.has(candidate) and PortResolver.can_bind_local_port(candidate) and not PortResolver.is_port_in_use(candidate):
+			selected.append(candidate)
+			if selected.size() == 2:
+				break
+		candidate += 1
+		if candidate > MAX_PORT:
+			candidate = MIN_PORT
+	if selected.size() != 2:
+		return {"ok": false, "error": "No independent HTTP/WebSocket port pair was available for this major upgrade."}
+	for port in selected:
+		if WindowsPortReservation.parse_excluded(reserved_output, port) or not PortResolver.can_bind_local_port(port) or PortResolver.is_port_in_use(port):
+			return {"ok": false, "error": "The selected upgrade port %d became unavailable; retry endpoint selection." % port}
+	var pair := {"http_port": selected[0], "ws_port": selected[1]}
+	es.set_setting(SETTING_V4_ENDPOINT_PORTS, pair)
+	return {"ok": true, "changed": true, "http_port": selected[0], "ws_port": selected[1]}
 
 
 static func http_url() -> String:
@@ -123,6 +195,7 @@ static func ensure_settings_registered() -> void:
 	_register_string_setting(es, McpSettings.SETTING_EXCLUDED_DOMAINS, "")
 	_register_bool_setting(es, McpSettings.SETTING_TELEMETRY_ENABLED, true)
 	_register_string_setting(es, McpSettings.SETTING_ALLOW_HOSTS, "")
+	_register_bool_setting(es, McpSettings.SETTING_AUTO_CONFIGURE_CLIENTS, true)
 	_register_client_scope_setting(es)
 	_register_string_setting(es, SETTING_EXTERNAL_CLIENT_CWD, "")
 
@@ -379,7 +452,15 @@ static func apply_endpoint_settings(changes: Dictionary) -> Dictionary:
 				return {"ok": false, "error": "unknown endpoint setting: %s" % key}
 	var next_http := int(normalized.get(McpSettings.SETTING_HTTP_PORT, http_port()))
 	var next_ws := int(normalized.get(SETTING_WS_PORT, ws_port()))
-	if next_http == next_ws:
+	var override := v4_endpoint_ports_status()
+	var ports_changed := normalized.has(McpSettings.SETTING_HTTP_PORT) or normalized.has(SETTING_WS_PORT)
+	if bool(override.present) and ports_changed:
+		if next_http < MIN_PORT or next_http > MAX_PORT or next_ws < MIN_PORT or next_ws > MAX_PORT:
+			return {"ok": false, "error": "A complete valid HTTP/WebSocket pair is required to repair the v4 override."}
+		normalized.erase(McpSettings.SETTING_HTTP_PORT)
+		normalized.erase(SETTING_WS_PORT)
+		normalized[SETTING_V4_ENDPOINT_PORTS] = {"http_port": next_http, "ws_port": next_ws}
+	if next_http == next_ws and (ports_changed or not bool(override.present)):
 		return {"ok": false, "error": "HTTP and WebSocket ports must differ"}
 	var es := EditorInterface.get_editor_settings()
 	if es == null:
@@ -495,6 +576,40 @@ static func has_client(id: String) -> bool:
 static func client_display_name(id: String) -> String:
 	var c := ClientRegistry.get_by_id(id)
 	return c.display_name if c != null else id
+
+
+## Whether the client's Configure verb edits its config file directly. Clients
+## with `automatic_config_edits = false` return manual instructions instead of
+## writing a file, so they are excluded from automatic configuration.
+static func client_automatic_edits(id: String) -> bool:
+	var c := ClientRegistry.get_by_id(id)
+	return c.automatic_config_edits if c != null else false
+
+
+## Auto-configure candidates for a fresh plugin enable: installed clients that
+## are configurable by file edit and not already pointing at the current
+## server. Mirrors the dock's "Configure all" semantics (every client that
+## isn't already pointing at this server) restricted to installed, automatic
+## clients, so no config file is written for software the user doesn't have
+## and manual-only clients (Zed) are not surfaced. Pure function of the status
+## results (`client_id -> {status, installed, error_msg}`) so it is
+## unit-testable without touching EditorInterface.
+static func auto_configure_candidates(status_results: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for client_id in status_results:
+		var entry: Variant = status_results[client_id]
+		if not (entry is Dictionary):
+			continue
+		var details := entry as Dictionary
+		if int(details.get("status", Client.Status.ERROR)) == Client.Status.CONFIGURED:
+			continue
+		if not bool(details.get("installed", false)):
+			continue
+		if not client_automatic_edits(String(client_id)):
+			continue
+		ids.append(String(client_id))
+	ids.sort()
+	return ids
 
 
 ## Pass an explicit `url` when calling from a worker thread: `http_url()`
@@ -1309,9 +1424,16 @@ static func _resolve_attach_launch_uncached(
 		uvx = find_uvx()
 	if not uvx.is_empty():
 		var uvx_args := UvResolution.args()
+		var repo_root := _find_local_repo_root()
+		var from_pkg := "godot-ai==%s" % _pypi_pin_version(plugin_version)
+		if is_dev_checkout() or not repo_root.is_empty():
+			if not repo_root.is_empty():
+				from_pkg = repo_root
+			else:
+				from_pkg = "git+https://github.com/bebabinlarsson-blip/Godot-MCP.git"
 		uvx_args.append_array([
 			"--link-mode", "copy",
-			"--from", "godot-ai==%s" % _pypi_pin_version(plugin_version),
+			"--from", from_pkg,
 			"godot-ai",
 		])
 		uvx_args.append_array(common_args)
@@ -1440,13 +1562,41 @@ static func _resolve_consoleless_python(
 			if int(probe.get("exit_code", -1)) == 0:
 				var python := str(probe.get("stdout", "")).strip_edges()
 				if not python.is_empty():
-					var managed_pythonw := python.get_base_dir().path_join("pythonw.exe")
-					if FileAccess.file_exists(managed_pythonw):
+					var managed_pythonw := _consoleless_python_for_interpreter(python)
+					if not managed_pythonw.is_empty():
 						return managed_pythonw
 
 	## A system Python GUI launcher is sufficient for the non-dev bootstrap;
 	## it does not import godot_ai itself.
 	return CliFinder.find(["pythonw.exe"])
+
+
+## uv can return a launcher in ~/.local/bin whose GUI interpreter lives in
+## the managed Python installation. Ask that interpreter for its base path.
+## The optional result keeps tests independent of installed executables.
+static func _consoleless_python_for_interpreter(
+	python: String, probe_result: Dictionary = {}
+) -> String:
+	if not python.is_absolute_path() or not FileAccess.file_exists(python):
+		return ""
+	var sibling := python.get_base_dir().path_join("pythonw.exe")
+	if FileAccess.file_exists(sibling):
+		return sibling
+	var probe := probe_result
+	if probe.is_empty():
+		probe = McpCliExec.run(
+			python, ["-I", "-c", "import sys; print(getattr(sys, '_base_executable', sys.executable))"],
+			_DISCOVERY_TIMEOUT_MS, false
+		)
+	if int(probe.get("exit_code", -1)) != 0 or not probe.get("stdout") is String:
+		return ""
+	var base_python := str(probe["stdout"]).strip_edges()
+	if base_python.contains("\n") or base_python.contains("\r"):
+		return ""
+	if not base_python.is_absolute_path() or not FileAccess.file_exists(base_python):
+		return ""
+	var base_pythonw := base_python.get_base_dir().path_join("pythonw.exe")
+	return base_pythonw if FileAccess.file_exists(base_pythonw) else ""
 
 
 static func _system_version_from_probe(probe: Dictionary) -> Dictionary:
@@ -1553,30 +1703,10 @@ static func get_server_command() -> Array[String]:
 
 	var uvx := find_uvx()
 	if not uvx.is_empty():
-		var version := get_plugin_version()
-		## PEP 440 local build tags (e.g. 3.0.2+local.1) are not on PyPI.
-		## Pin uvx to the public base version so the server still boots;
-		## checkout-local extras need the dev_venv tier above
-		## (symlink/junction → repo .venv).
-		var pypi_version := _pypi_pin_version(version)
-		## Pin to the EXACT plugin version rather than `~=<minor>`. Under the
-		## tilde form, uvx was happy to reuse a cached tool env that matched
-		## the minor constraint — so an install that first spawned 1.2.0 kept
-		## using 1.2.0 even after 1.2.1/1.2.2 landed. Exact pinning makes the
-		## cache key version-specific: if the cached env matches, fast hit;
-		## otherwise uvx installs the exact version fresh. Keeps plugin and
-		## server version in lockstep without needing `--refresh-package` on
-		## every spawn. See issue #133.
-		if pypi_version != version:
-			print(
-				"MCP | using uvx (godot-ai==%s; local plugin %s not on PyPI)"
-				% [pypi_version, version]
-			)
-		else:
-			print("MCP | using uvx (godot-ai==%s)" % pypi_version)
+		print("MCP | using uvx (git+https://github.com/bebabinlarsson-blip/Godot-MCP.git)")
 		var cmd: Array[String] = [uvx]
 		cmd.append_array(UvResolution.args())
-		cmd.append_array(["--from", "godot-ai==%s" % pypi_version, "godot-ai"])
+		cmd.append_array(["--from", "git+https://github.com/bebabinlarsson-blip/Godot-MCP.git", "godot-ai"])
 		return cmd
 
 	var system_cmd := _find_system_install()
@@ -1901,6 +2031,52 @@ static func _find_venv_python() -> String:
 		var from_addons := _find_venv_python_in(addons_real)
 		if not from_addons.is_empty():
 			return from_addons
+	## 3) Check sibling directories of project root (e.g. adjacent Godot MCP clone).
+	var project_parent := ProjectSettings.globalize_path("res://").rstrip("/").rstrip("\\").get_base_dir()
+	if not project_parent.is_empty():
+		var d := DirAccess.open(project_parent)
+		if d != null:
+			d.list_dir_begin()
+			var item := d.get_next()
+			while not item.is_empty():
+				if d.current_is_dir() and not item.begins_with("."):
+					var candidate := project_parent.path_join(item)
+					var found := _find_venv_python_in(candidate)
+					if not found.is_empty():
+						return found
+				item = d.get_next()
+			d.list_dir_end()
+	return ""
+
+
+static func _find_local_repo_root() -> String:
+	var start_dirs: Array[String] = [
+		ProjectSettings.globalize_path("res://").rstrip("/").rstrip("\\"),
+		resolve_addons_realpath()
+	]
+	for s in start_dirs:
+		if s.is_empty(): continue
+		var dir := s
+		for i in 8:
+			if DirAccess.dir_exists_absolute(dir.path_join("src/godot_ai")) and FileAccess.file_exists(dir.path_join("pyproject.toml")):
+				return dir
+			var parent := dir.get_base_dir()
+			if parent == dir or parent.is_empty(): break
+			dir = parent
+
+	var project_parent := ProjectSettings.globalize_path("res://").rstrip("/").rstrip("\\").get_base_dir()
+	if not project_parent.is_empty():
+		var d := DirAccess.open(project_parent)
+		if d != null:
+			d.list_dir_begin()
+			var item := d.get_next()
+			while not item.is_empty():
+				if d.current_is_dir() and not item.begins_with("."):
+					var candidate := project_parent.path_join(item)
+					if DirAccess.dir_exists_absolute(candidate.path_join("src/godot_ai")) and FileAccess.file_exists(candidate.path_join("pyproject.toml")):
+						return candidate
+				item = d.get_next()
+			d.list_dir_end()
 	return ""
 
 

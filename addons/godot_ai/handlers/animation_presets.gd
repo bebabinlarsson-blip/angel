@@ -534,3 +534,179 @@ static func _direction_offset(kind: String, direction: String, distance: float) 
 			"up": return Vector2(0.0, -distance)
 			"down": return Vector2(0.0, distance)
 	return null
+
+
+# ============================================================================
+# animation_preset_spin
+# ============================================================================
+
+func preset_spin(params: Dictionary) -> Dictionary:
+	var player_path: String = params.get("player_path", "")
+	var target_path: String = params.get("target_path", "")
+	var duration: float = float(params.get("duration", 1.0))
+	var loops: int = int(params.get("loops", 1))
+	var clockwise: bool = params.get("clockwise", true)
+	var axis: String = params.get("axis", "y")
+	var anim_name: String = params.get("animation_name", "")
+	var loop: bool = params.get("loop", true)
+	var overwrite: bool = params.get("overwrite", false)
+
+	if player_path.is_empty():
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: player_path")
+	if target_path.is_empty():
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: target_path")
+	if duration <= 0.0:
+		return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "'duration' must be > 0")
+
+	var handler = _h()
+	if handler == null:
+		return ErrorCodes.make_not_ready(
+			ErrorCodes.SUB_EDITOR_UNAVAILABLE,
+			"AnimationHandler not available", false)
+	var resolved_player: Dictionary = handler._resolve_player(player_path)
+	if resolved_player.has("error"):
+		return resolved_player
+	var player: AnimationPlayer = resolved_player.player
+	var library: AnimationLibrary = resolved_player.library
+	var created_library := false
+	if library == null:
+		library = AnimationLibrary.new()
+		created_library = true
+
+	var target_resolved := _resolve_preset_target(player, target_path)
+	if target_resolved.has("error"):
+		return target_resolved
+	var track_target: String = target_resolved.track_path_root
+	var kind: String = target_resolved.kind
+
+	if anim_name.is_empty():
+		anim_name = "spin"
+
+	var old_anim: Animation = null
+	if library.has_animation(anim_name):
+		if not overwrite:
+			return ErrorCodes.make(ErrorCodes.INVALID_PARAMS,
+				"Animation '%s' already exists. Pass overwrite=true or delete it first." % anim_name)
+		old_anim = library.get_animation(anim_name)
+
+	var anim := Animation.new()
+	anim.length = duration
+	anim.loop_mode = Animation.LOOP_LINEAR if loop else Animation.LOOP_NONE
+
+	var delta_deg: float = 360.0 * float(loops) * (1.0 if clockwise else -1.0)
+	var track_path: String
+	if kind == "3d":
+		track_path = "%s:rotation_degrees:%s" % [track_target, axis]
+	else:
+		track_path = "%s:rotation_degrees" % track_target
+
+	handler._do_add_property_track(anim, track_path, "linear", [
+		{"time": 0.0, "value": 0.0, "transition": "linear"},
+		{"time": duration, "value": delta_deg, "transition": "linear"},
+	])
+
+	handler._commit_animation_add(
+		"MCP: Create animation %s" % anim_name,
+		player, library, created_library, anim_name, anim, old_anim,
+	)
+
+	return {
+		"data": {
+			"player_path": player_path,
+			"animation_name": anim_name,
+			"duration": duration,
+			"clockwise": clockwise,
+			"loop": loop,
+			"undoable": true,
+		}
+	}
+
+
+# ============================================================================
+# animation_preset_bounce
+# ============================================================================
+
+func preset_bounce(params: Dictionary) -> Dictionary:
+	var player_path: String = params.get("player_path", "")
+	var target_path: String = params.get("target_path", "")
+	var height: float = float(params.get("height", 40.0))
+	var duration: float = float(params.get("duration", 0.6))
+	var anim_name: String = params.get("animation_name", "")
+	var overwrite: bool = params.get("overwrite", false)
+	var loop: bool = params.get("loop", false)
+
+	if player_path.is_empty():
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: player_path")
+	if target_path.is_empty():
+		return ErrorCodes.make(ErrorCodes.MISSING_REQUIRED_PARAM, "Missing required param: target_path")
+	if duration <= 0.0:
+		return ErrorCodes.make(ErrorCodes.VALUE_OUT_OF_RANGE, "'duration' must be > 0")
+
+	var handler = _h()
+	if handler == null:
+		return ErrorCodes.make_not_ready(
+			ErrorCodes.SUB_EDITOR_UNAVAILABLE,
+			"AnimationHandler not available", false)
+	var resolved_player: Dictionary = handler._resolve_player(player_path)
+	if resolved_player.has("error"):
+		return resolved_player
+	var player: AnimationPlayer = resolved_player.player
+	var library: AnimationLibrary = resolved_player.library
+	var created_library := false
+	if library == null:
+		library = AnimationLibrary.new()
+		created_library = true
+
+	var target_resolved := _resolve_preset_target(player, target_path)
+	if target_resolved.has("error"):
+		return target_resolved
+
+	var target: Node = target_resolved.node
+	var track_target: String = target_resolved.track_path_root
+	var kind: String = target_resolved.kind
+
+	if anim_name.is_empty():
+		anim_name = "bounce"
+
+	var old_anim: Animation = null
+	if library.has_animation(anim_name):
+		if not overwrite:
+			return ErrorCodes.make(ErrorCodes.INVALID_PARAMS,
+				"Animation '%s' already exists. Pass overwrite=true or delete it first." % anim_name)
+		old_anim = library.get_animation(anim_name)
+
+	var anim := Animation.new()
+	anim.length = duration
+	anim.loop_mode = Animation.LOOP_LINEAR if loop else Animation.LOOP_NONE
+
+	var base_pos = target.position
+	var peak_pos = base_pos
+	var half_time := duration * 0.5
+
+	if kind == "3d":
+		peak_pos.y += height
+	else:
+		peak_pos.y -= height
+
+	var pos_track := "%s:position" % track_target
+	handler._do_add_property_track(anim, pos_track, "cubic", [
+		{"time": 0.0, "value": base_pos, "transition": "linear"},
+		{"time": half_time, "value": peak_pos, "transition": "linear"},
+		{"time": duration, "value": base_pos, "transition": "linear"},
+	])
+
+	handler._commit_animation_add(
+		"MCP: Create animation %s" % anim_name,
+		player, library, created_library, anim_name, anim, old_anim,
+	)
+
+	return {
+		"data": {
+			"player_path": player_path,
+			"animation_name": anim_name,
+			"height": height,
+			"duration": duration,
+			"undoable": true,
+		}
+	}
+

@@ -19,6 +19,7 @@ var _lazy_handler_specs: Dictionary = {}  # handler_key -> {path: String, args: 
 var _lazy_handler_cache: Dictionary = {}  # handler_key -> handler instance
 var _lazy_commands: Dictionary = {}  # command_name -> {handler: String, method: StringName}
 var _pending_deferred: Dictionary = {}  # request_id -> {command, started_ms, timeout_ms}
+var _tick_active := false
 var _log_buffer
 var _surfaced_error_tracker
 ## The McpConnection whose pause_processing handlers flip around unsafe
@@ -50,6 +51,7 @@ const DEFERRED_TIMEOUT_MS_BY_COMMAND := {
 }
 const ErrorCodes := preload("res://addons/godot_ai/utils/error_codes.gd")
 const FuzzySuggestions := preload("res://addons/godot_ai/utils/fuzzy_suggestions.gd")
+const PluginReload := preload("res://addons/godot_ai/utils/plugin_reload.gd")
 
 
 func _init(log_buffer: McpLogBuffer, surfaced_error_tracker = null) -> void:
@@ -247,6 +249,11 @@ const DEFERRED_RESPONSE := {"_deferred": true}
 ## Process queued commands within a frame budget (milliseconds).
 ## Returns an array of response dictionaries to send back.
 func tick(budget_ms: float = 4.0) -> Array[Dictionary]:
+	## Editor filesystem operations can pump another frame before the handler
+	## returns. That frame must not dispatch the still-queued command again.
+	if _tick_active or PluginReload.is_reload_pending():
+		return []
+	_tick_active = true
 	var responses: Array[Dictionary] = _collect_deferred_timeouts()
 	var start := Time.get_ticks_msec()
 	var idx := 0
@@ -257,10 +264,13 @@ func tick(budget_ms: float = 4.0) -> Array[Dictionary]:
 		if not response.get("_deferred", false):
 			responses.append(response)
 		idx += 1
+		if PluginReload.is_reload_pending():
+			break
 
 	if idx > 0:
 		_command_queue = _command_queue.slice(idx)
 
+	_tick_active = false
 	return responses
 
 
@@ -274,6 +284,8 @@ func _dispatch(cmd: Dictionary) -> Dictionary:
 	## shouldn't see dispatcher-internal metadata from).
 	var params: Dictionary = raw_params.duplicate()
 	params["_request_id"] = request_id
+
+	var start_ticks := Time.get_ticks_msec()
 
 	if mcp_logging:
 		_log_buffer.log("[recv] %s(%s)" % [command, JSON.stringify(raw_params)])
@@ -309,6 +321,13 @@ func _dispatch(cmd: Dictionary) -> Dictionary:
 	## counterpart, which stamps the same field.
 	result["readiness"] = McpConnection.get_readiness()
 	_stamp_error_watermark(result)
+
+	var elapsed_ms: float = float(Time.get_ticks_msec() - start_ticks)
+	var bus_script: Variant = load("res://addons/godot_ai/utils/mcp_event_bus.gd")
+	if bus_script == null:
+		bus_script = load("res://addons/godot_omni/mcp_event_bus.gd")
+	if bus_script != null and bus_script.has_method("record_tool_call"):
+		bus_script.record_tool_call(command, raw_params, result, elapsed_ms)
 
 	if mcp_logging:
 		var status: String = result.get("status", "ok")

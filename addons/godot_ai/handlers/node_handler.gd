@@ -1416,3 +1416,146 @@ static func _reject_if_scene_root(node: Node, scene_root: Node, op: String) -> V
 ## debug repr — see issue #214.
 static func _serialize_value(value: Variant) -> Variant:
 	return VariantSerializer.serialize(value)
+
+
+## Rotate a node (2D or 3D).
+## params: {path, degrees, axis? ("x"|"y"|"z"), relative?}
+func rotate_node(params: Dictionary) -> Dictionary:
+	var resolved := _resolve_node(params)
+	if resolved.has("error"): return resolved
+	var node: Node = resolved.node
+	var degrees: float = float(params.get("degrees", 0.0))
+	var relative: bool = bool(params.get("relative", false))
+	var axis: String = params.get("axis", "y").to_lower()
+
+	var prop: String = ""
+	var old_val: Variant
+	var new_val: Variant
+
+	if node is Node2D:
+		prop = "rotation_degrees"
+		old_val = node.rotation_degrees
+		new_val = (old_val + degrees) if relative else degrees
+	elif node is Node3D:
+		prop = "rotation_degrees"
+		old_val = node.rotation_degrees
+		var v: Vector3 = old_val
+		match axis:
+			"x": v.x = (v.x + degrees) if relative else degrees
+			"y": v.y = (v.y + degrees) if relative else degrees
+			"z": v.z = (v.z + degrees) if relative else degrees
+			_: v.y = (v.y + degrees) if relative else degrees
+		new_val = v
+	elif node is Control:
+		prop = "rotation_degrees"
+		old_val = node.rotation_degrees
+		new_val = (old_val + degrees) if relative else degrees
+	else:
+		return ErrorCodes.make(ErrorCodes.WRONG_TYPE, "Node '%s' does not support rotation (not Node2D, Node3D, or Control)" % resolved.path)
+
+	_undo_redo.create_action("MCP: Rotate node %s" % resolved.path)
+	_undo_redo.add_do_property(node, prop, new_val)
+	_undo_redo.add_undo_property(node, prop, old_val)
+	_undo_redo.commit_action()
+	return {"data": {
+		"path": resolved.path,
+		"property": prop,
+		"old_value": _serialize_value(old_val),
+		"new_value": _serialize_value(new_val),
+		"undoable": true
+	}}
+
+
+## Scale a node (2D or 3D or Control).
+## params: {path, scale (number, array, or dict), relative?}
+func scale_node(params: Dictionary) -> Dictionary:
+	var resolved := _resolve_node(params)
+	if resolved.has("error"): return resolved
+	var node: Node = resolved.node
+	var raw_scale = params.get("scale", 1.0)
+	var relative: bool = bool(params.get("relative", false))
+
+	var prop := "scale"
+	var old_val: Variant
+	var new_val: Variant
+
+	if node is Node2D or node is Control:
+		old_val = node.scale
+		var s := Vector2.ONE
+		if typeof(raw_scale) == TYPE_FLOAT or typeof(raw_scale) == TYPE_INT:
+			s = Vector2(float(raw_scale), float(raw_scale))
+		elif typeof(raw_scale) == TYPE_ARRAY and raw_scale.size() >= 2:
+			s = Vector2(float(raw_scale[0]), float(raw_scale[1]))
+		elif typeof(raw_scale) == TYPE_DICTIONARY:
+			s = Vector2(float(raw_scale.get("x", 1.0)), float(raw_scale.get("y", 1.0)))
+		new_val = (old_val * s) if relative else s
+	elif node is Node3D:
+		old_val = node.scale
+		var s := Vector3.ONE
+		if typeof(raw_scale) == TYPE_FLOAT or typeof(raw_scale) == TYPE_INT:
+			s = Vector3(float(raw_scale), float(raw_scale), float(raw_scale))
+		elif typeof(raw_scale) == TYPE_ARRAY and raw_scale.size() >= 3:
+			s = Vector3(float(raw_scale[0]), float(raw_scale[1]), float(raw_scale[2]))
+		elif typeof(raw_scale) == TYPE_DICTIONARY:
+			s = Vector3(float(raw_scale.get("x", 1.0)), float(raw_scale.get("y", 1.0)), float(raw_scale.get("z", 1.0)))
+		new_val = (old_val * s) if relative else s
+	else:
+		return ErrorCodes.make(ErrorCodes.WRONG_TYPE, "Node '%s' does not support scaling" % resolved.path)
+
+	_undo_redo.create_action("MCP: Scale node %s" % resolved.path)
+	_undo_redo.add_do_property(node, prop, new_val)
+	_undo_redo.add_undo_property(node, prop, old_val)
+	_undo_redo.commit_action()
+	return {"data": {
+		"path": resolved.path,
+		"property": prop,
+		"old_value": _serialize_value(old_val),
+		"new_value": _serialize_value(new_val),
+		"undoable": true
+	}}
+
+
+## Translate a node (2D, 3D, or Control).
+## params: {path, offset (array or dict), relative?}
+func translate_node(params: Dictionary) -> Dictionary:
+	var resolved := _resolve_node(params)
+	if resolved.has("error"): return resolved
+	var node: Node = resolved.node
+	var raw_offset = params.get("offset", [0.0, 0.0])
+	var relative: bool = bool(params.get("relative", true))
+
+	var prop := "position"
+	var old_val: Variant
+	var new_val: Variant
+
+	if node is Node2D or node is Control:
+		old_val = node.position
+		var off := Vector2.ZERO
+		if typeof(raw_offset) == TYPE_ARRAY and raw_offset.size() >= 2:
+			off = Vector2(float(raw_offset[0]), float(raw_offset[1]))
+		elif typeof(raw_offset) == TYPE_DICTIONARY:
+			off = Vector2(float(raw_offset.get("x", 0.0)), float(raw_offset.get("y", 0.0)))
+		new_val = (old_val + off) if relative else off
+	elif node is Node3D:
+		old_val = node.position
+		var off := Vector3.ZERO
+		if typeof(raw_offset) == TYPE_ARRAY and raw_offset.size() >= 3:
+			off = Vector3(float(raw_offset[0]), float(raw_offset[1]), float(raw_offset[2]))
+		elif typeof(raw_offset) == TYPE_DICTIONARY:
+			off = Vector3(float(raw_offset.get("x", 0.0)), float(raw_offset.get("y", 0.0)), float(raw_offset.get("z", 0.0)))
+		new_val = (old_val + off) if relative else off
+	else:
+		return ErrorCodes.make(ErrorCodes.WRONG_TYPE, "Node '%s' does not support translation" % resolved.path)
+
+	_undo_redo.create_action("MCP: Translate node %s" % resolved.path)
+	_undo_redo.add_do_property(node, prop, new_val)
+	_undo_redo.add_undo_property(node, prop, old_val)
+	_undo_redo.commit_action()
+	return {"data": {
+		"path": resolved.path,
+		"property": prop,
+		"old_value": _serialize_value(old_val),
+		"new_value": _serialize_value(new_val),
+		"undoable": true
+	}}
+

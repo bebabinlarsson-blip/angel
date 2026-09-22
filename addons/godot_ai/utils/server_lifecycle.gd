@@ -23,10 +23,11 @@ const READY := "READY"
 const BLOCKED := "BLOCKED"
 const RECOVERING := "RECOVERING"
 ## How long a server launched to replace an occupant may wait for the port.
-## 15 s, not 5: on Windows every identity probe is a PowerShell start (about
-## 0.6 s each) and the launch must capture the new process, then re-read and
-## kill the old one, before the replacement gives up waiting for the port.
-const REPLACEMENT_WAIT_FOR_PORT_MS := 15_000
+## A Windows update took 25.262 s from the child's port-wait phase until the
+## incumbent released the port. Keep time for those exact identity checks
+## and termination before the child gives up. Python caps this at the same
+## 60 s; the later capability proof has its own 180 s deadline.
+const REPLACEMENT_WAIT_FOR_PORT_MS := 60_000
 ## How long the replacement gives its launched server to reach that port
 ## wait before it kills the occupant. The launch may be uvx installing the
 ## version the update just brought in; until the server reports it is at its
@@ -43,7 +44,9 @@ const REPLACE := "REPLACE"
 const STOP := "STOP"
 
 const STATUS_PATH := "/godot-ai/status"
-const DEFAULT_PROBE_TIMEOUT_MS := 800
+## Normal starts and recovery need the same settling window as post-update
+## adoption. A healthy authenticated status response can take over a second.
+const DEFAULT_PROBE_TIMEOUT_MS := 3000
 const STALE_PRE_V4_HINT := "stale_pre_v4_server"
 const DEFAULT_PROVE_TIMEOUT_MS := 180_000
 const LAUNCH_FINGERPRINT_TIMEOUT_MS := 15_000
@@ -61,6 +64,17 @@ var _endpoint_recovery_attempts := 0
 var _ready_since_msec := 0
 ## The episode whose re-probe is scheduled; 0 when none is pending.
 var _endpoint_recovery_pending_episode := 0
+## A launched server that exits or changes identity before publishing
+## capabilities usually lost the port bind race to a concurrent editor whose
+## own server now holds the port. Adopt that compatible server instead of
+## blocking; each attempt re-proves the endpoint exactly as a start does, and
+## after the last attempt the block stays until the dock's Restart. Reaching
+## READY at all earns a fresh budget, so a one-off race self-heals.
+const LAUNCH_RACE_RECOVERY_DELAYS_SECONDS: Array[float] = [1.0, 2.0, 4.0, 8.0]
+
+var _launch_race_recovery_attempts := 0
+## The episode whose launch-race adopt re-probe is scheduled; 0 when none is pending.
+var _launch_race_recovery_pending_episode := 0
 const MAX_STATUS_BODY_BYTES := 8 * 1024
 
 var _episode: Dictionary = _dormant_episode(0)
@@ -127,6 +141,7 @@ func _begin_start_episode(existing_id := 0, probe := true) -> void:
 		"expected_version": str(_plan.expected_version),
 		"expected_ws_port": int(_plan.ws_port),
 		"timeout_ms": int(_plan.probe_timeout_ms),
+		"grant": _process_grant,
 	})
 
 
@@ -344,7 +359,9 @@ func recover_lost_endpoint(episode_id: int) -> bool:
 		_endpoint_recovery_pending_episode = 0
 		return false
 	_endpoint_recovery_pending_episode = 0
-	start_server()
+	## Losing a socket does not prove that the shared backend needs restarting.
+	## The probe retains ownership only after checking the exact listener again.
+	_begin_start_episode()
 	return str(_episode.get("state")) != BLOCKED
 
 
@@ -355,6 +372,82 @@ func _recover_lost_endpoint_after(delay_seconds: float, episode_id: int) -> void
 	if not is_instance_valid(self):
 		return
 	recover_lost_endpoint(episode_id)
+
+
+## Whether a block reason is the launch-race family: the managed process
+## exited or its identity changed before it proved (it lost the port bind
+## race to a concurrent editor whose own server now holds the port). A
+## plain launch_failed is an environment problem, not a race, and keeps the
+## existing immediate block.
+func _is_launch_race_reason(reason: String) -> bool:
+	if reason == "process_proof_failed":
+		return true
+	return reason.begins_with("launch_") and reason != "launch_failed"
+
+
+## Auto-recover a launch-race block: re-probe the endpoint on a bounded
+## backoff and adopt the compatible server that won the port, instead of
+## sitting blocked until the dock's Restart. Returns true when the recovery
+## owns the block (the caller must not block again); the timer only runs
+## with automatic effects, mirroring endpoint recovery. Uses the same pending
+## episode guard, so a dock Restart in between supersedes the timer, and a
+## fresh READY earns a fresh budget.
+func _begin_launch_race_recovery(reason: String, message: String) -> bool:
+	if not _is_launch_race_reason(reason):
+		return false
+	var limit := LAUNCH_RACE_RECOVERY_DELAYS_SECONDS.size()
+	if _launch_race_recovery_attempts >= limit:
+		_block(
+			reason,
+			"%s Automatic adoption gave up after %d attempts; click Restart." % [message, limit],
+		)
+		return true
+	_launch_race_recovery_attempts += 1
+	var delay := float(LAUNCH_RACE_RECOVERY_DELAYS_SECONDS[_launch_race_recovery_attempts - 1])
+	_block(
+		reason,
+		"%s Adopting the server on this port in %ds (attempt %d of %d)." % [
+			message, int(delay), _launch_race_recovery_attempts, limit,
+		],
+	)
+	print(
+		"MCP | launched server lost the port race; adopting the server on the port in %ds (attempt %d of %d)"
+		% [int(delay), _launch_race_recovery_attempts, limit]
+	)
+	_launch_race_recovery_pending_episode = int(_episode.get("id", 0))
+	if bool(_plan.get("automatic_effects", true)):
+		_recover_launch_race_after(delay, _launch_race_recovery_pending_episode)
+	return true
+
+
+## The scheduled launch-race re-probe. Only the episode that lost the race,
+## and only while its attempt is still pending, may start it: a dock Restart
+## in between supersedes the timer.
+func recover_launch_race(episode_id: int) -> bool:
+	if episode_id <= 0 or episode_id != _launch_race_recovery_pending_episode:
+		return false
+	if episode_id != int(_episode.get("id", -1)):
+		_launch_race_recovery_pending_episode = 0
+		return false
+	if str(_episode.get("state")) != BLOCKED:
+		_launch_race_recovery_pending_episode = 0
+		return false
+	_launch_race_recovery_pending_episode = 0
+	## Losing the race does not prove the shared backend needs a new process:
+	## the probe adopts the compatible server that already holds the port (a
+	## concurrent editor's), or launches our own only if the port is free.
+	_process_grant = null
+	_begin_start_episode()
+	return str(_episode.get("state")) != BLOCKED
+
+
+func _recover_launch_race_after(delay_seconds: float, episode_id: int) -> void:
+	var tree := Engine.get_main_loop()
+	if tree is SceneTree:
+		await (tree as SceneTree).create_timer(delay_seconds).timeout
+	if not is_instance_valid(self):
+		return
+	recover_launch_race(episode_id)
 
 
 func complete_effect(episode_id: int, effect: String, result: Dictionary) -> bool:
@@ -386,9 +479,20 @@ func _complete_probe(result: Dictionary) -> void:
 			if transport == null or not transport.is_valid():
 				_block("invalid_transport", "The server returned invalid transport authority.")
 				return
-			_process_grant = null
-			_ready("adopted", transport, str(result.get("version", "")))
+			var disposition := str(result.get("owned_disposition", ""))
+			if _process_grant != null and disposition == "owned":
+				_ready("owned", transport, str(result.get("version", "")))
+			elif _process_grant == null or disposition in ["gone", "replaced"]:
+				_process_grant = null
+				_ready("adopted", transport, str(result.get("version", "")))
+			else:
+				_block("process_authority_mismatch", "Managed process identity could not be proven during recovery. Click Restart to retry.")
 		"free":
+			if _process_grant != null:
+				if str(result.get("owned_disposition", "")) not in ["gone", "replaced"]:
+					_block("process_authority_mismatch", "The managed process is still running without a proven endpoint. Click Restart to retry.")
+					return
+				_process_grant = null
 			_episode["phase"] = LAUNCH
 			_episode["message"] = "Launching the managed server."
 			_publish()
@@ -425,7 +529,10 @@ func _complete_launch(result: Dictionary) -> void:
 	_process_grant = _owned_process_grant(pid, fingerprint)
 	if not _process_grant.is_valid():
 		_process_grant = null
-		_block("launch_unproven", "The launched process identity could not be proven.")
+		if not _begin_launch_race_recovery(
+			"launch_unproven", "The launched process identity could not be proven."
+		):
+			_block("launch_unproven", "The launched process identity could not be proven.")
 		return
 	_episode["launch"] = launch
 	_episode["phase"] = PROVE
@@ -455,20 +562,31 @@ func _complete_prove(result: Dictionary) -> void:
 		var pending_reason := str(_episode.get("proof_pending_reason", ""))
 		if not pending_reason.is_empty():
 			message += " Last pending proof: %s." % pending_reason
-		_block(str(result.get("reason", "proof_failed")), message)
+		if not _begin_launch_race_recovery(str(result.get("reason", "proof_failed")), message):
+			_block(str(result.get("reason", "proof_failed")), message)
 		return
-	var launch: Dictionary = _episode.get("launch", {})
+	var transport = result.get("transport")
+	var version := str(result.get("version", ""))
 	var pid := int(result.get("pid", 0))
 	var fingerprint := str(result.get("fingerprint", ""))
-	var exact_grant = _owned_process_grant(pid, fingerprint)
-	if not exact_grant.is_valid():
-		_block("process_proof_failed", "The server process identity changed before proof completed.")
+	var is_adopted := bool(result.get("adopted", false))
+
+	if is_adopted or transport == null or not transport.is_valid():
+		_process_grant = null
+		_ready("adopted", transport, version)
 		return
-	_process_grant = exact_grant
-	launch["pid"] = pid
-	launch["fingerprint"] = fingerprint
-	_episode["launch"] = launch
-	_ready("owned", result.get("transport"), str(result.get("version", "")))
+
+	var exact_grant = _owned_process_grant(pid, fingerprint)
+	if exact_grant != null and exact_grant.is_valid():
+		_process_grant = exact_grant
+		var launch: Dictionary = _episode.get("launch", {})
+		launch["pid"] = pid
+		launch["fingerprint"] = fingerprint
+		_episode["launch"] = launch
+		_ready("owned", transport, version)
+	else:
+		_process_grant = null
+		_ready("adopted", transport, version)
 
 
 func _complete_replace(result: Dictionary) -> void:
@@ -518,6 +636,7 @@ func _ready(kind: String, transport, version: String) -> void:
 		return
 	_transport = transport
 	_ready_since_msec = maxi(1, Time.get_ticks_msec())
+	_launch_race_recovery_attempts = 0
 	_episode["state"] = READY
 	_episode["phase"] = ""
 	_episode["ready_kind"] = kind
@@ -672,14 +791,32 @@ func _effect_probe(payload: Dictionary) -> Dictionary:
 	var port := int(payload.http_port)
 	var expected_version := str(payload.expected_version)
 	var expected_ws_port := int(payload.expected_ws_port)
+	var grant = payload.get("grant")
+	var disposition := "gone"
+	if grant != null:
+		var pid := int(grant.process_id())
+		var alive := PortResolver.pid_alive(pid)
+		disposition = _owned_process_disposition(
+			grant, alive, PortResolver.process_fingerprint(pid) if alive else "",
+		)
+		if disposition == "unproven":
+			return _blocked_probe_result("process_authority_mismatch", port, {}, false,
+				"managed process identity could not be proven; click Restart to retry")
 	var capability := _read_capability(port)
 	var live := _probe_with_capability(port, capability, int(payload.timeout_ms))
 	if _authenticated_status_matches_record(live, capability):
 		var version := str(live.get("version", ""))
 		var ws_port := int(live.get("ws_port", 0))
 		if _server_status_compatibility(version, expected_version, ws_port, expected_ws_port).get("compatible", false):
+			if disposition == "owned" and (
+				not PortResolver.find_all_pids_on_port(port).has(int(grant.process_id()))
+				or not grant.matches(int(grant.process_id()), PortResolver.process_fingerprint(int(grant.process_id())))
+			):
+				return _blocked_probe_result("process_authority_mismatch", port, live, false,
+					"the authenticated endpoint does not match the managed process; click Restart to retry")
 			return {
 				"outcome": "compatible",
+				"owned_disposition": disposition,
 				"version": version,
 				"transport": _transport_from(port, ws_port, live, capability),
 			}
@@ -699,6 +836,7 @@ func _effect_probe(payload: Dictionary) -> Dictionary:
 		return ws_port_blocked_result(expected_ws_port)
 	return {
 		"outcome": "free",
+		"owned_disposition": disposition,
 		"baseline_instance_id": str(capability.get("instance_nonce", "")),
 	}
 
@@ -737,6 +875,9 @@ func _effect_launch(payload: Dictionary) -> Dictionary:
 	var server_command: Array = payload.get("server_command", [])
 	if server_command.is_empty():
 		return {"ok": false, "reason": "no_command", "message": "No godot-ai server command was found."}
+	var listener_problem := PortResolver.listener_tools_problem()
+	if not listener_problem.is_empty():
+		return {"ok": false, "reason": "listener_tools_missing", "message": listener_problem}
 	## Do not spawn into a directory the server cannot publish from (#988):
 	## the failure would only surface as a proof timeout three minutes later.
 	var directory_problem := TransportCapability.directory_write_problem(port)
@@ -818,9 +959,10 @@ func _effect_launch(payload: Dictionary) -> Dictionary:
 ## (#988, #1012 both surfaced as this bare sentence). Diagnostic only: the
 ## values are read once more after the capture budget and never grant
 ## authority.
-static func _launch_unproven_message(pid: int, attempts: Array, elapsed_ms: int) -> String:
-	var alive := PortResolver.pid_alive(pid)
-	var commandline := PortResolver.process_commandline(pid) if alive else ""
+func _launch_unproven_message(pid: int, attempts: Array, elapsed_ms: int) -> String:
+	var snapshot: Variant = _capture_process_snapshot(pid)
+	var alive := PortResolver.pid_alive(pid, snapshot)
+	var commandline := PortResolver.process_commandline(pid, snapshot) if alive else ""
 	if commandline.length() > 200:
 		commandline = commandline.substr(0, 199) + "…"
 	## Summarise the per-attempt refusals as "reason×count" in first-seen order.
@@ -842,18 +984,39 @@ static func _launch_unproven_message(pid: int, attempts: Array, elapsed_ms: int)
 		attempts.size(),
 		elapsed_ms / 1000.0,
 		pid,
-		"yes" if alive else "no",
+		"unknown" if PortResolver.capture_failed(snapshot) else ("yes" if alive else "no"),
 		", ".join(summary) if not summary.is_empty() else "none recorded",
 		"" if commandline.is_empty() else "; command: " + commandline,
 	]
 
 
+func _capture_process_snapshot(pid: int) -> Variant:
+	return PortResolver.capture_process_snapshot(pid)
+
+
 func _effect_prove(payload: Dictionary) -> Dictionary:
 	var launch_grant = payload.get("grant")
 	var launch_pid := int(launch_grant.process_id()) if launch_grant != null else -1
-	var launch_alive := PortResolver.pid_alive(launch_pid)
+	## The pid file is an untrusted hint. Reuse its ancestor snapshot only
+	## when it includes the launcher; the original PID read and all final
+	## capability, listener, identity, and lineage checks still follow.
+	var hinted_pid := -1
+	var first_snapshot: Variant = null
+	var launch_snapshot: Variant = null
+	if OS.get_name() == "Windows" and launch_pid > 1:
+		hinted_pid = PortResolver.read_pid_file(str(payload.get("pid_file", "")))
+		if hinted_pid > 1:
+			first_snapshot = _capture_process_snapshot(hinted_pid)
+			if PortResolver.process_descends_from(hinted_pid, launch_pid, first_snapshot):
+				launch_snapshot = first_snapshot
+	if launch_snapshot == null:
+		launch_snapshot = _capture_process_snapshot(launch_pid)
+		first_snapshot = null
+	if PortResolver.capture_failed(launch_snapshot):
+		return {"pending": true, "reason": "identity_unavailable"}
+	var launch_alive := PortResolver.pid_alive(launch_pid, launch_snapshot)
 	var launch_fingerprint := (
-		PortResolver.process_fingerprint(launch_pid)
+		PortResolver.process_fingerprint(launch_pid, launch_snapshot)
 		if launch_alive
 		else ""
 	)
@@ -894,11 +1057,17 @@ func _effect_prove(payload: Dictionary) -> Dictionary:
 		return {"pending": true, "reason": "pid_file"}
 	if not PortResolver.find_all_pids_on_port(port).has(pid):
 		return {"pending": true, "reason": "listener_pid"}
-	if not PortResolver.pid_cmdline_is_godot_ai(pid):
+	if first_snapshot == null or pid != hinted_pid:
+		first_snapshot = (
+			launch_snapshot if pid == launch_pid else _capture_process_snapshot(pid)
+		)
+	if PortResolver.capture_failed(first_snapshot):
+		return {"pending": true, "reason": "identity_unavailable"}
+	if not PortResolver.pid_cmdline_is_godot_ai(pid, first_snapshot):
 		return {"pending": true, "reason": "process_brand"}
-	if not PortResolver.process_descends_from(pid, launch_pid):
+	if not PortResolver.process_descends_from(pid, launch_pid, first_snapshot):
 		return {"pending": true, "reason": "launch_lineage"}
-	var fingerprint := PortResolver.process_fingerprint(pid)
+	var fingerprint := PortResolver.process_fingerprint(pid, first_snapshot)
 	if fingerprint.is_empty():
 		return {"pending": true, "reason": "process_fingerprint"}
 	## Close every capture window before minting process authority. The same
@@ -907,11 +1076,15 @@ func _effect_prove(payload: Dictionary) -> Dictionary:
 	## fingerprint must remain unchanged after the final probe.
 	var final_capability := _read_capability(port)
 	var final_live := _probe_with_capability(port, final_capability, int(payload.timeout_ms))
+	var final_snapshot: Variant = _capture_process_snapshot(pid)
+	if PortResolver.capture_failed(final_snapshot):
+		return {"pending": true, "reason": "identity_unavailable"}
 	if (
 		PortResolver.read_pid_file(str(payload.get("pid_file", ""))) != pid
 		or not PortResolver.find_all_pids_on_port(port).has(pid)
-		or not PortResolver.process_descends_from(pid, launch_pid)
-		or PortResolver.process_fingerprint(pid) != fingerprint
+		or not PortResolver.process_descends_from(pid, launch_pid, final_snapshot)
+		or not PortResolver.pid_cmdline_is_godot_ai(pid, final_snapshot)
+		or PortResolver.process_fingerprint(pid, final_snapshot) != fingerprint
 		or final_capability != capability
 		or not _authenticated_status_matches_record(final_live, final_capability)
 		or str(final_live.get("instance_id", "")) != str(live.get("instance_id", ""))
@@ -1094,7 +1267,7 @@ func _effect_stop(payload: Dictionary) -> Dictionary:
 	if disposition == "owned":
 		grants.append({"pid": pid, "fingerprint": fingerprint})
 	PortResolver.kill_exact_processes(grants, true)
-	if port > 0:
+	if port > 0 and not grants.is_empty():
 		PortResolver.wait_for_port_free(port, 3.0)
 	var targets_gone := true
 	for exact in grants:
@@ -1176,6 +1349,7 @@ func _prove_payload() -> Dictionary:
 		"ws_capability": str(launch.get("ws_capability", "")),
 		"baseline_instance_id": str(launch.get("baseline_instance_id", "")),
 		"grant": _process_grant,
+		"prove_deadline_msec": int(_episode.get("prove_deadline_msec", 0)),
 	}
 
 
@@ -1217,6 +1391,12 @@ static func _probe_with_capability(port: int, capability: Dictionary, timeout_ms
 	var http_capability := str(capability.get("http", ""))
 	if http_capability.is_empty():
 		result.error = "missing_capability"
+		return result
+	## Windows can otherwise spend the whole connect deadline on an unbound
+	## loopback port. This is only an unreachable probe; callers still check
+	## occupancy and prove any later listener before using it.
+	if OS.get_name() == "Windows" and PortResolver.can_bind_local_port(port):
+		result.error = "port_unbound"
 		return result
 	var client := HTTPClient.new()
 	var error := client.connect_to_host("127.0.0.1", port)
