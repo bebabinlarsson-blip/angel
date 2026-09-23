@@ -241,7 +241,7 @@ func _event_anchor(anchor_kind: String, player_position: Vector2) -> Vector2:
 	match anchor_kind:
 		"campfire":
 			if world != null:
-				var campfire := world.get_node_or_null("Campfire") as Node2D
+				var campfire := world.find_child("Campfire", true, false) as Node2D
 				if campfire != null:
 					return campfire.global_position
 			return center

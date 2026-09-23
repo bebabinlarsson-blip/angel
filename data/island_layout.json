@@ -6,7 +6,7 @@
     "water_rim_radius": 3350,
     "ocean_boundary": 350000,
     "expansion_multiplier": 100,
-    "village_radius": 500
+    "village_radius": 1000
   },
   "density_settings": {
     "tree_count": 160,
@@ -36,7 +36,7 @@
       "x": 0,
       "y": 0
     },
-    "tree_ring_radius": 500,
+    "tree_ring_radius": 1000,
     "tree_ring_count": 0,
     "houses": [],
     "npcs": [

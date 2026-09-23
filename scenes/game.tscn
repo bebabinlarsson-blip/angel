@@ -33,6 +33,11 @@
 [ext_resource type="PackedScene" path="res://scenes/npcs/villager_merchant.tscn" id="25_merchant"]
 [ext_resource type="PackedScene" path="res://scenes/npcs/villager_craftsman.tscn" id="26_craftsman"]
 [ext_resource type="PackedScene" path="res://scenes/npcs/villager_traveler.tscn" id="27_traveler"]
+[ext_resource type="Script" path="res://scripts/world/village_night_lighting.gd" id="28_village_lighting"]
+[ext_resource type="Script" path="res://scripts/world/village_workbench.gd" id="29_village_workbench"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_village_workbench"]
+radius = 52.0
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_suyxu"]
 radius = 12.0
@@ -104,9 +109,29 @@ script = ExtResource("1_ssvqc")
 [node name="World" type="Node2D" parent="." unique_id=1123355614]
 y_sort_enabled = true
 
-[node name="AuthoredEnvironment" parent="World" instance=ExtResource("21_environment")]
+[node name="VillageDistrict" type="Node2D" parent="World"]
+metadata/district_role = "Village buildings, paths, residents, public workspaces and night lighting"
 
-[node name="Interiors" parent="World" instance=ExtResource("22_entries")]
+[node name="EnvironmentLayer" type="Node2D" parent="World/VillageDistrict"]
+
+[node name="PeopleLayer" type="Node2D" parent="World/VillageDistrict"]
+y_sort_enabled = true
+
+[node name="PublicLifeLayer" type="Node2D" parent="World/VillageDistrict"]
+
+[node name="NightLighting" type="Node2D" parent="World/VillageDistrict"]
+script = ExtResource("28_village_lighting")
+
+[node name="BlacksmithWorkbench" type="Area2D" parent="World/VillageDistrict/PublicLifeLayer"]
+position = Vector2(224, 64)
+script = ExtResource("29_village_workbench")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageDistrict/PublicLifeLayer/BlacksmithWorkbench"]
+shape = SubResource("CircleShape2D_village_workbench")
+
+[node name="AuthoredEnvironment" parent="World/VillageDistrict/EnvironmentLayer" instance=ExtResource("21_environment")]
+
+[node name="Interiors" parent="World/VillageDistrict/EnvironmentLayer" instance=ExtResource("22_entries")]
 
 [node name="GroundLayer" type="TileMapLayer" parent="World" unique_id=1421161525]
 z_index = -100
@@ -124,7 +149,7 @@ z_index = -90
 texture_filter = 1
 visible = false
 enabled = false
-metadata/layer_role = "Compatibility slot; authored road tiles are in World/AuthoredEnvironment/RoadLayer"
+metadata/layer_role = "Compatibility slot; authored road tiles are in World/VillageDistrict/EnvironmentLayer/AuthoredEnvironment/RoadLayer"
 tile_set = ExtResource("2_kvpfn")
 
 [node name="DecorLayer" type="TileMapLayer" parent="World" unique_id=1804884904]
@@ -173,17 +198,17 @@ texture_filter = 1
 scale = Vector2(1.5, 1.5)
 visible = false
 enabled = false
-metadata/layer_role = "Compatibility slot; authored houses are in World/AuthoredEnvironment/HouseLayer"
+metadata/layer_role = "Compatibility slot; authored houses are in World/VillageDistrict/EnvironmentLayer/AuthoredEnvironment/HouseLayer"
 tile_set = ExtResource("2_kvpfn")
 
-[node name="Campfire" type="StaticBody2D" parent="World" unique_id=207834038]
+[node name="Campfire" type="StaticBody2D" parent="World/VillageDistrict/PublicLifeLayer" unique_id=207834038]
 y_sort_enabled = true
 script = ExtResource("3_e1j6l")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/Campfire" unique_id=417976469]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageDistrict/PublicLifeLayer/Campfire" unique_id=417976469]
 shape = SubResource("CircleShape2D_suyxu")
 
-[node name="InteractionLabel" type="Label" parent="World/Campfire" unique_id=1120756820]
+[node name="InteractionLabel" type="Label" parent="World/VillageDistrict/PublicLifeLayer/Campfire" unique_id=1120756820]
 visible = false
 offset_left = -40.0
 offset_top = -40.0
@@ -192,35 +217,36 @@ offset_bottom = -40.0
 text = "[F] Cook"
 horizontal_alignment = 1
 
-[node name="Embers" type="Marker2D" parent="World/Campfire" unique_id=1192303923]
+[node name="Embers" type="Marker2D" parent="World/VillageDistrict/PublicLifeLayer/Campfire" unique_id=1192303923]
 
-[node name="VillageNPCs" type="Node2D" parent="World" unique_id=2000579591]
+[node name="VillageNPCs" type="Node2D" parent="World/VillageDistrict/PeopleLayer" unique_id=2000579591]
 y_sort_enabled = true
 metadata/roster = "scene-authored miniature NPC instances; each has a visible AnimatedSprite2D"
 metadata/runtime_policy = "QuestNPC logic may move these nodes, but never creates NPC models or NPC instances"
 
-[node name="NPC_Cook" type="StaticBody2D" parent="World/VillageNPCs" unique_id=2103187766]
+[node name="NPC_Cook" type="StaticBody2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" unique_id=2103187766]
 y_sort_enabled = true
 position = Vector2(128, -96)
 script = ExtResource("4_pl11u")
 npc_name = "Chef Maria"
 npc_id = "cook"
 quest_id = "first_meal"
+work_position = Vector2(176, -128)
 greeting_text = "Welcome to the campfire hearth!"
 quest_offer_text = "Try your hand at cooking a hearty meal at the campfire [F]!"
 affinity_friends = ["apothecary"]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageNPCs/NPC_Cook" unique_id=529164981]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Cook" unique_id=529164981]
 position = Vector2(0, 6)
 shape = SubResource("CircleShape2D_sgl2t")
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="World/VillageNPCs/NPC_Cook" unique_id=1285374944]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Cook" unique_id=1285374944]
 texture_filter = 1
 position = Vector2(0, -12)
 sprite_frames = ExtResource("5_bhx41")
 animation = &"idle"
 
-[node name="NameLabel" type="Label" parent="World/VillageNPCs/NPC_Cook" unique_id=2097849375]
+[node name="NameLabel" type="Label" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Cook" unique_id=2097849375]
 visible = false
 custom_minimum_size = Vector2(80, 20)
 offset_left = -40.0
@@ -233,7 +259,7 @@ theme_override_constants/outline_size = 4
 text = "Chef Maria"
 horizontal_alignment = 1
 
-[node name="InteractionLabel" type="Label" parent="World/VillageNPCs/NPC_Cook" unique_id=700133909]
+[node name="InteractionLabel" type="Label" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Cook" unique_id=700133909]
 visible = false
 offset_left = -40.0
 offset_top = -60.0
@@ -242,28 +268,29 @@ offset_bottom = -37.0
 text = "[F] Talk"
 horizontal_alignment = 1
 
-[node name="NPC_Elder" type="StaticBody2D" parent="World/VillageNPCs" unique_id=2139232440]
+[node name="NPC_Elder" type="StaticBody2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" unique_id=2139232440]
 y_sort_enabled = true
 position = Vector2(-128, -96)
 script = ExtResource("4_pl11u")
 npc_name = "Village Elder"
 npc_id = "elder"
 quest_id = "slay_slimes"
+work_position = Vector2(-128, 320)
 greeting_text = "Welcome to the grand Angel Island!"
 quest_offer_text = "Slimes roam the outskirts. Defeat 5 slimes to help secure our borders!"
 affinity_friends = ["guard", "watch"]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageNPCs/NPC_Elder" unique_id=997152730]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Elder" unique_id=997152730]
 position = Vector2(0, 6)
 shape = SubResource("CircleShape2D_qouja")
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="World/VillageNPCs/NPC_Elder" unique_id=960124742]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Elder" unique_id=960124742]
 texture_filter = 1
 position = Vector2(0, -12)
 sprite_frames = ExtResource("6_qnb83")
 animation = &"idle"
 
-[node name="NameLabel" type="Label" parent="World/VillageNPCs/NPC_Elder" unique_id=1414136585]
+[node name="NameLabel" type="Label" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Elder" unique_id=1414136585]
 visible = false
 custom_minimum_size = Vector2(80, 20)
 offset_left = -40.0
@@ -276,7 +303,7 @@ theme_override_constants/outline_size = 4
 text = "Village Elder"
 horizontal_alignment = 1
 
-[node name="InteractionLabel" type="Label" parent="World/VillageNPCs/NPC_Elder" unique_id=375535502]
+[node name="InteractionLabel" type="Label" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Elder" unique_id=375535502]
 visible = false
 offset_left = -40.0
 offset_top = -60.0
@@ -285,28 +312,29 @@ offset_bottom = -37.0
 text = "[F] Talk"
 horizontal_alignment = 1
 
-[node name="NPC_Carpenter" type="StaticBody2D" parent="World/VillageNPCs" unique_id=1967939426]
+[node name="NPC_Carpenter" type="StaticBody2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" unique_id=1967939426]
 y_sort_enabled = true
-position = Vector2(192, 96)
+position = Vector2(160, 128)
 script = ExtResource("4_pl11u")
 npc_name = "Carpenter"
 npc_id = "carpenter"
 quest_id = "gather_wood"
+work_position = Vector2(160, 128)
 greeting_text = "Hello traveler! Need repairs or building supplies?"
 quest_offer_text = "I am reinforcing the village fences. Could you gather 10 Wood?"
 affinity_friends = ["builder", "blacksmith"]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageNPCs/NPC_Carpenter" unique_id=267044210]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Carpenter" unique_id=267044210]
 position = Vector2(0, 6)
 shape = SubResource("CircleShape2D_wljb1")
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="World/VillageNPCs/NPC_Carpenter" unique_id=1988156355]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Carpenter" unique_id=1988156355]
 texture_filter = 1
 position = Vector2(0, -12)
 sprite_frames = ExtResource("7_sww3w")
 animation = &"idle"
 
-[node name="NameLabel" type="Label" parent="World/VillageNPCs/NPC_Carpenter" unique_id=699367366]
+[node name="NameLabel" type="Label" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Carpenter" unique_id=699367366]
 visible = false
 custom_minimum_size = Vector2(80, 20)
 offset_left = -40.0
@@ -319,7 +347,7 @@ theme_override_constants/outline_size = 4
 text = "Carpenter"
 horizontal_alignment = 1
 
-[node name="InteractionLabel" type="Label" parent="World/VillageNPCs/NPC_Carpenter" unique_id=54289522]
+[node name="InteractionLabel" type="Label" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Carpenter" unique_id=54289522]
 visible = false
 offset_left = -40.0
 offset_top = -60.0
@@ -328,28 +356,29 @@ offset_bottom = -37.0
 text = "[F] Talk"
 horizontal_alignment = 1
 
-[node name="NPC_Miner" type="StaticBody2D" parent="World/VillageNPCs" unique_id=791753747]
+[node name="NPC_Miner" type="StaticBody2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" unique_id=791753747]
 y_sort_enabled = true
-position = Vector2(-192, 176)
+position = Vector2(-128, 160)
 script = ExtResource("4_pl11u")
 npc_name = "Miner Torvald"
 npc_id = "miner"
 quest_id = "explore_cave"
+work_position = Vector2(640, 0)
 greeting_text = "Greetings! The northern mountains hold vast mineral wealth."
 quest_offer_text = "Gather 3 Iron Ores from the open hills for me."
 affinity_friends = ["blacksmith", "traveler"]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageNPCs/NPC_Miner" unique_id=499108931]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Miner" unique_id=499108931]
 position = Vector2(0, 6)
 shape = SubResource("CircleShape2D_v2yb1")
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="World/VillageNPCs/NPC_Miner" unique_id=1558965338]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Miner" unique_id=1558965338]
 texture_filter = 1
 position = Vector2(0, -12)
 sprite_frames = ExtResource("8_suyxu")
 animation = &"idle"
 
-[node name="NameLabel" type="Label" parent="World/VillageNPCs/NPC_Miner" unique_id=495446545]
+[node name="NameLabel" type="Label" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Miner" unique_id=495446545]
 visible = false
 custom_minimum_size = Vector2(80, 20)
 offset_left = -40.0
@@ -362,7 +391,7 @@ theme_override_constants/outline_size = 4
 text = "Miner Torvald"
 horizontal_alignment = 1
 
-[node name="InteractionLabel" type="Label" parent="World/VillageNPCs/NPC_Miner" unique_id=1002075125]
+[node name="InteractionLabel" type="Label" parent="World/VillageDistrict/PeopleLayer/VillageNPCs/NPC_Miner" unique_id=1002075125]
 visible = false
 offset_left = -40.0
 offset_top = -60.0
@@ -371,7 +400,7 @@ offset_bottom = -37.0
 text = "[F] Talk"
 horizontal_alignment = 1
 
-[node name="NPC_Farmer" parent="World/VillageNPCs" instance=ExtResource("23_farmer")]
+[node name="NPC_Farmer" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("23_farmer")]
 position = Vector2(-380, 160)
 npc_name = "Anika the Farmer"
 npc_id = "farmer"
@@ -383,10 +412,10 @@ quest_offer_text = "Could you gather 6 Wood for the field fences?"
 quest_active_text = "The seedlings are waiting on those fence posts."
 dialogue_lines = ["I wake before sunrise when the soil is kind.", "Suri and I compare notes on every seed."]
 affinity_friends = ["gardener", "herbalist"]
-work_position = Vector2(-220, 248)
+work_position = Vector2(-520, 288)
 
-[node name="NPC_Guard" parent="World/VillageNPCs" instance=ExtResource("24_guard")]
-position = Vector2(400, 80)
+[node name="NPC_Guard" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("24_guard")]
+position = Vector2(440, 80)
 npc_name = "Rook the Gatekeeper"
 npc_id = "guard"
 quest_id = "guard_patrol"
@@ -399,8 +428,8 @@ dialogue_lines = ["I prefer the late shift; the quiet tells me more.", "Bram cov
 affinity_friends = ["watch"]
 work_position = Vector2(430, -110)
 
-[node name="NPC_Merchant" parent="World/VillageNPCs" instance=ExtResource("25_merchant")]
-position = Vector2(360, -144)
+[node name="NPC_Merchant" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("25_merchant")]
+position = Vector2(440, -144)
 npc_name = "Lio the Trader"
 npc_id = "merchant"
 quest_id = "merchant_trade"
@@ -412,9 +441,9 @@ quest_active_text = "The bundle needs a few more fragrant leaves."
 dialogue_lines = ["A good bargain leaves both people smiling.", "I open the stall slowly; morning customers are still dreaming."]
 affinity_friends = ["trader"]
 affinity_rivals = ["blacksmith"]
-work_position = Vector2(310, -54)
+work_position = Vector2(-240, -112)
 
-[node name="NPC_Fisher" parent="World/VillageNPCs" instance=ExtResource("27_traveler")]
+[node name="NPC_Fisher" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("27_traveler")]
 position = Vector2(320, 300)
 npc_name = "Mira the Fisher"
 npc_id = "fisher"
@@ -426,9 +455,11 @@ quest_offer_text = "Find 2 Mushrooms for bait and I will share the catch."
 quest_active_text = "The lake is calm; I only need the bait."
 dialogue_lines = ["The best fishing spot changes with the moon.", "Sometimes I follow the long way home just to watch the water."]
 affinity_friends = ["traveler"]
+job = "fisher"
+trade_enabled = true
 work_position = Vector2(410, 300)
 
-[node name="NPC_Herbalist" parent="World/VillageNPCs" instance=ExtResource("25_merchant")]
+[node name="NPC_Herbalist" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("25_merchant")]
 position = Vector2(-360, 240)
 npc_name = "Elin the Herbalist"
 npc_id = "herbalist"
@@ -440,9 +471,11 @@ quest_offer_text = "Gather 4 Herbs for tonight's village remedy."
 quest_active_text = "The remedy needs more green leaves."
 dialogue_lines = ["I listen to plants before I pick them.", "A shy flower often grows where the road is quiet."]
 affinity_friends = ["apothecary", "gardener"]
+job = "herbalist"
+trade_enabled = true
 work_position = Vector2(-420, 220)
 
-[node name="NPC_Builder" parent="World/VillageNPCs" instance=ExtResource("26_craftsman")]
+[node name="NPC_Builder" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("26_craftsman")]
 position = Vector2(320, 160)
 npc_name = "Oskar the Builder"
 npc_id = "builder"
@@ -454,9 +487,10 @@ quest_offer_text = "Bring 8 Wood so I can finish the square's repairs."
 quest_active_text = "The scaffolding is ready when the wood arrives."
 dialogue_lines = ["I measure twice, then ask Nia what she thinks.", "Some repairs are easier after a good night's sleep."]
 affinity_friends = ["blacksmith", "carpenter"]
-work_position = Vector2(300, 222)
+job = "builder"
+work_position = Vector2(360, 160)
 
-[node name="NPC_Gardener" parent="World/VillageNPCs" instance=ExtResource("23_farmer")]
+[node name="NPC_Gardener" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("23_farmer")]
 position = Vector2(-230, 300)
 npc_name = "Suri the Gardener"
 npc_id = "gardener"
@@ -470,8 +504,8 @@ dialogue_lines = ["I like company, but the seedlings are my closest friends.", "
 affinity_friends = ["farmer", "herbalist"]
 work_position = Vector2(-260, 352)
 
-[node name="NPC_Watch" parent="World/VillageNPCs" instance=ExtResource("24_guard")]
-position = Vector2(-420, -40)
+[node name="NPC_Watch" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("24_guard")]
+position = Vector2(-480, -80)
 npc_name = "Bram the Watch"
 npc_id = "watch"
 quest_id = "watch_clearance"
@@ -484,8 +518,8 @@ dialogue_lines = ["I am serious on duty, though Rook says I laugh too loudly off
 affinity_friends = ["guard"]
 work_position = Vector2(-430, -170)
 
-[node name="NPC_Soldier" parent="World/VillageNPCs" instance=ExtResource("24_guard")]
-position = Vector2(40, -430)
+[node name="NPC_Soldier" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("24_guard")]
+position = Vector2(112, -448)
 npc_name = "Sergeant Vale"
 npc_id = "soldier_vale"
 quest_id = ""
@@ -494,9 +528,9 @@ appearance_seed = 113
 greeting_text = "The open village has no walls, so we learn every safe path."
 dialogue_lines = ["Vale checks the northern grass before the first birds wake.", "Three soldiers cover the village while everyone else gets on with living.", "I patrol in daylight and sleep when the lanterns go out.", "If you travel far, leave a mark that another traveler can read."]
 affinity_friends = ["guard", "watch"]
-work_position = Vector2(80, -360)
+work_position = Vector2(112, -480)
 
-[node name="NPC_Trader" parent="World/VillageNPCs" instance=ExtResource("25_merchant")]
+[node name="NPC_Trader" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("25_merchant")]
 position = Vector2(220, -260)
 npc_name = "Nia the Trader"
 npc_id = "trader"
@@ -508,10 +542,10 @@ quest_offer_text = "Bring 2 Gold Ore from the open hills for the market ledger."
 quest_active_text = "The ledger is waiting for bright ore from the open hills."
 dialogue_lines = ["Lio loves stories; I prefer prices that can be checked.", "Sometimes I leave the stall open one hour late for a traveler."]
 affinity_friends = ["merchant"]
-work_position = Vector2(160, -190)
+work_position = Vector2(-176, 112)
 
-[node name="NPC_Apothecary" parent="World/VillageNPCs" instance=ExtResource("25_merchant")]
-position = Vector2(-240, -260)
+[node name="NPC_Apothecary" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("25_merchant")]
+position = Vector2(-368, -128)
 npc_name = "Tala the Apothecary"
 npc_id = "apothecary"
 quest_id = "apothecary_tonic"
@@ -522,10 +556,12 @@ quest_offer_text = "Cook 1 dish at the campfire so I can test a new tonic base."
 quest_active_text = "The tonic smells like supper; it needs one fresh dish."
 dialogue_lines = ["Elin brings the wild herbs; I turn them into measured remedies.", "I am curious about every recipe that enters this village."]
 affinity_friends = ["herbalist", "cook"]
-work_position = Vector2(-180, -190)
+job = "herbalist"
+trade_enabled = true
+work_position = Vector2(-320, -112)
 
-[node name="NPC_Blacksmith" parent="World/VillageNPCs" instance=ExtResource("26_craftsman")]
-position = Vector2(-288, -176)
+[node name="NPC_Blacksmith" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("26_craftsman")]
+position = Vector2(-352, -128)
 npc_name = "Gunnar the Blacksmith"
 npc_id = "blacksmith"
 quest_id = "blacksmith_ore"
@@ -537,9 +573,10 @@ quest_active_text = "The forge is hot; the iron is all that is missing."
 dialogue_lines = ["The hammer is a metronome for a patient mind.", "Oskar talks plans while I make them hold together."]
 affinity_friends = ["builder", "miner"]
 affinity_rivals = ["merchant"]
-work_position = Vector2(-330, -90)
+job = "blacksmith"
+work_position = Vector2(224, 24)
 
-[node name="NPC_Traveler" parent="World/VillageNPCs" instance=ExtResource("27_traveler")]
+[node name="NPC_Traveler" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("27_traveler")]
 position = Vector2(438, -42)
 npc_name = "Sable the Traveler"
 npc_id = "traveler"
@@ -553,7 +590,7 @@ dialogue_lines = ["I take unusual routes when the weather changes.", "Mira knows
 affinity_friends = ["fisher", "merchant"]
 work_position = Vector2(460, -160)
 
-[node name="NPC_Traveler_North" parent="World/VillageNPCs" instance=ExtResource("27_traveler")]
+[node name="NPC_Traveler_North" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("27_traveler")]
 position = Vector2(-1320, -860)
 npc_name = "Perrin of the North Road"
 npc_id = "traveler_north"
@@ -567,7 +604,7 @@ greeting_text = "The north wind carries good prices and better warnings."
 dialogue_lines = ["I sleep under canvas when the stars are clear.", "A traveler survives by sharing news before selling goods.", "The northern grass is soft, but the stones hide sharp edges.", "I trade tonic, herbs and anything small enough to carry."]
 work_position = Vector2(-840, -960)
 
-[node name="NPC_Traveler_West" parent="World/VillageNPCs" instance=ExtResource("27_traveler")]
+[node name="NPC_Traveler_West" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("27_traveler")]
 position = Vector2(-1480, 720)
 npc_name = "Juniper the Wayfarer"
 npc_id = "traveler_west"
@@ -581,7 +618,7 @@ greeting_text = "I follow the western wind until it changes its mind."
 dialogue_lines = ["My best map is a conversation with someone who just arrived.", "The western fields smell different after rain.", "I bought this herb from a patient gardener and can spare one.", "Gold is useful, but a safe campsite is worth more."]
 work_position = Vector2(-1060, 980)
 
-[node name="NPC_Traveler_East" parent="World/VillageNPCs" instance=ExtResource("27_traveler")]
+[node name="NPC_Traveler_East" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("27_traveler")]
 position = Vector2(1380, -920)
 npc_name = "Tamsin the Caravaner"
 npc_id = "traveler_east"
@@ -595,7 +632,7 @@ greeting_text = "A caravan is only as strong as the quietest person in it."
 dialogue_lines = ["I count every bottle before the trail turns dark.", "The eastern trees are loud at noon and silent at dusk.", "People buy what they need, then remember what they heard.", "If you have spare materials, I can turn them into useful gold."]
 work_position = Vector2(1760, -600)
 
-[node name="NPC_Traveler_South" parent="World/VillageNPCs" instance=ExtResource("27_traveler")]
+[node name="NPC_Traveler_South" parent="World/VillageDistrict/PeopleLayer/VillageNPCs" instance=ExtResource("27_traveler")]
 position = Vector2(980, 1480)
 npc_name = "Orin from the South"
 npc_id = "traveler_south"

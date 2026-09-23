@@ -66,6 +66,7 @@ var work_cycle_index: int = 0
 var village_center: Vector2 = Vector2.ZERO
 var village_radius: float = 500.0
 var _village_bounds_ready: bool = false
+var _village_obstacles: Array[Rect2] = []
 var personality: Dictionary = {}
 var schedule_profile: Dictionary = {}
 var ambient_event_id: String = ""
@@ -134,11 +135,83 @@ func _configure_village_bounds() -> void:
 	if terrain != null:
 		village_center = terrain.village_center
 		village_radius = terrain.village_radius
-	global_position = _clamp_to_village(global_position)
-	home_position = _clamp_to_village(home_position)
-	work_position = _clamp_to_village(work_position)
-	schedule_destination = _clamp_to_village(schedule_destination)
+	_cache_village_obstacles()
+	assigned_house_door = _clamp_to_village(assigned_house_door)
+	assigned_job_position = _clamp_to_village(assigned_job_position)
+	assigned_house_door = _nearest_walkable(assigned_house_door)
+	assigned_job_position = _nearest_walkable(assigned_job_position)
+	global_position = _nearest_walkable(_clamp_to_village(global_position))
+	home_position = _nearest_walkable(_clamp_to_village(home_position))
+	work_position = _nearest_walkable(_clamp_to_village(work_position))
+	schedule_destination = assigned_job_position
 	_village_bounds_ready = true
+
+func _cache_village_obstacles() -> void:
+	_village_obstacles.clear()
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var environment := scene.find_child("AuthoredEnvironment", true, false)
+	if environment == null:
+		return
+	var collision_layer := environment.get_node_or_null("CollisionLayer")
+	if collision_layer == null:
+		return
+	for raw_shape in collision_layer.find_children("*", "CollisionShape2D", true, false):
+		var collision := raw_shape as CollisionShape2D
+		if collision == null or collision.disabled or collision.shape == null:
+			continue
+		var half_size := Vector2.ZERO
+		if collision.shape is RectangleShape2D:
+			half_size = (collision.shape as RectangleShape2D).size * 0.5
+		elif collision.shape is CircleShape2D:
+			half_size = Vector2.ONE * (collision.shape as CircleShape2D).radius
+		if half_size != Vector2.ZERO:
+			_village_obstacles.append(Rect2(collision.global_position - half_size, half_size * 2.0).grow(14.0))
+
+func _is_obstructed(position_to_check: Vector2) -> bool:
+	for obstacle in _village_obstacles:
+		if obstacle.has_point(position_to_check):
+			return true
+	return false
+
+func _nearest_walkable(position_to_check: Vector2) -> Vector2:
+	var candidate := _clamp_to_village(position_to_check)
+	if _village_obstacles.is_empty() or not _is_obstructed(candidate):
+		return candidate
+	for radius in [24.0, 48.0, 72.0, 96.0, 128.0]:
+		for step in range(8):
+			var direction := Vector2.RIGHT.rotated(float(step) * TAU / 8.0)
+			var alternate := _clamp_to_village(candidate + direction * radius)
+			if not _is_obstructed(alternate):
+				return alternate
+	return candidate
+
+func _move_toward_destination(destination: Vector2, delta: float) -> bool:
+	var offset := destination - global_position
+	if offset.length_squared() <= 0.001 or delta <= 0.0:
+		velocity = Vector2.ZERO
+		return false
+	var forward := offset.normalized()
+	var step_distance := minf(work_speed * delta, offset.length())
+	var best_position := global_position
+	var best_score := INF
+	for angle in [0.0, PI / 4.0, -PI / 4.0, PI / 2.0, -PI / 2.0, PI * 0.75, -PI * 0.75, PI]:
+		var direction := forward.rotated(angle)
+		var candidate := _clamp_to_village(global_position + direction * step_distance)
+		if _is_obstructed(candidate):
+			continue
+		var turn_cost := (1.0 - direction.dot(forward)) * 14.0
+		var score := candidate.distance_to(destination) + turn_cost
+		if score < best_score:
+			best_score = score
+			best_position = candidate
+	if best_score == INF:
+		velocity = Vector2.ZERO
+		return false
+	velocity = (best_position - global_position) / delta
+	global_position = best_position
+	return true
 
 func _clamp_to_village(target_position: Vector2) -> Vector2:
 	if not stays_in_village:
@@ -154,11 +227,16 @@ func _clamp_to_village(target_position: Vector2) -> Vector2:
 func _job_from_npc_id() -> String:
 	match npc_id:
 		"cook", "chef": return "cook"
-		"elder": return "guard"
+		"elder", "guard", "watch", "soldier", "soldier_vale": return "guard"
 		"carpenter": return "carpenter"
+		"builder": return "builder"
 		"miner": return "miner"
 		"blacksmith": return "blacksmith"
-		"traveler": return "traveler"
+		"farmer", "gardener": return "farmer"
+		"merchant", "trader": return "merchant"
+		"herbalist", "apothecary": return "herbalist"
+		"fisher": return "fisher"
+		"traveler", "traveler_north", "traveler_west", "traveler_east", "traveler_south": return "traveler"
 		_: return "idle"
 
 func _build_ambient_profile() -> void:
@@ -543,11 +621,10 @@ func _run_ambient_event_routine(delta: float) -> void:
 		velocity = Vector2.ZERO
 		return
 	if stays_in_village:
-		ambient_event_target = _clamp_to_village(ambient_event_target)
+		ambient_event_target = _nearest_walkable(_clamp_to_village(ambient_event_target))
 	var distance := global_position.distance_to(ambient_event_target)
 	if distance > 8.0:
-		velocity = (ambient_event_target - global_position).normalized() * work_speed
-		global_position = _clamp_to_village(global_position + velocity * delta)
+		_move_toward_destination(ambient_event_target, delta)
 		is_working = false
 		return
 	velocity = Vector2.ZERO
@@ -737,35 +814,70 @@ func _run_daily_routine(delta: float) -> void:
 			global_position = assigned_house_door
 			_enter_sleep_state()
 			return
-		velocity = to_door.normalized() * work_speed
-		global_position += velocity * delta
+		_move_toward_destination(assigned_house_door, delta)
 		is_working = false
 		return
 
 	# Day State (06:00 - 20:00):
 	# At 06:00: Enable visibility/collision at the door trigger and resume day pathing.
-	# NPCs patrol and work at assigned job tiles (Market, Blacksmith, Shops, Plaza).
+	# Residents follow a short route through their work district, pausing at each stop.
 	if is_sleeping:
 		_wake_from_sleep_state()
 
-	routine_clock += delta
+	routine_phase = _schedule_phase_for_hour(hour)
 	if schedule_destination == Vector2.ZERO:
 		schedule_destination = assigned_job_position
 
 	var to_dest := schedule_destination - global_position
 	var dist := to_dest.length()
 	if dist > 16.0:
-		velocity = to_dest.normalized() * work_speed
-		global_position += velocity * delta
+		_move_toward_destination(schedule_destination, delta)
+		routine_clock = 0.0
 		is_working = false
+		activity = "Walking the village paths"
 	else:
 		velocity = Vector2.ZERO
-		is_working = true
-		activity = _job_activity()
-		if routine_clock >= 5.0:
+		is_working = routine_phase == "work"
+		activity = _job_activity() if is_working else "Taking a stroll"
+		routine_clock += delta
+		var stop_duration := 3.2 if is_working else 2.4
+		if routine_clock >= stop_duration:
 			routine_clock = 0.0
 			work_cycle_index += 1
-			schedule_destination = assigned_job_position + _patrol_offset_for_job(work_cycle_index)
+			var route := _daily_walk_route()
+			if not route.is_empty():
+				travel_route_index = (travel_route_index + 1) % route.size()
+				schedule_destination = route[travel_route_index]
+
+func _daily_walk_route() -> Array[Vector2]:
+	if travel_route.size() > 1:
+		var authored_route: Array[Vector2] = []
+		for waypoint in travel_route:
+			authored_route.append(_clamp_to_village(waypoint))
+		return authored_route
+
+	var offsets: Array[Vector2] = [
+		Vector2(-72, -24), Vector2(-40, -64), Vector2(40, -64),
+		Vector2(72, -16), Vector2(56, 48), Vector2(-40, 56),
+	]
+	match assigned_job_location:
+		"blacksmith":
+			offsets = [Vector2(-52, -32), Vector2(0, -64), Vector2(56, -24), Vector2(48, 40), Vector2(-40, 48)]
+		"market", "gardens", "waterside":
+			offsets = [Vector2(-88, -28), Vector2(-40, -72), Vector2(48, -64), Vector2(88, 8), Vector2(40, 72), Vector2(-56, 56)]
+		"general_shop", "armory_shop":
+			offsets = [Vector2(-64, -32), Vector2(-32, -64), Vector2(56, -48), Vector2(64, 32), Vector2(-40, 56)]
+		"plaza":
+			offsets = [Vector2(-96, -24), Vector2(-48, -88), Vector2(64, -80), Vector2(104, 8), Vector2(48, 88), Vector2(-72, 64)]
+		"east_gate", "quarry":
+			offsets = [Vector2(-72, -40), Vector2(-24, -72), Vector2(64, -48), Vector2(72, 32), Vector2(-32, 64)]
+
+	var route: Array[Vector2] = []
+	var phase := absi(npc_id.hash()) % offsets.size()
+	for step in range(offsets.size()):
+		var offset: Vector2 = offsets[(step + phase) % offsets.size()]
+		route.append(_nearest_walkable(_clamp_to_village(assigned_job_position + offset)))
+	return route
 
 func _patrol_offset_for_job(cycle: int) -> Vector2:
 	match assigned_job_location:
@@ -837,36 +949,51 @@ func _assign_default_housing_and_job() -> void:
 				assigned_house_id = house_keys[h_idx]
 				assigned_house_door = doors[h_idx]
 
-	if assigned_job_position == Vector2.ZERO or assigned_job_location.is_empty():
+	if assigned_job_position == Vector2.ZERO and work_position != Vector2.ZERO:
+		assigned_job_position = work_position
+	if assigned_job_location.is_empty():
 		match job:
-			"blacksmith":
+			"blacksmith", "carpenter", "builder":
 				assigned_job_location = "blacksmith"
-				assigned_job_position = Vector2(224, 80)
-			"carpenter", "builder":
-				assigned_job_location = "blacksmith"
-				assigned_job_position = Vector2(224, 110)
-			"merchant", "farmer", "gardener", "fisher":
+				if assigned_job_position == Vector2.ZERO:
+					assigned_job_position = Vector2(224, 80) if job == "blacksmith" else Vector2(224, 110)
+			"farmer", "gardener":
+				assigned_job_location = "gardens"
+				if assigned_job_position == Vector2.ZERO:
+					assigned_job_position = Vector2(-224, 0)
+			"fisher":
+				assigned_job_location = "waterside"
+				if assigned_job_position == Vector2.ZERO:
+					assigned_job_position = Vector2(384, 256)
+			"merchant", "trader":
 				assigned_job_location = "market"
-				assigned_job_position = Vector2(-224, 0)
-			"herbalist":
+				if assigned_job_position == Vector2.ZERO:
+					assigned_job_position = Vector2(-224, 0)
+			"herbalist", "apothecary":
 				assigned_job_location = "general_shop"
-				assigned_job_position = Vector2(-224, -128)
+				if assigned_job_position == Vector2.ZERO:
+					assigned_job_position = Vector2(-224, -128)
 			"guard":
-				if npc_id in ["soldier", "watch"]:
+				if npc_id in ["soldier", "soldier_vale", "watch"]:
 					assigned_job_location = "armory_shop"
-					assigned_job_position = Vector2(-224, 128)
+					if assigned_job_position == Vector2.ZERO:
+						assigned_job_position = Vector2(-224, 128)
 				else:
-					assigned_job_location = "plaza"
-					assigned_job_position = Vector2(0, 0)
+					assigned_job_location = "east_gate"
+					if assigned_job_position == Vector2.ZERO:
+						assigned_job_position = Vector2(400, 0)
 			"miner":
-				assigned_job_location = "armory_shop"
-				assigned_job_position = Vector2(-224, 140)
+				assigned_job_location = "quarry"
+				if assigned_job_position == Vector2.ZERO:
+					assigned_job_position = Vector2(640, 0)
 			"cook", "traveler":
 				assigned_job_location = "plaza"
-				assigned_job_position = Vector2(0, 0)
+				if assigned_job_position == Vector2.ZERO:
+					assigned_job_position = Vector2.ZERO
 			_:
 				assigned_job_location = "plaza"
-				assigned_job_position = Vector2(0, 0)
+				if assigned_job_position == Vector2.ZERO:
+					assigned_job_position = Vector2.ZERO
 
 func _update_activity_label() -> void:
 	if activity_label == null:
@@ -875,12 +1002,12 @@ func _update_activity_label() -> void:
 		activity_label.visible = false
 		return
 	var p := _get_player_node()
-	var player_near := false
+	var distance_sq := INF
 	if p != null and is_instance_valid(p):
-		player_near = global_position.distance_squared_to(p.global_position) <= 57600.0
-	activity_label.visible = player_near and not is_dialogue_open
+		distance_sq = global_position.distance_squared_to(p.global_position)
+	activity_label.visible = distance_sq <= 14400.0 and not is_dialogue_open
 	if name_label:
-		name_label.visible = false
+		name_label.visible = distance_sq <= 40000.0 and not is_dialogue_open
 	activity_label.text = activity
 
 func can_talk() -> bool:

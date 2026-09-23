@@ -146,7 +146,12 @@ func _initialize() -> void:
 	# reliably find herbs, fruit, flowers and plants instead of waiting for a
 	# random catalog roll.
 	for resource_id: String in GUARANTEED_STARTER_MATERIALS:
-		var starter_pos := _find_position_near(terrain.village_center, 620.0, 900.0, 52.0)
+		var starter_pos := _find_position_near(
+			terrain.village_center,
+			terrain.village_radius + 120.0,
+			terrain.village_radius + 420.0,
+			52.0
+		)
 		if starter_pos == Vector2.ZERO:
 			continue
 		var starter_record := _register_resource_record(starter_pos, _catalog_entry(resource_id))

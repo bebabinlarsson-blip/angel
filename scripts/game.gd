@@ -26,9 +26,8 @@ func _ready() -> void:
 		terrain.name = "IslandWorld"
 		terrain.add_to_group("island_world")
 		world_node.add_child(terrain)
-	_ensure_cooking_place(world_node)
 	_ensure_village_content(world_node)
-	_strip_removed_village_structures(world_node)
+	_ensure_cooking_place(world_node)
 	terrain.rebuild(world_node, _load_layout_config())
 	# Scene transfers rebuild the overworld from scratch. Restore the compact
 	# quest snapshot after the new QuestSystem child has initialized so an exit
@@ -102,74 +101,51 @@ func _ready() -> void:
 		EventBus.show_notification.emit("Welcome to Angel! Walk near materials to collect them, press E for your backpack, and keep your sword ready.")
 
 func _ensure_cooking_place(world_node: Node2D) -> void:
-	if world_node.get_node_or_null("Campfire") != null:
+	var district := world_node.get_node_or_null("VillageDistrict") as Node2D
+	if district == null:
+		district = Node2D.new()
+		district.name = "VillageDistrict"
+		world_node.add_child(district)
+	var public_life := district.get_node_or_null("PublicLifeLayer") as Node2D
+	if public_life == null:
+		public_life = Node2D.new()
+		public_life.name = "PublicLifeLayer"
+		district.add_child(public_life)
+	if district.find_child("Campfire", true, false) != null:
 		return
 	var hearth := CookingPot.new()
 	hearth.name = "Campfire"
 	hearth.position = Vector2.ZERO
-	world_node.add_child(hearth)
-
-func _strip_removed_village_structures(world_node: Node2D) -> void:
-	# Village is now an open settlement. Keep reusable art resources in the
-	# project, but remove every road, house, church, ruin, mine entrance and
-	# mine prop from the playable scene before terrain indexes the map.
-	for layer_path: String in [
-		"RoadLayer",
-		"HouseLayer",
-		"StructuresLayer",
-		"AuthoredEnvironment/RoadLayer",
-		"AuthoredEnvironment/HouseLayer",
-		"AuthoredEnvironment/StructureLayer",
-	]:
-		var layer := world_node.get_node_or_null(layer_path) as TileMapLayer
-		if layer == null:
-			continue
-		layer.clear()
-		layer.visible = false
-		layer.enabled = false
-
-	var interiors := world_node.get_node_or_null("Interiors")
-	if interiors != null:
-		interiors.visible = false
-		interiors.process_mode = Node.PROCESS_MODE_DISABLED
-		for entry in interiors.find_children("*", "Area2D", true, false):
-			(entry as Area2D).monitoring = false
-			for shape in (entry as Area2D).find_children("*", "CollisionShape2D", true, false):
-				(shape as CollisionShape2D).disabled = true
-
-	var mining_area := world_node.get_node_or_null("MiningArea")
-	if mining_area != null:
-		mining_area.visible = false
-		mining_area.process_mode = Node.PROCESS_MODE_DISABLED
-		for shape in mining_area.find_children("*", "CollisionShape2D", true, false):
-			(shape as CollisionShape2D).disabled = true
-
-	# Destinations whose landmarks no longer exist should not remain as hidden
-	# fast-travel promises.
-	for waystone_name: String in ["Waystone_Cave", "Waystone_Ruins"]:
-		var waystone := world_node.get_node_or_null("Waystones/" + waystone_name)
-		if waystone != null:
-			waystone.queue_free()
+	public_life.add_child(hearth)
 
 func _ensure_village_content(world_node: Node2D) -> void:
-	var layout := world_node.get_node_or_null("VillageLayout") as VillageLayout
+	var district := world_node.get_node_or_null("VillageDistrict") as Node2D
+	if district == null:
+		district = Node2D.new()
+		district.name = "VillageDistrict"
+		world_node.add_child(district)
+	var layout := district.get_node_or_null("VillageLayout") as VillageLayout
 	if layout == null:
 		layout = VILLAGE_LAYOUT_SCRIPT.new() as VillageLayout
 		layout.name = "VillageLayout"
-		world_node.add_child(layout)
-	layout.configure(Vector2.ZERO, 500.0)
+		district.add_child(layout)
+	layout.configure(Vector2.ZERO, 1000.0)
 
-	var interiors := world_node.get_node_or_null("Interiors") as Node2D
+	var interiors := district.find_child("Interiors", true, false) as Node2D
 	if interiors == null:
 		interiors = Node2D.new()
 		interiors.name = "Interiors"
 		interiors.y_sort_enabled = true
-		world_node.add_child(interiors)
-	# All door triggers are scene-authored in interior_entries.tscn and attach
-	# themselves to the matching TileMapLayer. Never recreate removed or moved
-	# entrances from code; a missing registry is an authoring error that should be
-	# visible in the editor instead of silently creating duplicate geometry.
-	if interiors.get_child_count() == 0:
+		var environment_layer := district.get_node_or_null("EnvironmentLayer") as Node2D
+		if environment_layer == null:
+			environment_layer = Node2D.new()
+			environment_layer.name = "EnvironmentLayer"
+			district.add_child(environment_layer)
+		environment_layer.add_child(interiors)
+	# House and shop door triggers are scene-authored under the village
+	# AuthoredEnvironment/TriggerLayer. Keep the empty registry only for legacy
+	# scenes, and never generate duplicate entrances at runtime.
+	if get_tree().get_nodes_in_group("interior_entries").is_empty():
 		push_warning("Angel: no scene-authored interior entries were found.")
 
 

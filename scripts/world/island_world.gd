@@ -53,7 +53,7 @@ func _layer_name_candidates(layer_name: String) -> Array:
 
 func _collect_world_layers(world: Node, layer_name: String) -> Array:
     var result: Array = []
-    var authored_root := world.get_node_or_null("AuthoredEnvironment")
+    var authored_root := world.find_child("AuthoredEnvironment", true, false)
     for candidate: String in _layer_name_candidates(layer_name):
         var direct := world.get_node_or_null(candidate) as TileMapLayer
         if direct != null and not result.has(direct):
@@ -65,7 +65,7 @@ func _collect_world_layers(world: Node, layer_name: String) -> Array:
     return result
 
 func _primary_world_layer(world: Node, layer_name: String) -> TileMapLayer:
-    var authored_root := world.get_node_or_null("AuthoredEnvironment")
+    var authored_root := world.find_child("AuthoredEnvironment", true, false)
     if authored_root != null:
         for candidate: String in _layer_name_candidates(layer_name):
             var authored := authored_root.get_node_or_null(candidate) as TileMapLayer
@@ -178,12 +178,12 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
         for child in waystones.get_children():
             if child is Node2D:
                 reserved.append(child.global_position)
-    var npcs := world.get_node_or_null("VillageNPCs")
+    var npcs := world.find_child("VillageNPCs", true, false)
     if npcs:
         for child in npcs.get_children():
             if child is Node2D:
                 reserved.append(child.global_position)
-    var campfire := world.get_node_or_null("Campfire")
+    var campfire := world.find_child("Campfire", true, false)
     if campfire is Node2D:
         reserved.append(campfire.global_position)
     var mining := world.get_node_or_null("MiningArea")
@@ -191,7 +191,7 @@ func rebuild(world: Node2D, config: Dictionary = {}) -> void:
         for child in mining.get_children():
             if child is Node2D:
                 reserved.append(child.global_position)
-    var interiors := world.get_node_or_null("Interiors")
+    var interiors := world.find_child("Interiors", true, false)
     if interiors:
         for child in interiors.get_children():
             if child is Node2D:

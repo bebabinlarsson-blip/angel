@@ -382,6 +382,8 @@ func _on_interaction_available(_interactable: Node) -> void:
 		label = "Enter " + _interactable.display_name
 	elif _interactable is InteriorExit:
 		label = "Return to Angel Island"
+	elif _interactable.is_in_group("village_workbenches"):
+		label = "Forge an Iron Sword"
 	elif _interactable.is_in_group("supply_caches"):
 		label = "Open supply cache"
 

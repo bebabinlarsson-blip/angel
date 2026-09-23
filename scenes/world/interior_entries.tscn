@@ -1,8 +1,8 @@
 [gd_scene format=4]
 
 [node name="Interiors" type="Node2D"]
-metadata/authored_entries = "none; village structures removed"
-metadata/rebuild_state = "open-village-pass; no house, church, mine or ruins entrances"
+metadata/authored_entries = "see AuthoredEnvironment/TriggerLayer; house and shop entrances use scene-backed interiors"
+metadata/rebuild_state = "village district restored; entrances remain scene-authored"
 
 [node name="EntryRegistry" type="Node2D" parent="."]
-metadata/purpose = "Empty compatibility registry for the open village"
+metadata/purpose = "Compatibility registry; active doors are authored with the village building layers"

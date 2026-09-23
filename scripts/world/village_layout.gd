@@ -3,10 +3,9 @@ extends Node2D
 
 ## Marker/configuration node for the village.
 ##
-## All visible roads, houses, civic landmarks, fences and props live in the
-## scene-authored TileMapLayers under AuthoredEnvironment. This node remains
-## as a lightweight compatibility hook for systems that configure the village
-## safe ring or look up the old layout node.
+## The editor-facing village map lives under World/VillageDistrict, with the
+## terrain, road, house, decoration, collision and entrance layers grouped in
+## AuthoredEnvironment. This node provides the safe-ring configuration.
 
 var village_center: Vector2 = Vector2.ZERO
 var safe_radius: float = 500.0
